@@ -1,0 +1,40 @@
+# ====== Logs ======
+*.log
+logs/
+
+# ====== OS files ======
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ====== IDE ======
+# .idea/ folder itself is tracked (IntelliJ project settings); .idea/.gitignore handles user-specific files
+.vscode/
+*.swp
+*.swo
+
+# ====== Environment / local secrets ======
+.env
+.env.local
+.env.*.local
+*.local
+
+# ====== Build outputs (safety net; subprojects also ignore these) ======
+out/
+target/
+build/
+dist/
+node_modules/
+
+# ====== Maven wrapper (safety net; backend/.gitignore also lists these) ======
+.mvn/
+mvnw
+mvnw.cmd
+
+# ====== Misc ======
+*.iml
+*.class
+*.jar
+!backend/**/*.jar
+!frontend/**/!(*spec|*test).jar
+HELP.md

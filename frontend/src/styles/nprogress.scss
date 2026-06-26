@@ -1,0 +1,8 @@
+/* NProgress 进度条样式覆盖 */
+#nprogress .bar {
+  background: $primary !important;
+  height: 3px !important;
+}
+#nprogress .peg {
+  box-shadow: 0 0 10px $primary, 0 0 5px $primary !important;
+}

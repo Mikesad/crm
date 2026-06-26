@@ -1,0 +1,73 @@
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: crm-backend
+  profiles:
+    active: dev
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/crm_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: 123456
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    default-property-inclusion: non_null
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 50MB
+
+# MyBatis-Plus 配置
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  type-aliases-package: com.crm.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: isDeleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# Sa-Token 配置（本地内存模式）
+sa-token:
+  token-name: Authorization
+  timeout: 2592000          # 30 天
+  active-timeout: -1
+  is-concurrent: true
+  is-share: true
+  token-style: uuid
+  is-log: false
+  is-read-cookie: false
+  is-read-header: true
+
+# 业务配置
+crm:
+  customer:
+    public-pool-days: 15   # 公海池回收天数
+  contract:
+    discount-threshold: 8.5 # 折扣阈值，低于此值需总监审批
+
+# Knife4j 接口文档
+knife4j:
+  enable: true
+  openapi:
+    title: 智能企业CRM系统 API
+    description: CRM 系统后端接口文档
+    version: 1.0.0
+    concat: dev@crm.com
+
+logging:
+  level:
+    root: info
+    com.crm: debug
+    com.crm.mapper: debug
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
