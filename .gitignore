@@ -38,3 +38,10 @@ mvnw.cmd
 !backend/**/*.jar
 !frontend/**/!(*spec|*test).jar
 HELP.md
+
+# ====== Claude Code skills / agent artifacts (user-local) ======
+# 项目级 Agent skills（npx skills add 安装的第三方设计技能）与 .claude/ 配置不入版本控制
+.agents/
+.claude/
+skills-lock.json
+.claude.json
