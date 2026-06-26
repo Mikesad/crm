@@ -61,11 +61,9 @@
             <version>${mybatis-plus.version}</version>
         </dependency>
 
-        <dependency>
-            <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-jsqlparser</artifactId>
-            <version>${mybatis-plus.version}</version>
-        </dependency>
+        <!-- MyBatis-Plus 3.5.5 尚未拆分出独立的 mybatis-plus-jsqlparser 模块；
+             JSqlParser 由 mybatis-plus-spring-boot3-starter 传递依赖 com.github.jsqlparser:jsqlparser。
+             如果未来升级到 3.5.9+ 且需要使用独立的 jsqlparser 模块，可在此处显式声明。 -->
 
         <!-- ============== 安全与鉴权：Sa-Token（本地内存模式） ============== -->
         <dependency>
@@ -124,6 +122,21 @@
     <build>
         <finalName>${project.artifactId}</finalName>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

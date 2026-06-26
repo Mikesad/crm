@@ -16,7 +16,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableScheduling
 @SpringBootApplication
 @MapperScan("com.crm.mapper")
-public class crmApplication {
+public class CrmApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(CrmApplication.class, args);
