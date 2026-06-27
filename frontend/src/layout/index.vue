@@ -10,9 +10,8 @@
       </div>
       <SidebarMenu class="sidebar-menu" />
       <div class="user-card">
-        <div class="user-avatar">{{ userInitial }}</div>
         <div class="user-info">
-          <div class="user-name">{{ userStore.userInfo?.nickname || '未登录' }}</div>
+          <div class="user-name">{{ userStore.userInfo?.nickname || '' }}</div>
           <div class="user-role">{{ roleLabel }}</div>
         </div>
       </div>
@@ -40,14 +39,9 @@ import { useUserStore } from '@/store/user'
 
 const userStore = useUserStore()
 
-const userInitial = computed(() => {
-  const n = userStore.userInfo?.nickname || userStore.userInfo?.username || 'U'
-  return n.charAt(0)
-})
-
 const roleLabel = computed(() => {
   const keys = userStore.userInfo?.roleKeys || []
-  if (keys.length === 0) return '访客'
+  if (keys.length === 0) return ''
   // 简化映射：取第一个 role key 翻译成中文
   const map = {
     admin: '系统管理员',

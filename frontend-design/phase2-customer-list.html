@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<!--
+  phase2-customer-list.html
+  阶段二 · 客户列表页（私海 / 公海池双 tab + 右侧辅助面板）
+
+  Layout: 主内容 + 右侧 300px 辅助面板
+  - 左侧：私海/公海 tabs + 客户表格（含级别 tag + 商机/联系人统计）
+  - 右侧：客户级别分布 / 公海池提示 / 待跟进客户
+
+  Design Read: B2B CRM 销售视角。延续 Focus 变体设计令牌。
+  Dials: VARIANCE 5 / MOTION 3 / DENSITY 5。
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>客户管理 · ZenCRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:           #fafaf9;
+      --bg-warm:      #ffffff;
+      --ink:          #18181b;
+      --ink-soft:     #3f3f46;
+      --muted:        #71717a;
+      --subtle:       #a1a1aa;
+      --hairline:     #e4e4e7;
+      --hairline-soft:#f4f4f5;
+      --surface:      #ffffff;
+      --accent:       #166534;
+      --accent-soft:  #dcfce7;
+      --accent-pale:  #f0fdf4;
+      --accent-ring:  rgba(22, 101, 52, 0.12);
+      --info:         #1e40af;
+      --info-soft:    #dbeafe;
+      --warn:         #b45309;
+      --warn-soft:    #fef3c7;
+      --danger:       #b91c1c;
+      --font-sans:    'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+      --radius:       6px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: var(--font-sans); font-size: 14px; line-height: 1.5; color: var(--ink); background: var(--bg); margin: 0; -webkit-font-smoothing: antialiased; }
+    .mono { font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
+    .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+
+    .sidebar { background: var(--bg-warm); border-right: 1px solid var(--hairline); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; }
+    .sidebar-top { padding: 20px 20px 16px; }
+    .wordmark { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+    .wordmark-glyph { width: 18px; height: 18px; background: var(--accent); border-radius: 4px; }
+    .nav { padding: 8px 12px; flex: 1; overflow-y: auto; }
+    .nav-group { margin-bottom: 20px; }
+    .nav-label { padding: 8px 8px 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--subtle); font-weight: 500; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: var(--radius); color: var(--ink-soft); cursor: pointer; font-size: 13.5px; }
+    .nav-item:hover { background: var(--bg); color: var(--ink); }
+    .nav-item.active { background: var(--accent-ring); color: var(--accent); font-weight: 500; }
+    .nav-item .badge { margin-left: auto; font-size: 11px; padding: 1px 6px; background: var(--hairline); color: var(--muted); border-radius: 8px; font-feature-settings: 'tnum' 1; }
+    .nav-item.active .badge { background: var(--accent); color: white; }
+    .user-card { margin: 0 12px 16px; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: var(--radius); display: flex; align-items: center; gap: 10px; }
+    .user-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+    .user-info { flex: 1; line-height: 1.3; min-width: 0; }
+    .user-name { font-size: 13px; font-weight: 500; }
+    .user-role { font-size: 11.5px; color: var(--muted); }
+
+    .main { padding: 32px 32px 48px; min-width: 0; }
+    .breadcrumb { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+    .breadcrumb a { color: var(--muted); text-decoration: none; }
+    .breadcrumb a:hover { color: var(--accent); }
+    .breadcrumb .sep { margin: 0 6px; color: var(--subtle); }
+    .page-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; }
+    .page-title { font-size: 24px; font-weight: 600; letter-spacing: -0.015em; }
+    .page-sub { color: var(--muted); font-size: 13.5px; margin-top: 4px; }
+
+    .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--hairline); margin-bottom: 16px; }
+    .tab { padding: 10px 16px; font-size: 14px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.12s; display: flex; align-items: center; gap: 6px; }
+    .tab:hover { color: var(--ink); }
+    .tab.active { color: var(--ink); font-weight: 500; border-bottom-color: var(--accent); }
+    .tab .count { font-size: 11.5px; padding: 1px 7px; background: var(--hairline-soft); color: var(--muted); border-radius: 8px; font-feature-settings: 'tnum' 1; }
+    .tab.active .count { background: var(--accent-soft); color: var(--accent); }
+
+    /* Two-column */
+    .layout { display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
+    @media (max-width: 1280px) { .layout { grid-template-columns: 1fr; } }
+    .layout-main { min-width: 0; }
+    .layout-side { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 20px; }
+    @media (max-width: 1280px) { .layout-side { position: static; } }
+
+    .toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .search { flex: 1 1 240px; min-width: 200px; position: relative; }
+    .search input { width: 100%; height: 34px; padding: 0 12px 0 32px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); font-size: 13px; color: var(--ink); font-family: inherit; }
+    .search input:focus { outline: none; border-color: var(--accent); }
+    .search::before { content: '⌕'; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--subtle); font-size: 14px; pointer-events: none; }
+    .filter-select { height: 34px; padding: 0 28px 0 12px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); font-size: 13px; color: var(--ink-soft); font-family: inherit; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23a1a1aa' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; cursor: pointer; }
+    .btn { padding: 7px 14px; font-size: 13px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); cursor: pointer; color: var(--ink); font-family: inherit; font-weight: 500; transition: all 0.12s; }
+    .btn:hover { border-color: var(--muted); }
+    .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+    .btn-primary:hover { background: #14532d; border-color: #14532d; }
+    .btn-ghost { background: transparent; border-color: transparent; color: var(--ink-soft); padding: 4px 8px; font-size: 12.5px; }
+    .btn-ghost:hover { background: var(--bg); color: var(--accent); }
+
+    .table-wrap { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); overflow: hidden; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .data-table thead th { text-align: left; font-weight: 500; color: var(--muted); padding: 10px 16px; font-size: 12px; background: var(--bg); border-bottom: 1px solid var(--hairline); }
+    .data-table tbody td { padding: 14px 16px; border-bottom: 1px solid var(--hairline-soft); vertical-align: middle; }
+    .data-table tbody tr:last-child td { border-bottom: none; }
+    .data-table tbody tr:hover { background: var(--accent-pale); }
+    .data-table .name { font-weight: 500; }
+    .data-table .name-block { display: flex; flex-direction: column; gap: 2px; }
+    .data-table .name-block .sub { font-size: 11.5px; color: var(--muted); font-weight: normal; }
+    .data-table .stats { display: flex; gap: 14px; font-size: 12.5px; color: var(--muted); }
+    .data-table .stats strong { color: var(--ink); font-weight: 500; }
+    .row-actions { display: flex; gap: 4px; }
+    .tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; font-size: 11.5px; border-radius: 3px; font-weight: 500; line-height: 1.5; }
+    .tag-muted { background: var(--hairline-soft); color: var(--muted); }
+    .tag-info { background: var(--info-soft); color: var(--info); }
+    .tag-accent { background: var(--accent-soft); color: var(--accent); }
+    .pagination { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-top: 1px solid var(--hairline); font-size: 12.5px; color: var(--muted); }
+    .pagination .pages { display: flex; gap: 4px; }
+    .page-btn { min-width: 28px; height: 28px; padding: 0 8px; background: var(--surface); border: 1px solid var(--hairline); border-radius: 4px; font-size: 12.5px; color: var(--ink-soft); cursor: pointer; font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
+    .page-btn.active { background: var(--ink); color: white; border-color: var(--ink); }
+    .page-btn:hover:not(.active) { border-color: var(--muted); }
+
+    /* Side panels */
+    .side-panel { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); padding: 16px 18px; }
+    .side-panel-title { font-size: 12.5px; font-weight: 600; color: var(--ink); margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
+    .side-panel-title .more { font-size: 11.5px; color: var(--muted); font-weight: normal; cursor: pointer; }
+    .side-panel-title .more:hover { color: var(--accent); }
+
+    /* Distribution bars */
+    .dist-row { display: grid; grid-template-columns: 56px 1fr 32px; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 12.5px; }
+    .dist-row:last-child { margin-bottom: 0; }
+    .dist-label { color: var(--muted); }
+    .dist-track { height: 8px; background: var(--hairline-soft); border-radius: 4px; position: relative; overflow: hidden; }
+    .dist-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); border-radius: 4px; }
+    .dist-fill.info { background: var(--info); }
+    .dist-fill.muted { background: var(--subtle); }
+    .dist-num { font-family: var(--font-mono); font-feature-settings: 'tnum' 1; text-align: right; color: var(--ink); font-weight: 500; }
+
+    /* Pool banner */
+    .pool-banner { padding: 10px 12px; background: var(--warn-soft); border-radius: var(--radius); color: var(--warn); font-size: 12.5px; line-height: 1.5; }
+    .pool-banner strong { font-weight: 600; }
+    .pool-link { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-top: 1px solid var(--hairline-soft); font-size: 12.5px; color: var(--accent); cursor: pointer; margin-top: 8px; }
+
+    /* To-follow list */
+    .follow-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--hairline-soft); font-size: 12.5px; }
+    .follow-item:last-child { border-bottom: none; padding-bottom: 0; }
+    .follow-item:first-child { padding-top: 0; }
+    .follow-meta { flex: 1; min-width: 0; }
+    .follow-name { font-weight: 500; }
+    .follow-time { font-size: 11.5px; color: var(--muted); }
+    .follow-time.warn { color: var(--warn); }
+    .follow-time.danger { color: var(--danger); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <div class="wordmark"><div class="wordmark-glyph"></div>ZenCRM</div>
+      </div>
+      <nav class="nav">
+        <div class="nav-group">
+          <div class="nav-label">工作区</div>
+          <div class="nav-item">仪表盘</div>
+          <div class="nav-item">线索 <span class="badge">28</span></div>
+          <div class="nav-item active">客户 <span class="badge">156</span></div>
+          <div class="nav-item">联系人</div>
+          <div class="nav-item">商机 <span class="badge">42</span></div>
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">交易</div>
+          <div class="nav-item">合同</div>
+          <div class="nav-item">回款</div>
+          <div class="nav-item">产品</div>
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">协作</div>
+          <div class="nav-item">跟进记录</div>
+          <div class="nav-item">报表</div>
+        </div>
+      </nav>
+      <div class="user-card">
+        <div class="user-avatar">李</div>
+        <div class="user-info">
+          <div class="user-name">李明</div>
+          <div class="user-role">华东大区 / 销售</div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb">
+        <a href="#">工作台</a><span class="sep">/</span><span>客户管理</span>
+      </div>
+
+      <div class="page-header">
+        <div>
+          <div class="page-title">客户管理</div>
+          <div class="page-sub">共 156 个客户 · A 重要 12 · B 普通 48 · C 意向 96</div>
+        </div>
+        <div>
+          <button class="btn">+ 从线索导入</button>
+          <button class="btn btn-primary">+ 新建客户</button>
+        </div>
+      </div>
+
+      <div class="tabs">
+        <div class="tab active">我的客户 <span class="count">148</span></div>
+        <div class="tab">公海池 <span class="count">8</span></div>
+      </div>
+
+      <div class="layout">
+        <div class="layout-main">
+          <div class="toolbar">
+            <div class="search"><input placeholder="搜索客户名称"></div>
+            <select class="filter-select"><option>全部级别</option><option>A 重要</option><option>B 普通</option><option>C 意向</option></select>
+            <select class="filter-select"><option>全部行业</option><option>通信</option><option>互联网</option><option>云计算</option><option>AI</option><option>智能硬件</option></select>
+            <div style="flex: 1"></div>
+            <button class="btn">导出</button>
+          </div>
+
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>客户名称</th>
+                  <th>级别</th>
+                  <th>行业</th>
+                  <th>最后跟进</th>
+                  <th>负责人</th>
+                  <th>商机 / 联系人</th>
+                  <th style="width: 200px">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="name">
+                    <div class="name-block">
+                      <span>华为集团</span>
+                      <span class="sub">深圳市南山区</span>
+                    </div>
+                  </td>
+                  <td><span class="tag tag-accent">A 重要</span></td>
+                  <td>通信</td>
+                  <td class="num" style="color: var(--warn)">6 天前</td>
+                  <td>李明</td>
+                  <td>
+                    <div class="stats">
+                      <span><strong class="mono">2</strong> 商机</span>
+                      <span><strong class="mono">3</strong> 联系人</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="row-actions">
+                      <button class="btn btn-ghost">查看</button>
+                      <button class="btn btn-ghost">编辑</button>
+                      <button class="btn btn-ghost">新建商机</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="name">
+                    <div class="name-block">
+                      <span>腾讯云</span>
+                      <span class="sub">深圳市南山区</span>
+                    </div>
+                  </td>
+                  <td><span class="tag tag-accent">A 重要</span></td>
+                  <td>云计算</td>
+                  <td class="num">2 天前</td>
+                  <td>李明</td>
+                  <td>
+                    <div class="stats">
+                      <span><strong class="mono">1</strong> 商机</span>
+                      <span><strong class="mono">2</strong> 联系人</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="row-actions">
+                      <button class="btn btn-ghost">查看</button>
+                      <button class="btn btn-ghost">编辑</button>
+                      <button class="btn btn-ghost">新建商机</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="name">
+                    <div class="name-block">
+                      <span>字节跳动</span>
+                      <span class="sub">北京市海淀区</span>
+                    </div>
+                  </td>
+                  <td><span class="tag tag-accent">A 重要</span></td>
+                  <td>互联网</td>
+                  <td class="num">5 天前</td>
+                  <td>李明</td>
+                  <td>
+                    <div class="stats">
+                      <span><strong class="mono">3</strong> 商机</span>
+                      <span><strong class="mono">4</strong> 联系人</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="row-actions">
+                      <button class="btn btn-ghost">查看</button>
+                      <button class="btn btn-ghost">编辑</button>
+                      <button class="btn btn-ghost">新建商机</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="name">
+                    <div class="name-block">
+                      <span>阿里达摩院</span>
+                      <span class="sub">杭州市西湖区</span>
+                    </div>
+                  </td>
+                  <td><span class="tag tag-info">B 普通</span></td>
+                  <td>AI</td>
+                  <td class="num" style="color: var(--muted)">12 天前</td>
+                  <td>王芳</td>
+                  <td>
+                    <div class="stats">
+                      <span><strong class="mono">1</strong> 商机</span>
+                      <span><strong class="mono">2</strong> 联系人</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="row-actions">
+                      <button class="btn btn-ghost">查看</button>
+                      <button class="btn btn-ghost">编辑</button>
+                      <button class="btn btn-ghost">新建商机</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="name">
+                    <div class="name-block">
+                      <span>小米科技</span>
+                      <span class="sub">北京市海淀区</span>
+                    </div>
+                  </td>
+                  <td><span class="tag tag-info">B 普通</span></td>
+                  <td>智能硬件</td>
+                  <td class="num">3 天前</td>
+                  <td>王芳</td>
+                  <td>
+                    <div class="stats">
+                      <span><strong class="mono">1</strong> 商机</span>
+                      <span><strong class="mono">1</strong> 联系人</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="row-actions">
+                      <button class="btn btn-ghost">查看</button>
+                      <button class="btn btn-ghost">编辑</button>
+                      <button class="btn btn-ghost">新建商机</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="name">
+                    <div class="name-block">
+                      <span>美团点评</span>
+                      <span class="sub">北京市朝阳区</span>
+                    </div>
+                  </td>
+                  <td><span class="tag tag-muted">C 意向</span></td>
+                  <td>本地生活</td>
+                  <td class="num" style="color: var(--warn)">8 天前</td>
+                  <td>陈刚</td>
+                  <td>
+                    <div class="stats">
+                      <span><strong class="mono">0</strong> 商机</span>
+                      <span><strong class="mono">1</strong> 联系人</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="row-actions">
+                      <button class="btn btn-ghost">查看</button>
+                      <button class="btn btn-ghost">编辑</button>
+                      <button class="btn btn-ghost">新建商机</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td class="name">
+                    <div class="name-block">
+                      <span>京东数科</span>
+                      <span class="sub">北京市亦庄</span>
+                    </div>
+                  </td>
+                  <td><span class="tag tag-info">B 普通</span></td>
+                  <td>金融科技</td>
+                  <td class="num" style="color: var(--danger)">15 天前</td>
+                  <td>李明</td>
+                  <td>
+                    <div class="stats">
+                      <span><strong class="mono">1</strong> 商机</span>
+                      <span><strong class="mono">2</strong> 联系人</span>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="row-actions">
+                      <button class="btn btn-ghost">查看</button>
+                      <button class="btn btn-ghost">编辑</button>
+                      <button class="btn btn-ghost">新建商机</button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="pagination">
+              <div>共 148 条</div>
+              <div class="pages">
+                <button class="page-btn">‹</button>
+                <button class="page-btn active">1</button>
+                <button class="page-btn">2</button>
+                <button class="page-btn">3</button>
+                <button class="page-btn">›</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="layout-side">
+          <!-- 客户级别分布 -->
+          <div class="side-panel">
+            <div class="side-panel-title">客户级别分布</div>
+            <div class="dist-row">
+              <div class="dist-label">A 重要</div>
+              <div class="dist-track"><div class="dist-fill" style="width: 7.7%"></div></div>
+              <div class="dist-num">12</div>
+            </div>
+            <div class="dist-row">
+              <div class="dist-label">B 普通</div>
+              <div class="dist-track"><div class="dist-fill info" style="width: 30.7%"></div></div>
+              <div class="dist-num">48</div>
+            </div>
+            <div class="dist-row">
+              <div class="dist-label">C 意向</div>
+              <div class="dist-track"><div class="dist-fill muted" style="width: 61.5%"></div></div>
+              <div class="dist-num">96</div>
+            </div>
+          </div>
+
+          <!-- 公海池提示 -->
+          <div class="side-panel">
+            <div class="side-panel-title">公海池 <span class="more">查看 →</span></div>
+            <div class="pool-banner">
+              <strong>8</strong> 个公海客户待认领，超 15 天未跟进的客户会被自动回收到这里
+            </div>
+            <div class="pool-link">
+              <span>前往公海池挑选</span>
+              <span>→</span>
+            </div>
+          </div>
+
+          <!-- 待跟进客户 -->
+          <div class="side-panel">
+            <div class="side-panel-title">待跟进客户 <span class="more">查看全部 →</span></div>
+            <div class="follow-item">
+              <div class="follow-meta">
+                <div class="follow-name">京东数科</div>
+                <div class="follow-time danger">15 天前跟进 · 已逾期</div>
+              </div>
+            </div>
+            <div class="follow-item">
+              <div class="follow-meta">
+                <div class="follow-name">美团点评</div>
+                <div class="follow-time warn">8 天前跟进</div>
+              </div>
+            </div>
+            <div class="follow-item">
+              <div class="follow-meta">
+                <div class="follow-name">阿里达摩院</div>
+                <div class="follow-time warn">12 天前跟进</div>
+              </div>
+            </div>
+            <div class="follow-item">
+              <div class="follow-meta">
+                <div class="follow-name">华为集团</div>
+                <div class="follow-time warn">6 天前跟进</div>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

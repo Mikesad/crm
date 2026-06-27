@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<!--
+  dashboard-variant-2-cockpit.html
+  变体 2 - 数据驾驶舱 (Cockpit)
+
+  Design Read: B2B CRM Dashboard,目标用户为销售总监 / 主管(看大盘视角)。
+  Dials: VARIANCE 3 / MOTION 2 / DENSITY 8。
+  延续设计令牌:深森林绿 #166534 + Inter + 6px 圆角 + 暖白 #fafaf9。
+
+  设计决策:
+  - 顶部 48px 水平导航(非侧栏),适合宽屏数据展示。
+  - 6 个 KPI tile 横向密集排布(线索/客户/商机/金额/合同/回款)。
+  - 全部数字用 JetBrains Mono + tabular-nums,让眼睛横向扫视时数字不抖。
+  - 中段放 ECharts 漏斗 + 折线图,所有数据图表统一森林绿色系。
+  - 底部两张数据表平铺,无卡片装饰(密度 8 模式禁止 box 容器,改用 hairline 分割)。
+  - 5 个时间范围 tab(今日 / 本周 / 本月 / 本季 / 本年)。
+  - 零 em-dash,无 emoji,无大阴影。
+
+  前端移植注意:
+  - 表格建议用 el-table 配合 :show-header="true" + 自定义 row-style。
+  - ECharts 主题统一在 frontend/src/config/echarts-theme.ts 维护。
+  - 顶部时间范围 tab 改用受控的响应式状态(currentRange)。
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>工作台 · ZenCRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <style>
+    :root {
+      --bg:           #fafaf9;
+      --surface:      #ffffff;
+      --ink:          #18181b;
+      --ink-soft:     #3f3f46;
+      --muted:        #71717a;
+      --subtle:       #a1a1aa;
+      --hairline:     #e4e4e7;
+      --hairline-soft:#f4f4f5;
+      --accent:       #166534;
+      --accent-soft:  #dcfce7;
+      --accent-pale:  #f0fdf4;
+      --warn:         #b45309;
+      --font-sans:    'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+      --radius:       6px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: var(--font-sans);
+      font-size: 13px;
+      line-height: 1.45;
+      color: var(--ink);
+      background: var(--bg);
+      margin: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+    .mono { font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
+
+    /* === Top bar === */
+    .topbar {
+      display: flex; align-items: center;
+      height: 48px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--hairline);
+      padding: 0 20px;
+      position: sticky; top: 0; z-index: 10;
+    }
+    .wordmark { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+    .wordmark-glyph { width: 18px; height: 18px; background: var(--accent); border-radius: 4px; }
+
+    .topnav { display: flex; margin-left: 32px; height: 100%; }
+    .topnav-item {
+      padding: 0 14px; height: 100%;
+      display: flex; align-items: center;
+      color: var(--muted); font-size: 13px;
+      border-bottom: 2px solid transparent;
+      cursor: pointer; transition: color 0.12s, background 0.12s;
+    }
+    .topnav-item:hover:not(.active) { color: var(--ink); background: var(--bg); }
+    .topnav-item.active { color: var(--ink); border-bottom-color: var(--accent); font-weight: 500; }
+
+    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+    .topbar-search {
+      width: 240px; height: 30px; padding: 0 10px;
+      background: var(--bg); border: 1px solid var(--hairline); border-radius: var(--radius);
+      font-size: 12.5px; color: var(--ink); font-family: inherit;
+    }
+    .topbar-search:focus { outline: none; border-color: var(--accent); }
+    .user-chip { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+    .user-avatar {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: var(--accent); color: white;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 600;
+    }
+
+    /* === Main === */
+    .main { padding: 20px 24px 40px; }
+    .page-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+    .page-title { font-size: 16px; font-weight: 600; }
+    .page-meta { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
+
+    .range-tabs { display: flex; gap: 0; margin-bottom: 14px; }
+    .range-tab {
+      padding: 5px 12px; font-size: 12px;
+      border: 1px solid var(--hairline); background: var(--surface);
+      cursor: pointer; color: var(--muted); font-family: inherit;
+      transition: all 0.12s;
+    }
+    .range-tab:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+    .range-tab:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+    .range-tab + .range-tab { border-left: none; }
+    .range-tab:hover:not(.active) { color: var(--ink); }
+    .range-tab.active { background: var(--ink); color: white; border-color: var(--ink); }
+
+    /* KPI dense grid */
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(6, 1fr);
+      border: 1px solid var(--hairline); background: var(--surface);
+      border-radius: var(--radius);
+      margin-bottom: 14px;
+      overflow: hidden;
+    }
+    .kpi { padding: 14px 16px; border-right: 1px solid var(--hairline-soft); }
+    .kpi:last-child { border-right: none; }
+    .kpi-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .kpi-value { font-size: 22px; font-weight: 600; font-family: var(--font-mono); font-feature-settings: 'tnum' 1; letter-spacing: -0.01em; line-height: 1.1; }
+    .kpi-delta { font-size: 11px; margin-top: 4px; font-family: var(--font-mono); }
+    .delta-up { color: var(--accent); }
+    .delta-warn { color: var(--warn); }
+
+    /* Chart row */
+    .chart-row { display: grid; grid-template-columns: 1fr 1.4fr; gap: 12px; margin-bottom: 14px; }
+    .chart-card { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); padding: 14px 16px; }
+    .chart-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .chart-title { font-size: 13px; font-weight: 600; }
+    .chart-extra { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+    .chart-canvas { width: 100%; height: 200px; }
+
+    /* Data tables */
+    .data-row { display: grid; grid-template-columns: 1fr 1.2fr; gap: 12px; }
+    .data-card { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); overflow: hidden; }
+    .data-head { padding: 10px 14px; border-bottom: 1px solid var(--hairline); display: flex; align-items: center; justify-content: space-between; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    .data-table th { text-align: left; padding: 6px 14px; font-weight: 500; color: var(--muted); font-size: 11px; background: var(--bg); border-bottom: 1px solid var(--hairline); }
+    .data-table td { padding: 8px 14px; border-bottom: 1px solid var(--hairline-soft); }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: var(--accent-pale); }
+    .data-table td.num { font-family: var(--font-mono); text-align: right; font-feature-settings: 'tnum' 1; }
+    .data-table td.t { font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
+
+    .tag {
+      display: inline-block; padding: 1px 6px; font-size: 10.5px;
+      border-radius: 3px; font-weight: 500; line-height: 1.5;
+    }
+    .tag-accent { background: var(--accent-soft); color: var(--accent); }
+    .tag-muted { background: var(--hairline-soft); color: var(--muted); }
+    .tag-warn { background: #fef3c7; color: var(--warn); }
+  </style>
+</head>
+<body>
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="wordmark">
+      <div class="wordmark-glyph"></div>
+      ZenCRM
+    </div>
+    <nav class="topnav">
+      <div class="topnav-item active">仪表盘</div>
+      <div class="topnav-item">线索</div>
+      <div class="topnav-item">客户</div>
+      <div class="topnav-item">联系人</div>
+      <div class="topnav-item">商机</div>
+      <div class="topnav-item">合同</div>
+      <div class="topnav-item">回款</div>
+      <div class="topnav-item">报表</div>
+    </nav>
+    <div class="topbar-right">
+      <input class="topbar-search" placeholder="搜索客户、线索、商机...">
+      <div class="user-chip">
+        <div class="user-avatar">王</div>
+        <span>王芳 · 销售总监</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="page-header">
+      <div class="page-title">销售驾驶舱</div>
+      <div class="page-meta">2026/06/27 14:23 · 数据每 5 分钟更新</div>
+    </div>
+
+    <div class="range-tabs">
+      <div class="range-tab">今日</div>
+      <div class="range-tab">本周</div>
+      <div class="range-tab active">本月</div>
+      <div class="range-tab">本季</div>
+      <div class="range-tab">本年</div>
+    </div>
+
+    <!-- KPI grid: 6 dense tiles -->
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="kpi-label">线索</div>
+        <div class="kpi-value">28</div>
+        <div class="kpi-delta delta-up">+12.0%</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">客户</div>
+        <div class="kpi-value">156</div>
+        <div class="kpi-delta delta-up">+5.1%</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">商机</div>
+        <div class="kpi-value">42</div>
+        <div class="kpi-delta delta-up">+8.7%</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">商机金额</div>
+        <div class="kpi-value">8.23M</div>
+        <div class="kpi-delta delta-up">+18.2%</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">合同</div>
+        <div class="kpi-value">12</div>
+        <div class="kpi-delta delta-up">+3.0%</div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-label">回款</div>
+        <div class="kpi-value">1.24M</div>
+        <div class="kpi-delta delta-warn">达成 67%</div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="chart-row">
+      <div class="chart-card">
+        <div class="chart-head">
+          <div class="chart-title">商机漏斗</div>
+          <div class="chart-extra">5/27 - 6/27</div>
+        </div>
+        <div class="chart-canvas" id="funnel-chart"></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-head">
+          <div class="chart-title">业绩趋势</div>
+          <div class="chart-extra">近 6 月 / 单位:万元</div>
+        </div>
+        <div class="chart-canvas" id="trend-chart"></div>
+      </div>
+    </div>
+
+    <!-- Data tables -->
+    <div class="data-row">
+      <div class="data-card">
+        <div class="data-head">
+          <div class="chart-title">最近跟进</div>
+          <div class="chart-extra">查看全部 →</div>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr><th>时间</th><th>跟进人</th><th>对象</th><th>类型</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="t">14:23</td><td>张磊</td><td>华为集团</td><td>电话沟通</td></tr>
+            <tr><td class="t">11:05</td><td>李明</td><td>字节跳动</td><td>上传方案</td></tr>
+            <tr><td class="t">09:48</td><td>王芳</td><td>腾讯云</td><td>阶段推进</td></tr>
+            <tr><td class="t">昨日</td><td>李明</td><td>小米科技</td><td>线索转客户</td></tr>
+            <tr><td class="t">昨日</td><td>陈刚</td><td>阿里达摩院</td><td>电话沟通</td></tr>
+            <tr><td class="t">06/25</td><td>王芳</td><td>美团点评</td><td>客户共享</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="data-card">
+        <div class="data-head">
+          <div class="chart-title">客户排行 · 按商机金额</div>
+          <div class="chart-extra">本月</div>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr><th>客户</th><th>行业</th><th>阶段</th><th style="text-align: right">金额</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>华为集团</td><td>通信</td><td><span class="tag tag-accent">商务谈判</span></td><td class="num">2,400,000</td></tr>
+            <tr><td>腾讯云</td><td>云计算</td><td><span class="tag tag-accent">商务谈判</span></td><td class="num">1,800,000</td></tr>
+            <tr><td>字节跳动</td><td>互联网</td><td><span class="tag tag-warn">方案报价</span></td><td class="num">1,560,000</td></tr>
+            <tr><td>阿里达摩院</td><td>AI</td><td><span class="tag tag-muted">需求分析</span></td><td class="num">980,000</td></tr>
+            <tr><td>小米科技</td><td>智能硬件</td><td><span class="tag tag-warn">方案报价</span></td><td class="num">720,000</td></tr>
+            <tr><td>美团点评</td><td>本地生活</td><td><span class="tag tag-muted">需求分析</span></td><td class="num">540,000</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Funnel
+    const funnelChart = echarts.init(document.getElementById('funnel-chart'));
+    funnelChart.setOption({
+      tooltip: { trigger: 'item', backgroundColor: '#18181b', borderWidth: 0, textStyle: { color: '#fafaf9', fontSize: 12 } },
+      series: [{
+        type: 'funnel',
+        left: '4%', right: '4%', top: 0, bottom: 0,
+        width: '92%',
+        sort: 'descending',
+        gap: 2,
+        label: { show: true, position: 'inside', color: '#fff', fontSize: 12, fontFamily: 'JetBrains Mono' },
+        itemStyle: { borderColor: '#fff', borderWidth: 1 },
+        data: [
+          { value: 38, name: '需求分析  38', itemStyle: { color: '#166534' } },
+          { value: 22, name: '方案报价  22', itemStyle: { color: '#22c55e' } },
+          { value: 12, name: '商务谈判  12', itemStyle: { color: '#4ade80' } },
+          { value: 5,  name: '赢单      5',  itemStyle: { color: '#86efac' } }
+        ]
+      }]
+    });
+
+    // Trend
+    const trendChart = echarts.init(document.getElementById('trend-chart'));
+    trendChart.setOption({
+      tooltip: { trigger: 'axis', backgroundColor: '#18181b', borderWidth: 0, textStyle: { color: '#fafaf9', fontSize: 12 } },
+      grid: { left: 10, right: 14, top: 10, bottom: 24, containLabel: true },
+      xAxis: {
+        type: 'category', boundaryGap: false,
+        data: ['1 月','2 月','3 月','4 月','5 月','6 月'],
+        axisLine: { lineStyle: { color: '#e4e4e7' } },
+        axisTick: { show: false },
+        axisLabel: { color: '#71717a', fontSize: 10, fontFamily: 'JetBrains Mono' }
+      },
+      yAxis: {
+        type: 'value',
+        axisLine: { show: false }, axisTick: { show: false },
+        splitLine: { lineStyle: { color: '#f4f4f5' } },
+        axisLabel: { color: '#a1a1aa', fontSize: 10, fontFamily: 'JetBrains Mono' }
+      },
+      series: [{
+        type: 'line',
+        data: [62, 78, 95, 102, 118, 124],
+        smooth: true, symbol: 'circle', symbolSize: 6,
+        itemStyle: { color: '#166534' },
+        lineStyle: { width: 2 },
+        areaStyle: {
+          color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: 'rgba(22, 101, 52, 0.18)' },
+              { offset: 1, color: 'rgba(22, 101, 52, 0)' }
+            ]
+          }
+        }
+      }]
+    });
+
+    window.addEventListener('resize', () => { funnelChart.resize(); trendChart.resize(); });
+  </script>
+</body>
+</html>

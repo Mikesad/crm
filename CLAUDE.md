@@ -5,7 +5,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 项目概述
 
 智能企业 CRM 系统（B2B 方向），覆盖线索 → 客户 → 商机 → 合同 → 回款全生命周期。
-需求细节见 `PRD.md`，开发计划与阶段划分见 `开发计划.md`，。原始脚本 `crm.sql` ，初始化请使用 `crm_full.sql`。
+需求细节见 `PRD.md`，开发计划与阶段划分见 `开发计划.md`，。原始脚本 `sql/crm.sql` ，初始化请使用 `sql/crm_full.sql`。
+
+## 设计资源
+
+- **原型 UI 图片**：`frontend-design/UI/`（设计参考,实现前端时按此对齐视觉风格）
+  - `理想效果.png` — 整体理想效果参考
+  - `登录界面.png` — 登录页视觉参考
+  - `颜色效果.png` — 品牌色板参考
+- **HTML 交互原型**：`frontend-design/` 根目录下的 `.html` 文件（如 `phase3-preview.html` / `dashboard-variant-*.html`），可直接浏览器打开看交互与布局
 
 ## 技术栈
 
@@ -45,7 +53,7 @@ npm run build          # 打包到 dist/
 
 ### 数据库
 ```bash
-mysql -u root -p < crm_full.sql
+mysql -u root -p < sql/crm_full.sql
 ```
 
 ## 架构要点
@@ -112,7 +120,63 @@ backend/src/main/java/com/crm/
   - 新增 / 修改 `dto` 或 `vo` 类字段。
 - **自动化辅助**：每个 Controller 类使用 Knife4j `@Tag` / `@Operation` 注解，文档作为 Knife4j 输出的 Markdown 镜像；如有差异以 `docs/api/` 下的 Markdown 为准。
 
-## 默认账号（来自 crm_full.sql 种子数据）
+## 数据库 Schema 维护约定（强制）
+
+> **每次新增 / 修改任何业务表时，必须同时更新两份 SQL 脚本 + 一份字段约定，确保新装与升级路径都不破。**
+
+- **两份 SQL 脚本（必须同步）**：
+  1. **`sql/crm_full.sql`**（项目根 `sql/` 目录）：全新安装用的完整脚本，含建表 + 种子数据。任何表结构变更（新建表 / 加字段 / 改字段类型）必须同步更新，否则新装的 DB 会缺字段。
+  2. **`sql/migrations/phase<N>-<功能>.sql`**：增量迁移脚本，给已按老版本初始化过 DB 的环境用。
+- **MyBatis-Plus 实体字段规范（避免再被坑）**：
+  - 所有业务表（除 `crm_record` / `crm_receivable` 这类 append-only 表）必须包含以下 4 个审计字段：
+    ```sql
+    create_by   VARCHAR(64) DEFAULT ''        -- 创建者(username)
+    create_time DATETIME    DEFAULT CURRENT_TIMESTAMP
+    update_by   VARCHAR(64) DEFAULT ''
+    update_time DATETIME    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ```
+  - 凡是涉及逻辑删除的表（客户/联系人/商机/合同/产品/回款计划）必须含 `is_deleted TINYINT DEFAULT 0`。
+  - **阶段三踩过的坑**：`crm_product` 表原 SQL 漏写 `create_by/update_by/update_time`，跑接口时报 `Unknown column 'create_by'`，必须补。
+- **迁移脚本写法（兼容 MySQL 5.5+，避免 `ADD COLUMN IF NOT EXISTS` 8.0.29+ 限制）**：
+  ```sql
+  -- 工具存储过程：按列名幂等加列
+  DROP PROCEDURE IF EXISTS phase<N>_add_col_if_missing;
+  DELIMITER //
+  CREATE PROCEDURE phase<N>_add_col_if_missing(
+    IN  p_tbl VARCHAR(64),
+    IN  p_col VARCHAR(64),
+    IN  p_def TEXT
+  )
+  BEGIN
+    IF NOT EXISTS (
+      SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE()
+         AND TABLE_NAME   = p_tbl
+         AND COLUMN_NAME  = p_col
+    ) THEN
+      SET @ddl = CONCAT('ALTER TABLE ', p_tbl, ' ADD COLUMN ', p_col, ' ', p_def);
+      PREPARE stmt FROM @ddl; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+    END IF;
+  END //
+  DELIMITER ;
+
+  CALL phase<N>_add_col_if_missing('table_name', 'col_name', 'TYPE DEFAULT ...');
+  -- 最后 DROP PROCEDURE phase<N>_add_col_if_missing;
+  ```
+- **新表 / 新菜单 / 新权限**：均要在 `sql/crm_full.sql` + `sql/migrations/phase<N>-*.sql` 里**同时**加，且 `sys_role_menu` 绑定也要在两处同步（迁移用 `DELETE + INSERT` 模式 + `WHERE perms IN (...)` 过滤器实现幂等）。
+- **验证流程**：每次改 SQL 后必须实测两遍：
+  ```bash
+  # 1) 全新安装
+  mysql -u root -p123456 -e "DROP DATABASE IF EXISTS crm_db; CREATE DATABASE crm_db;"
+  mysql -u root -p123456 crm_db < sql/crm_full.sql
+
+  # 2) 增量迁移(模拟已运行老版本)
+  # 先在 crm_db 里手工跑旧版 SQL,再跑 phase<N>-*.sql,跑两遍验证幂等
+  mysql -u root -p123456 crm_db < sql/migrations/phase<N>-*.sql  # 第一次
+  mysql -u root -p123456 crm_db < sql/migrations/phase<N>-*.sql  # 第二次(应无错)
+  ```
+
+## 默认账号（来自 sql/crm_full.sql 种子数据）
 
 | 账号 | 角色 | 密码 |
 | :--- | :--- | :--- |

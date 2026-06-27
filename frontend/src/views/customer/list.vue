@@ -6,7 +6,7 @@
         <div class="page-sub">共 {{ total }} 个客户 · 重要 12 · 普通 48 · 意向 96</div>
       </div>
       <div>
-        <el-button :icon="Plus" @click="handleCreate">新建客户</el-button>
+        <el-button :icon="Plus" class="btn-zen-primary" @click="handleCreate">新建客户</el-button>
       </div>
     </div>
 

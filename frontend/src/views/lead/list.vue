@@ -387,7 +387,7 @@ async function handleSave() {
 
 async function handleDelete(row) {
   try {
-    await ElMessageBox.confirm(`确认删除线索「${row.leadName}」？此操作不可恢复。`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(`确认删除线索「${row.leadName}」？此操作不可恢复。`, '提示', { type: 'warning', confirmButtonClass: 'btn-zen-primary', customClass: 'msgbox-zen-confirm' })
     await deleteLead(row.id)
     ElMessage.success('已删除')
     loadList()

@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<!--
+  dashboard-variant-1-focus.html
+  变体 1 - 线性极简 (Focus)
+
+  Design Read: B2B CRM Dashboard 登录后的工作台首页,目标用户为华东大区销售李明。
+  Dials: VARIANCE 5 / MOTION 3 / DENSITY 5。延续 login-split.html 的设计令牌:
+  深森林绿 #166534 + Inter + 6px 圆角 + 暖白 #fafaf9 + 极细分隔线。
+
+  设计决策:
+  - 左侧 240px 侧边栏 + 右侧主区。Linear / Attio 风格重力,克制、信息密度适中。
+  - 4 张 KPI 卡片用 hairline 边框,无阴影、无圆角变形(只用 6px,保持一致)。
+  - 数字一律用 JetBrains Mono + font-variant-numeric: tabular-nums(数字宽度恒定)。
+  - 商机漏斗用 bar + 渐变绿色 fill(单一强调色,禁止五彩漏斗)。
+  - 单一强调色 #166534 贯穿全页(链接、徽章、漏斗填充、按钮)。
+  - 零 em-dash,零 fake 截图,零 AI-purple。
+
+  前端移植注意:
+  - 元素全部可用 Element Plus 组件实现(el-menu / el-card / el-table / el-timeline)。
+  - 卡片间距 12px 来自登录页相同节奏。
+  - 中文字体回退用 Noto Sans SC / 苹方 / 微软雅黑,确保跨平台字形一致。
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>工作台 · ZenCRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:           #fafaf9;
+      --bg-warm:      #ffffff;
+      --ink:          #18181b;
+      --ink-soft:     #3f3f46;
+      --muted:        #71717a;
+      --subtle:       #a1a1aa;
+      --hairline:     #e4e4e7;
+      --hairline-soft:#f4f4f5;
+      --surface:      #ffffff;
+      --accent:       #166534;
+      --accent-soft:  #dcfce7;
+      --accent-ring:  rgba(22, 101, 52, 0.12);
+      --warn:         #b45309;
+      --warn-soft:    #fef3c7;
+      --danger:       #b91c1c;
+      --danger-soft:  #fee2e2;
+      --font-sans:    'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+      --radius:       6px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--ink);
+      background: var(--bg);
+      margin: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+    .mono { font-family: var(--font-mono); font-feature-settings: 'tnum' 1, 'cv11' 1; }
+
+    .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+
+    /* === Sidebar === */
+    .sidebar {
+      background: var(--bg-warm);
+      border-right: 1px solid var(--hairline);
+      display: flex; flex-direction: column;
+      position: sticky; top: 0; height: 100vh;
+    }
+    .sidebar-top { padding: 20px 20px 16px; }
+    .wordmark { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+    .wordmark-glyph { width: 18px; height: 18px; background: var(--accent); border-radius: 4px; }
+
+    .nav { padding: 8px 12px; flex: 1; overflow-y: auto; }
+    .nav-group { margin-bottom: 20px; }
+    .nav-label {
+      padding: 8px 8px 6px;
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--subtle); font-weight: 500;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 8px; border-radius: var(--radius);
+      color: var(--ink-soft); cursor: pointer; font-size: 13.5px;
+      transition: background 0.12s, color 0.12s;
+    }
+    .nav-item:hover { background: var(--bg); color: var(--ink); }
+    .nav-item.active { background: var(--accent-ring); color: var(--accent); font-weight: 500; }
+    .nav-item .badge {
+      margin-left: auto; font-size: 11px; padding: 1px 6px;
+      background: var(--hairline); color: var(--muted); border-radius: 8px;
+      font-feature-settings: 'tnum' 1;
+    }
+    .nav-item.active .badge { background: var(--accent); color: white; }
+
+    .user-card {
+      margin: 0 12px 16px; padding: 10px 12px;
+      border: 1px solid var(--hairline); border-radius: var(--radius);
+      display: flex; align-items: center; gap: 10px;
+    }
+    .user-avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: var(--accent); color: white;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 600;
+    }
+    .user-info { flex: 1; line-height: 1.3; min-width: 0; }
+    .user-name { font-size: 13px; font-weight: 500; }
+    .user-role { font-size: 11.5px; color: var(--muted); }
+
+    /* === Main === */
+    .main { padding: 32px 40px; max-width: 1280px; }
+    .page-header { margin-bottom: 24px; }
+    .greeting { font-size: 24px; font-weight: 600; letter-spacing: -0.015em; }
+    .greeting-sub { color: var(--muted); font-size: 13.5px; margin-top: 4px; }
+
+    /* Quick actions */
+    .quick { display: flex; gap: 8px; margin-bottom: 20px; }
+    .btn {
+      padding: 7px 14px; font-size: 13px;
+      background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius);
+      cursor: pointer; color: var(--ink); font-family: inherit; font-weight: 500;
+      transition: all 0.12s;
+    }
+    .btn:hover { border-color: var(--muted); }
+    .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+    .btn-primary:hover { background: #14532d; border-color: #14532d; }
+
+    /* KPI cards */
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+    .metric {
+      background: var(--surface);
+      border: 1px solid var(--hairline); border-radius: var(--radius);
+      padding: 16px 18px;
+    }
+    .metric-label { font-size: 12.5px; color: var(--muted); margin-bottom: 8px; }
+    .metric-value { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; }
+    .metric-value.mono { font-family: var(--font-mono); }
+    .metric-trend { font-size: 11.5px; margin-top: 6px; color: var(--muted); }
+    .trend-up { color: var(--accent); }
+    .trend-warn { color: var(--warn); }
+
+    /* Grid */
+    .grid-2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; margin-bottom: 12px; }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--hairline); border-radius: var(--radius);
+      padding: 18px 20px;
+    }
+    .panel-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .panel-title { font-size: 14px; font-weight: 600; }
+    .panel-link { font-size: 12.5px; color: var(--muted); cursor: pointer; }
+    .panel-link:hover { color: var(--accent); }
+
+    /* Funnel */
+    .funnel { display: flex; flex-direction: column; gap: 10px; }
+    .funnel-row { display: grid; grid-template-columns: 96px 1fr 56px; align-items: center; gap: 12px; }
+    .funnel-label { font-size: 12.5px; color: var(--muted); }
+    .funnel-track { height: 24px; background: var(--hairline-soft); border-radius: 3px; position: relative; overflow: hidden; }
+    .funnel-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); border-radius: 3px; }
+    .funnel-num { font-size: 13px; font-weight: 600; text-align: right; font-family: var(--font-mono); }
+
+    /* Todo list */
+    .todo { display: flex; flex-direction: column; }
+    .todo-item { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--hairline-soft); }
+    .todo-item:last-child { border-bottom: none; padding-bottom: 0; }
+    .todo-item:first-child { padding-top: 0; }
+    .todo-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 7px; flex-shrink: 0; }
+    .todo-content { flex: 1; min-width: 0; }
+    .todo-title { font-size: 13.5px; line-height: 1.4; }
+    .todo-sub { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+    /* Timeline */
+    .timeline { display: flex; flex-direction: column; gap: 14px; }
+    .timeline-item { display: grid; grid-template-columns: 72px 1fr; gap: 14px; align-items: start; }
+    .timeline-time { font-size: 12px; color: var(--muted); font-family: var(--font-mono); padding-top: 1px; }
+    .timeline-title { font-size: 13.5px; line-height: 1.4; }
+    .timeline-meta { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+    /* Table */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .data-table th { text-align: left; font-weight: 500; color: var(--muted); padding: 6px 0; font-size: 11.5px; border-bottom: 1px solid var(--hairline); }
+    .data-table td { padding: 10px 0; border-bottom: 1px solid var(--hairline-soft); }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { color: var(--accent); }
+    .data-table td.num { font-family: var(--font-mono); text-align: right; font-feature-settings: 'tnum' 1; }
+
+    .tag {
+      display: inline-block; padding: 1px 7px; font-size: 11px;
+      border-radius: 3px; font-weight: 500; line-height: 1.5;
+    }
+    .tag-muted { background: var(--hairline-soft); color: var(--muted); }
+    .tag-accent { background: var(--accent-soft); color: var(--accent); }
+    .tag-warn { background: var(--warn-soft); color: var(--warn); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <div class="wordmark">
+          <div class="wordmark-glyph"></div>
+          ZenCRM
+        </div>
+      </div>
+      <nav class="nav">
+        <div class="nav-group">
+          <div class="nav-label">工作区</div>
+          <div class="nav-item active">仪表盘</div>
+          <div class="nav-item">线索 <span class="badge">28</span></div>
+          <div class="nav-item">客户 <span class="badge">156</span></div>
+          <div class="nav-item">联系人</div>
+          <div class="nav-item">商机 <span class="badge">42</span></div>
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">交易</div>
+          <div class="nav-item">合同</div>
+          <div class="nav-item">回款</div>
+          <div class="nav-item">产品</div>
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">协作</div>
+          <div class="nav-item">跟进记录</div>
+          <div class="nav-item">报表</div>
+        </div>
+      </nav>
+      <div class="user-card">
+        <div class="user-avatar">李</div>
+        <div class="user-info">
+          <div class="user-name">李明</div>
+          <div class="user-role">华东大区 / 销售</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <div class="page-header">
+        <div class="greeting">下午好,李明</div>
+        <div class="greeting-sub">2026 年 6 月 27 日 · 你有 4 位客户今天需要跟进</div>
+      </div>
+
+      <div class="quick">
+        <button class="btn btn-primary">+ 新建线索</button>
+        <button class="btn">+ 新建客户</button>
+        <button class="btn">+ 新建商机</button>
+        <button class="btn">+ 写跟进</button>
+      </div>
+
+      <!-- KPI -->
+      <div class="metrics">
+        <div class="metric">
+          <div class="metric-label">我的线索</div>
+          <div class="metric-value mono">28</div>
+          <div class="metric-trend trend-up">+12 本周新增</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">我的客户</div>
+          <div class="metric-value mono">156</div>
+          <div class="metric-trend trend-up">+5 本月新增</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">商机总金额</div>
+          <div class="metric-value">¥ 8.23M</div>
+          <div class="metric-trend trend-up">+18.2% vs 上月</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">本月回款</div>
+          <div class="metric-value">¥ 1.24M</div>
+          <div class="metric-trend">达成率 67%</div>
+        </div>
+      </div>
+
+      <!-- Funnel + Todo -->
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">商机漏斗</div>
+            <a class="panel-link">查看全部 →</a>
+          </div>
+          <div class="funnel">
+            <div class="funnel-row">
+              <div class="funnel-label">需求分析</div>
+              <div class="funnel-track"><div class="funnel-fill" style="width: 100%"></div></div>
+              <div class="funnel-num">38</div>
+            </div>
+            <div class="funnel-row">
+              <div class="funnel-label">方案报价</div>
+              <div class="funnel-track"><div class="funnel-fill" style="width: 58%"></div></div>
+              <div class="funnel-num">22</div>
+            </div>
+            <div class="funnel-row">
+              <div class="funnel-label">商务谈判</div>
+              <div class="funnel-track"><div class="funnel-fill" style="width: 32%"></div></div>
+              <div class="funnel-num">12</div>
+            </div>
+            <div class="funnel-row">
+              <div class="funnel-label">赢单</div>
+              <div class="funnel-track"><div class="funnel-fill" style="width: 13%"></div></div>
+              <div class="funnel-num">5</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">今日待办</div>
+            <a class="panel-link">查看全部 →</a>
+          </div>
+          <div class="todo">
+            <div class="todo-item">
+              <div class="todo-dot" style="background: var(--danger)"></div>
+              <div class="todo-content">
+                <div class="todo-title">跟进入度 · <strong>华为集团</strong></div>
+                <div class="todo-sub">最后跟进 6 月 22 日 · 已逾期 5 天</div>
+              </div>
+            </div>
+            <div class="todo-item">
+              <div class="todo-dot" style="background: var(--warn)"></div>
+              <div class="todo-content">
+                <div class="todo-title">提交报价 · <strong>腾讯云</strong></div>
+                <div class="todo-sub">商务谈判阶段 · 今日 17:00 前</div>
+              </div>
+            </div>
+            <div class="todo-item">
+              <div class="todo-dot" style="background: var(--accent)"></div>
+              <div class="todo-content">
+                <div class="todo-title">回访客户 · <strong>字节跳动</strong></div>
+                <div class="todo-sub">方案已发送 · 等待客户反馈</div>
+              </div>
+            </div>
+            <div class="todo-item">
+              <div class="todo-dot" style="background: var(--accent)"></div>
+              <div class="todo-content">
+                <div class="todo-title">转化线索 · <strong>北京星辰科技</strong></div>
+                <div class="todo-sub">已确认意向 · 待创建客户</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline + Top customers -->
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">最近跟进</div>
+            <a class="panel-link">时间轴 →</a>
+          </div>
+          <div class="timeline">
+            <div class="timeline-item">
+              <div class="timeline-time">14:23</div>
+              <div>
+                <div class="timeline-title">张磊 跟进了 <strong>华为集团</strong></div>
+                <div class="timeline-meta">电话沟通 · 需求阶段 · 持续 25 分钟</div>
+              </div>
+            </div>
+            <div class="timeline-item">
+              <div class="timeline-time">11:05</div>
+              <div>
+                <div class="timeline-title">你 为 <strong>字节跳动</strong> 上传了方案文档</div>
+                <div class="timeline-meta">附件上传 · 商务谈判阶段</div>
+              </div>
+            </div>
+            <div class="timeline-item">
+              <div class="timeline-time">09:48</div>
+              <div>
+                <div class="timeline-title">王芳 将 <strong>腾讯云</strong> 推进至 商务谈判</div>
+                <div class="timeline-meta">商机金额 ¥ 1,800,000</div>
+              </div>
+            </div>
+            <div class="timeline-item">
+              <div class="timeline-time">昨日 17:42</div>
+              <div>
+                <div class="timeline-title">王芳 转化了线索 <strong>小米科技</strong> 为客户</div>
+                <div class="timeline-meta">自动同步至客户池</div>
+              </div>
+            </div>
+            <div class="timeline-item">
+              <div class="timeline-time">昨日 15:18</div>
+              <div>
+                <div class="timeline-title">你 记录了 <strong>阿里达摩院</strong> 需求调研</div>
+                <div class="timeline-meta">附件 3 份 · 已归档</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <div class="panel-title">高价值客户</div>
+            <a class="panel-link">查看全部 →</a>
+          </div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>客户</th>
+                <th>阶段</th>
+                <th style="text-align: right">商机金额</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>华为集团</td>
+                <td><span class="tag tag-accent">商务谈判</span></td>
+                <td class="num">¥ 2,400,000</td>
+              </tr>
+              <tr>
+                <td>腾讯云</td>
+                <td><span class="tag tag-accent">商务谈判</span></td>
+                <td class="num">¥ 1,800,000</td>
+              </tr>
+              <tr>
+                <td>字节跳动</td>
+                <td><span class="tag tag-warn">方案报价</span></td>
+                <td class="num">¥ 1,560,000</td>
+              </tr>
+              <tr>
+                <td>阿里达摩院</td>
+                <td><span class="tag tag-muted">需求分析</span></td>
+                <td class="num">¥ 980,000</td>
+              </tr>
+              <tr>
+                <td>小米科技</td>
+                <td><span class="tag tag-warn">方案报价</span></td>
+                <td class="num">¥ 720,000</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

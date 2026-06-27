@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<!--
+  login-center.html
+  Variant 2: Centered card on quiet dot-grid background.
+
+  Design Read: B2B SaaS login, minimalist reading. Linear gravity, single accent.
+  Dials: VARIANCE 4 / MOTION 3 / DENSITY 2. Lower variance than split variant.
+  Symmetry is the right move for a single-task screen.
+
+  Design decisions (rationale for the Vue port):
+  - Dot-grid background via radial-gradient (no PNG/SVG asset, no perf cost).
+  - Centered card 420px max. Same radius system (6px) as split variant, which satisfies the shape consistency lock.
+  - Single accent: electric blue #0066ff. Reserved for primary CTA and focus ring ONLY.
+    Form fields use ink hairline borders to keep the surface calm.
+  - No decorative hero copy on this variant. The page is the form. Anyone arriving here already
+    knows why; no need to sell.
+  - Tabular numbers preserved in monospace microcopy (status row).
+  - Logo glyph switched from solid square to outlined square with accent fill.
+    Same wordmark family as split variant, minor visual variation to avoid pixel-identical layouts across variants.
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 · ZenCRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* Reset */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #fafafa;
+      --surface:      #ffffff;
+      --ink:          #18181b;
+      --ink-soft:     #3f3f46;
+      --muted:        #71717a;
+      --placeholder:  #a1a1aa;
+      --hairline:     #e4e4e7;
+      --hairline-soft:#f4f4f5;
+      --accent:       #0066ff;
+      --accent-hover: #0052cc;
+      --accent-ring:  rgba(0, 102, 255, 0.14);
+      --dot:          rgba(24, 24, 27, 0.07);
+      --font-sans:    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+      --radius:       6px;
+      --card-w:       420px;
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--ink);
+      background-color: var(--bg);
+      background-image: radial-gradient(circle at 1px 1px, var(--dot) 1px, transparent 0);
+      background-size: 20px 20px;
+      background-position: -1px -1px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    /* === Centered card === */
+    .login-card {
+      width: 100%;
+      max-width: var(--card-w);
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: 8px;
+      padding: 36px 32px 28px;
+      position: relative;
+    }
+
+    /* Soft shadow, tinted not pure black */
+    .login-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      pointer-events: none;
+      box-shadow: 0 1px 0 rgba(24, 24, 27, 0.02),
+                  0 8px 24px -8px rgba(24, 24, 27, 0.08);
+    }
+
+    /* Wordmark, outlined square variant (sister to filled variant in split) */
+    .wordmark {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      letter-spacing: -0.01em;
+      color: var(--ink);
+      text-decoration: none;
+    }
+    .wordmark-glyph {
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--ink);
+      border-radius: 2px;
+      position: relative;
+    }
+    .wordmark-glyph::after {
+      content: "";
+      position: absolute;
+      inset: 2px;
+      background: var(--accent);
+      border-radius: 1px;
+    }
+
+    .form-header {
+      margin-top: 28px;
+    }
+    .form-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+    }
+    .form-header h1 {
+      margin-top: 8px;
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+    .form-header p {
+      margin-top: 6px;
+      font-size: 13.5px;
+      color: var(--muted);
+    }
+
+    .login-form {
+      margin-top: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--ink);
+      margin-bottom: 6px;
+    }
+    .field input {
+      width: 100%;
+      height: 40px;
+      padding: 0 12px;
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      color: var(--ink);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .field input::placeholder { color: var(--placeholder); }
+    .field input:hover { border-color: #d4d4d8; }
+    .field input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-ring);
+    }
+
+    .field-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      margin-top: -2px;
+    }
+    .checkbox {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--ink-soft);
+      cursor: pointer;
+      user-select: none;
+    }
+    .checkbox input {
+      width: 14px;
+      height: 14px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    .forgot {
+      color: var(--ink-soft);
+      text-decoration: none;
+    }
+    .forgot:hover { color: var(--accent); }
+
+    .btn-primary {
+      margin-top: 8px;
+      height: 44px;
+      padding: 0 18px;
+      background: var(--accent);
+      color: #ffffff;
+      border: none;
+      border-radius: var(--radius);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.08s ease;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-primary:active { transform: translateY(1px); }
+    .btn-primary .arrow { transition: transform 0.15s ease; }
+    .btn-primary:hover .arrow { transform: translateX(2px); }
+
+    /* Quick-fill, same pattern as split with slightly tighter spacing */
+    .quick-fill {
+      margin-top: 24px;
+      padding-top: 18px;
+      border-top: 1px solid var(--hairline-soft);
+    }
+    .quick-fill-label {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .quick-fill-pills {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .pill {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding: 6px 10px;
+      background: transparent;
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius);
+      color: var(--ink-soft);
+      cursor: pointer;
+      transition: all 0.12s ease;
+    }
+    .pill:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .pill .role-tag {
+      color: var(--muted);
+      margin-left: 4px;
+    }
+    .pill:hover .role-tag { color: var(--accent); }
+
+    /* Status row, single line of monospace meta below the card */
+    .status-row {
+      margin-top: 20px;
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.02em;
+    }
+    .status-row .dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #10b981;
+      margin-right: 6px;
+      vertical-align: middle;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+    }
+
+    .form-footer {
+      margin-top: 16px;
+      font-size: 13px;
+      color: var(--muted);
+      text-align: center;
+    }
+    .form-footer a {
+      color: var(--ink);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .form-footer a:hover { color: var(--accent); text-decoration: underline; }
+
+    @media (max-width: 480px) {
+      .login-card { padding: 28px 20px 22px; }
+      .form-header h1 { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="login-card" aria-label="登录">
+    <a href="#" class="wordmark" aria-label="ZenCRM">
+      <span class="wordmark-glyph" aria-hidden="true"></span>
+      <span>ZenCRM</span>
+    </a>
+
+    <header class="form-header">
+      <span class="form-eyebrow">Sign in</span>
+      <h1>登录你的工作台</h1>
+      <p>使用 crm_full.sql 种子账号即可体验。</p>
+    </header>
+
+    <form class="login-form" action="#" method="post" autocomplete="on" novalidate>
+      <div class="field">
+        <label for="username">账号</label>
+        <input
+          type="text"
+          id="username"
+          name="username"
+          autocomplete="username"
+          placeholder="admin"
+          required>
+      </div>
+
+      <div class="field">
+        <label for="password">密码</label>
+        <input
+          type="password"
+          id="password"
+          name="password"
+          autocomplete="current-password"
+          placeholder="••••••"
+          required>
+      </div>
+
+      <div class="field-row">
+        <label class="checkbox">
+          <input type="checkbox" name="remember">
+          <span>记住我</span>
+        </label>
+        <a href="#" class="forgot">忘记密码？</a>
+      </div>
+
+      <button type="submit" class="btn-primary">
+        <span>登录</span>
+        <svg class="arrow" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M2 7h10M8 3l4 4-4 4"/>
+        </svg>
+      </button>
+    </form>
+
+    <div class="quick-fill">
+      <span class="quick-fill-label">快速试用</span>
+      <div class="quick-fill-pills">
+        <button type="button" class="pill" data-fill="admin" data-pass="123456">
+          admin<span class="role-tag">管理员</span>
+        </button>
+        <button type="button" class="pill" data-fill="sales_li" data-pass="123456">
+          sales_li<span class="role-tag">销售</span>
+        </button>
+        <button type="button" class="pill" data-fill="finance" data-pass="123456">
+          finance<span class="role-tag">财务</span>
+        </button>
+      </div>
+    </div>
+
+    <p class="form-footer">还没有账号？<a href="#">联系商务</a></p>
+  </main>
+
+  <div class="status-row" aria-live="polite">
+    <span><span class="dot" aria-hidden="true"></span>api.zencrm.local 在线</span>
+    <span>v1.0.0</span>
+  </div>
+
+  <script>
+    (function () {
+      var username = document.getElementById('username');
+      var password = document.getElementById('password');
+      var pills = document.querySelectorAll('.pill[data-fill]');
+      pills.forEach(function (pill) {
+        pill.addEventListener('click', function () {
+          username.value = pill.getAttribute('data-fill');
+          password.value = pill.getAttribute('data-pass') || '';
+          username.focus();
+          password.focus();
+          password.blur();
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

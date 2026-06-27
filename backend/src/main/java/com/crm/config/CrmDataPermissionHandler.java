@@ -37,7 +37,8 @@ public class CrmDataPermissionHandler implements DataPermissionHandler {
 
     /**
      * 需要数据权限拦截的业务表（物理表名）
-     * <p>随阶段二业务模块上线扩充，与 crm_full.sql 真实表名保持一致。</p>
+     * <p>阶段三扩充：crm_contract 已含;crm_approval / crm_receivable / crm_receivable_plan
+     * 因无 owner_user_id 字段,暂未纳入(V2 需扩展 Handler 支持"联表 contract 取 owner")。</p>
      */
     private static final Set<String> MANAGED_TABLES = new HashSet<>(Arrays.asList(
             "crm_customer",
@@ -46,6 +47,8 @@ public class CrmDataPermissionHandler implements DataPermissionHandler {
             "crm_contract",
             "crm_contact",
             "crm_record"
+            // V1 不含(无 owner_user_id): crm_approval, crm_receivable, crm_receivable_plan
+            // 权限靠 @SaCheckPermission 兜底;receivable 通过 contract 间接走数据权限
     ));
 
     @Override

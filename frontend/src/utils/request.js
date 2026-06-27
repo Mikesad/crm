@@ -13,11 +13,13 @@ const service = axios.create({
 })
 
 // 请求拦截器：附加 Sa-Token
+// 防御纵深: /api/auth/* 端点不附 token(避免携带旧/失效 token 导致 401)
 service.interceptors.request.use(
   (config) => {
     nprogress.start()
     const userStore = useUserStore()
-    if (userStore.token) {
+    const isAuthEndpoint = config.url && config.url.startsWith('/auth/')
+    if (userStore.token && !isAuthEndpoint) {
       config.headers['Authorization'] = userStore.token
     }
     return config

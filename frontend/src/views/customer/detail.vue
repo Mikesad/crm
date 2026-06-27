@@ -239,7 +239,7 @@
           <el-input v-model="businessForm.expectedAmount" placeholder="如：2400000.00" />
         </el-form-item>
         <el-form-item label="预计结单日期">
-          <el-date-picker v-model="businessForm.expectedDealDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+          <el-date-picker v-model="businessForm.expectedDealDate" type="date" value-format="YYYY-MM-DD" placeholder="请选择日期" style="width: 200px" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -284,7 +284,7 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item label="下次跟进时间">
-          <el-date-picker v-model="recordForm.nextFollowTime" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" style="width: 100%" />
+          <el-date-picker v-model="recordForm.nextFollowTime" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" style="width: 220px" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -492,7 +492,7 @@ async function handleSaveContact() {
 
 async function handleDeleteContact(row) {
   try {
-    await ElMessageBox.confirm(`确认删除联系人「${row.contactName}」？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(`确认删除联系人「${row.contactName}」？`, '提示', { type: 'warning', confirmButtonClass: 'btn-zen-primary', customClass: 'msgbox-zen-confirm' })
     await deleteContact(row.id)
     ElMessage.success('已删除')
     loadContacts()

@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<!--
+  login-terminal.html
+  Variant 3: Terminal / CLI aesthetic for data-heavy power users.
+
+  Design Read: B2B SaaS login for power users (sales directors, finance ops).
+  Dials: VARIANCE 6 / MOTION 2 / DENSITY 4. Higher density OK because the
+  mono type naturally supports compact layouts; motion intentionally near-static.
+
+  Design decisions (rationale for the Vue port):
+  - All-monospace: signals "this is for people who care about data". JetBrains Mono throughout.
+  - Near-black background (#0a0e14) with subtle vertical scanline gradient for depth.
+  - Amber #f59e0b is the only saturated color, reserved for cursor, active prompt, and key affordance.
+    Forms use ink-white text on translucent dark surfaces; the eye lands on amber for "now".
+  - macOS-style window chrome (3 dots) is functional framing, not decoration.
+    Same dots recur on the seed-account list as "tab indicators".
+  - Form labels render as `>` prompts: `> username:` `> password:`. Aligns with the
+    mental model of "command" rather than "form".
+  - Enter key is a literal [ENTER] bracket button, borrowed from keyboard convention.
+  - No motion (MOTION 2). Cursor blink on the last prompt line is the single allowed loop.
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 · ZenCRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* Reset */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #0a0e14;
+      --bg-elev:      #131720;
+      --bg-input:     #0e131c;
+      --line:         #1f2937;
+      --line-soft:    #182030;
+      --text:         #e5e7eb;
+      --text-dim:     #9ca3af;
+      --text-mute:    #6b7280;
+      --accent:       #f59e0b;     /* amber */
+      --accent-soft:  #fbbf24;
+      --accent-ring:  rgba(245, 158, 11, 0.18);
+      --green:        #10b981;
+      --red:          #ef4444;
+      --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+      --radius:       4px;
+      --term-w:       520px;
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.6;
+      color: var(--text);
+      background: var(--bg);
+      /* Faint scanline gradient adds CRT depth without making it kitsch */
+      background-image:
+        repeating-linear-gradient(
+          0deg,
+          rgba(255, 255, 255, 0.012) 0px,
+          rgba(255, 255, 255, 0.012) 1px,
+          transparent 1px,
+          transparent 3px
+        );
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* === Terminal window === */
+    .terminal {
+      width: 100%;
+      max-width: var(--term-w);
+      background: var(--bg-elev);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.02) inset,
+        0 24px 60px -20px rgba(0, 0, 0, 0.6),
+        0 4px 12px -4px rgba(0, 0, 0, 0.4);
+    }
+
+    /* macOS-style chrome bar */
+    .term-chrome {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--line);
+      user-select: none;
+    }
+    .term-chrome .dots {
+      display: flex;
+      gap: 6px;
+    }
+    .term-chrome .dots span {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      background: var(--line);
+    }
+    .term-chrome .dots span:nth-child(1) { background: #ef4444; }
+    .term-chrome .dots span:nth-child(2) { background: #f59e0b; }
+    .term-chrome .dots span:nth-child(3) { background: #10b981; }
+    .term-chrome .title {
+      flex: 1;
+      text-align: center;
+      font-size: 11.5px;
+      color: var(--text-mute);
+      letter-spacing: 0.04em;
+    }
+    .term-chrome .status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10.5px;
+      color: var(--green);
+    }
+    .term-chrome .status::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+    }
+
+    /* Body area */
+    .term-body {
+      padding: 22px 24px 26px;
+    }
+
+    /* Output lines (non-interactive history) */
+    .term-line {
+      display: flex;
+      gap: 6px;
+      font-size: 12.5px;
+      line-height: 1.7;
+      color: var(--text-dim);
+    }
+    .term-line .prompt { color: var(--accent); user-select: none; }
+    .term-line .cmd { color: var(--text); }
+    .term-line .comment { color: var(--text-mute); }
+    .term-line .ok { color: var(--green); }
+    .term-line .var { color: var(--accent-soft); }
+
+    .hr {
+      margin: 16px 0;
+      height: 1px;
+      background: var(--line);
+      border: 0;
+    }
+
+    /* Wordmark, text only, monospace, no glyph */
+    .wordmark {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: 0.02em;
+    }
+    .wordmark .accent { color: var(--accent); }
+
+    .term-headline {
+      margin-top: 12px;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+    .term-sub {
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--text-mute);
+    }
+
+    /* Form fields styled as prompts */
+    .login-form {
+      margin-top: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .field { display: flex; flex-direction: column; gap: 4px; }
+    .field .label {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11.5px;
+      color: var(--text-mute);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .field .label .prompt { color: var(--accent); text-transform: none; }
+    .field .label .index { color: var(--text-mute); }
+
+    .field .input-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      background: var(--bg-input);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .field .input-row:focus-within {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-ring);
+    }
+    .field input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      padding: 2px 0;
+      caret-color: var(--accent);
+    }
+    .field input::placeholder {
+      color: var(--text-mute);
+      opacity: 0.6;
+    }
+    .field .prefix {
+      color: var(--accent);
+      user-select: none;
+      font-size: 13px;
+    }
+    .field .suffix {
+      color: var(--text-mute);
+      font-size: 11px;
+      font-family: var(--font-mono);
+    }
+
+    /* Field row: remember + forgot */
+    .field-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      color: var(--text-mute);
+      margin-top: -2px;
+    }
+    .checkbox {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+      color: var(--text-dim);
+    }
+    .checkbox input {
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      border: 1px solid var(--line);
+      border-radius: 2px;
+      background: var(--bg-input);
+      cursor: pointer;
+      position: relative;
+    }
+    .checkbox input:checked {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .checkbox input:checked::after {
+      content: "";
+      position: absolute;
+      left: 3px;
+      top: 0px;
+      width: 4px;
+      height: 7px;
+      border: solid var(--bg);
+      border-width: 0 1.5px 1.5px 0;
+      transform: rotate(45deg);
+    }
+    .forgot {
+      color: var(--text-mute);
+      text-decoration: none;
+    }
+    .forgot:hover { color: var(--accent); text-decoration: underline; }
+
+    /* Enter key button, keyboard-key metaphor */
+    .btn-enter {
+      margin-top: 6px;
+      height: 40px;
+      padding: 0 14px;
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: var(--radius);
+      font-family: var(--font-mono);
+      font-size: 12.5px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease, transform 0.08s ease;
+    }
+    .btn-enter:hover {
+      background: var(--accent);
+      color: var(--bg);
+    }
+    .btn-enter:active { transform: translateY(1px); }
+    .btn-enter .bracket { color: var(--accent); }
+    .btn-enter:hover .bracket { color: var(--bg); }
+    .btn-enter .keycap {
+      display: inline-block;
+      padding: 1px 6px;
+      border: 1px solid currentColor;
+      border-radius: 3px;
+      font-size: 11px;
+      line-height: 1;
+    }
+
+    /* Seed accounts, CLI-history style */
+    .seeds {
+      margin-top: 22px;
+      padding-top: 16px;
+      border-top: 1px dashed var(--line);
+    }
+    .seeds .label {
+      font-size: 11.5px;
+      color: var(--text-mute);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .seed-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .seed {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 8px;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: var(--radius);
+      color: var(--text-dim);
+      cursor: pointer;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      text-align: left;
+      transition: all 0.12s ease;
+    }
+    .seed:hover {
+      border-color: var(--line);
+      background: var(--bg-input);
+      color: var(--text);
+    }
+    .seed .arrow { color: var(--accent); }
+    .seed .name { color: var(--accent-soft); }
+    .seed .role { color: var(--text-mute); font-size: 11px; }
+
+    /* Footer status line */
+    .term-footer {
+      margin-top: 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: var(--text-mute);
+      letter-spacing: 0.02em;
+    }
+    .term-footer .blinker {
+      display: inline-block;
+      width: 7px;
+      height: 13px;
+      background: var(--accent);
+      margin-left: 2px;
+      vertical-align: -2px;
+      animation: blink 1.05s steps(2) infinite;
+    }
+    @keyframes blink {
+      0%, 50% { opacity: 1; }
+      50.01%, 100% { opacity: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .term-footer .blinker { animation: none; }
+    }
+
+    .form-footer {
+      margin-top: 16px;
+      text-align: center;
+      font-size: 11.5px;
+      color: var(--text-mute);
+    }
+    .form-footer a {
+      color: var(--accent-soft);
+      text-decoration: none;
+    }
+    .form-footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 480px) {
+      .term-body { padding: 18px 16px 22px; }
+      .term-headline { font-size: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="terminal" aria-label="终端登录">
+    <div class="term-chrome">
+      <div class="dots" aria-hidden="true">
+        <span></span><span></span><span></span>
+      </div>
+      <div class="title">zencrm@auth: ~</div>
+      <div class="status">connected</div>
+    </div>
+
+    <div class="term-body">
+      <!-- Boot sequence (static, non-interactive) -->
+      <div class="term-line"><span class="prompt">$</span><span class="cmd">zencrm auth init</span></div>
+      <div class="term-line"><span class="comment"># ZenCRM v1.0.0  ·  build 2026.06.26</span></div>
+      <div class="term-line"><span class="prompt">&gt;</span><span>loading session</span><span class="ok"> [ok]</span></div>
+      <div class="term-line"><span class="prompt">&gt;</span><span>awaiting credentials</span></div>
+
+      <hr class="hr">
+
+      <div class="wordmark">ZEN<span class="accent">/</span>CRM</div>
+      <h1 class="term-headline">login --workspace=primary</h1>
+      <p class="term-sub">使用 crm_full.sql 种子账号即可体验。</p>
+
+      <form class="login-form" action="#" method="post" autocomplete="on" novalidate>
+        <div class="field">
+          <label class="label" for="username">
+            <span class="prompt">&gt;</span>
+            <span>username</span>
+            <span class="index">[required]</span>
+          </label>
+          <div class="input-row">
+            <span class="prefix">$</span>
+            <input
+              type="text"
+              id="username"
+              name="username"
+              autocomplete="username"
+              placeholder="admin"
+              required>
+          </div>
+        </div>
+
+        <div class="field">
+          <label class="label" for="password">
+            <span class="prompt">&gt;</span>
+            <span>password</span>
+            <span class="index">[required]</span>
+          </label>
+          <div class="input-row">
+            <span class="prefix">$</span>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              autocomplete="current-password"
+              placeholder="••••••"
+              required>
+            <span class="suffix">8+ chars</span>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <label class="checkbox">
+            <input type="checkbox" name="remember">
+            <span>remember-me --duration=30d</span>
+          </label>
+          <a href="#" class="forgot">reset?</a>
+        </div>
+
+        <button type="submit" class="btn-enter">
+          <span class="bracket">[</span>
+          <span>ENTER</span>
+          <span class="bracket">]</span>
+          <span class="keycap">↵</span>
+        </button>
+      </form>
+
+      <div class="seeds">
+        <div class="label">demo accounts</div>
+        <div class="seed-list">
+          <button type="button" class="seed" data-fill="admin" data-pass="123456">
+            <span class="arrow">&gt;</span>
+            <span><span class="name">admin</span> · password=123456</span>
+            <span class="role">[sysadmin]</span>
+          </button>
+          <button type="button" class="seed" data-fill="sales_li" data-pass="123456">
+            <span class="arrow">&gt;</span>
+            <span><span class="name">sales_li</span> · password=123456</span>
+            <span class="role">[sales]</span>
+          </button>
+          <button type="button" class="seed" data-fill="finance" data-pass="123456">
+            <span class="arrow">&gt;</span>
+            <span><span class="name">finance</span> · password=123456</span>
+            <span class="role">[finance]</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="term-footer">
+        <span>ready<span class="blinker" aria-hidden="true"></span></span>
+        <span>CTRL+C to abort</span>
+      </div>
+
+      <p class="form-footer">no account? <a href="#">zencrm.io/contact</a></p>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      var username = document.getElementById('username');
+      var password = document.getElementById('password');
+      var items = document.querySelectorAll('[data-fill]');
+      items.forEach(function (el) {
+        el.addEventListener('click', function () {
+          username.value = el.getAttribute('data-fill');
+          password.value = el.getAttribute('data-pass') || '';
+          username.focus();
+          password.focus();
+          password.blur();
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

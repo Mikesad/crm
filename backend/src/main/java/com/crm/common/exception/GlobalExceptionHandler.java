@@ -33,7 +33,9 @@ public class GlobalExceptionHandler {
     /** Sa-Token 未登录 */
     @ExceptionHandler(NotLoginException.class)
     public ResponseEntity<Result<Void>> handleNotLoginException(NotLoginException e) {
-        log.warn("未登录访问: {}", e.getMessage());
+        // Sa-Token 1.37+ 提供 getType() 区分: -1未提供 / -2过期 / -3被顶下线 / 等
+        // 不打印 e.getMessage() 避免 token 值泄漏到日志
+        log.warn("未登录访问: type={}", e.getType());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(Result.fail(ResultCode.UNAUTHORIZED));
     }

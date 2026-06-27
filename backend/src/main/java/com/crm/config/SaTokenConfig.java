@@ -20,9 +20,11 @@ public class SaTokenConfig implements WebMvcConfigurer {
         registry.addInterceptor(new SaInterceptor())
                 .addPathPatterns("/**")
                 .excludePathPatterns(
-                        "/auth/login",
-                        "/auth/logout",
-                        "/auth/captcha",
+                        // 注意:路径要含 /api 前缀(application.yml context-path=/api),
+                        // 否则 Sa-Token 仍会校验旧 token,导致 /auth/login 报 401 "未登录访问"
+                        "/api/auth/login",
+                        "/api/auth/logout",
+                        "/api/auth/captcha",
                         "/doc.html",
                         "/swagger-ui/**",
                         "/v3/api-docs/**",

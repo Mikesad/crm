@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>ZenCRM 阶段三 - 合同与回款 前端预览</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/element-plus@2.7.6/dist/index.css">
+<script src="https://unpkg.com/vue@3.4.27/dist/vue.global.prod.js"></script>
+<script src="https://unpkg.com/element-plus@2.7.6/dist/index.full.min.js"></script>
+<style>
+  :root {
+    --zen-primary: #166534;
+    --zen-primary-dark: #14532d;
+    --zen-primary-bg: #f0fdf4;
+    --zen-text: #111827;
+    --zen-text-soft: #6b7280;
+    --zen-border: #e5e7eb;
+    --zen-bg: #f9fafb;
+    --zen-radius: 6px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    color: var(--zen-text);
+    background: var(--zen-bg);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* 沿用阶段二 .btn-zen-primary 视觉 */
+  .btn-zen-primary,
+  .el-button.btn-zen-primary,
+  .el-button--primary.btn-zen-primary {
+    background: var(--zen-primary) !important;
+    border-color: var(--zen-primary) !important;
+    color: #fff !important;
+    font-weight: 500;
+  }
+  .btn-zen-primary:hover,
+  .el-button.btn-zen-primary:hover { background: var(--zen-primary-dark) !important; border-color: var(--zen-primary-dark) !important; }
+
+  /* Element Plus 主色统一为森林绿 */
+  .el-button--primary {
+    --el-button-bg-color: var(--zen-primary);
+    --el-button-border-color: var(--zen-primary);
+    --el-button-hover-bg-color: var(--zen-primary-dark);
+    --el-button-hover-border-color: var(--zen-primary-dark);
+    --el-button-active-bg-color: var(--zen-primary-dark);
+    --el-button-active-border-color: var(--zen-primary-dark);
+  }
+  .el-checkbox__input.is-checked .el-checkbox__inner,
+  .el-radio__input.is-checked .el-radio__inner { background: var(--zen-primary); border-color: var(--zen-primary); }
+  .el-checkbox__input.is-checked + .el-checkbox__label,
+  .el-radio__input.is-checked + .el-radio__label { color: var(--zen-primary); }
+  .el-input__wrapper.is-focus, .el-select.is-focused .el-input__wrapper { box-shadow: 0 0 0 1px var(--zen-primary) inset !important; }
+
+  /* Topbar */
+  .zen-topbar {
+    background: #fff; border-bottom: 1px solid var(--zen-border);
+    padding: 0 24px; height: 56px;
+    display: flex; align-items: center; gap: 16px;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .zen-brand { font-weight: 700; font-size: 15px; color: var(--zen-primary); display: flex; align-items: center; gap: 6px; margin-right: 16px; }
+  .zen-nav { display: flex; gap: 2px; flex: 1; }
+  .zen-nav-item {
+    padding: 6px 12px; border-radius: var(--zen-radius);
+    color: var(--zen-text-soft); font-size: 13px; font-weight: 500;
+    cursor: pointer; text-decoration: none; transition: all 0.15s;
+  }
+  .zen-nav-item:hover { color: var(--zen-text); background: #f3f4f6; }
+  .zen-nav-item.active { color: var(--zen-primary); background: var(--zen-primary-bg); }
+  .zen-user { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--zen-text-soft); }
+  .zen-avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: var(--zen-primary); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600; font-size: 12px;
+  }
+
+  /* Page */
+  .zen-page { max-width: 1280px; margin: 0 auto; padding: 24px; }
+  .zen-page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+  .zen-page-title { font-size: 20px; font-weight: 600; margin: 0 0 4px 0; }
+  .zen-page-subtitle { font-size: 13px; color: var(--zen-text-soft); margin: 0; }
+  .zen-breadcrumb { font-size: 12px; color: var(--zen-text-soft); margin-bottom: 8px; }
+  .zen-breadcrumb a { color: var(--zen-text-soft); text-decoration: none; }
+  .zen-breadcrumb a:hover { color: var(--zen-primary); }
+
+  /* Card */
+  .zen-card {
+    background: #fff; border-radius: var(--zen-radius);
+    border: 1px solid var(--zen-border); padding: 20px 24px; margin-bottom: 16px;
+  }
+  .zen-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .zen-card-title { font-size: 15px; font-weight: 600; }
+  .zen-card-extra { font-size: 12px; color: var(--zen-text-soft); }
+
+  /* Toolbar */
+  .zen-toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+  .zen-toolbar .el-input { width: 220px; }
+  .zen-toolbar .el-select { width: 140px; }
+  .zen-toolbar .spacer { flex: 1; }
+
+  /* Status badges */
+  .zen-status { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
+  .zen-status::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 6px; }
+  .zen-status.gray { background: #f3f4f6; color: #6b7280; } .zen-status.gray::before { background: #9ca3af; }
+  .zen-status.warn { background: #fef3c7; color: #92400e; } .zen-status.warn::before { background: #f59e0b; }
+  .zen-status.ok { background: #d1fae5; color: #065f46; } .zen-status.ok::before { background: #10b981; }
+  .zen-status.blue { background: #dbeafe; color: #1e40af; } .zen-status.blue::before { background: #3b82f6; }
+  .zen-status.red { background: #fee2e2; color: #991b1b; } .zen-status.red::before { background: #ef4444; }
+
+  /* Banners */
+  .zen-warn-banner {
+    background: #fffbeb; border: 1px solid #fcd34d; border-radius: var(--zen-radius);
+    padding: 12px 16px; margin-bottom: 16px;
+    display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: #92400e;
+  }
+  .zen-warn-banner .icon { font-size: 16px; flex-shrink: 0; }
+  .zen-warn-banner b { color: #78350f; }
+  .zen-info-banner {
+    background: var(--zen-primary-bg); border: 1px solid #86efac; border-radius: var(--zen-radius);
+    padding: 12px 16px; margin-bottom: 16px;
+    display: flex; gap: 10px; align-items: center; font-size: 13px; color: var(--zen-primary-dark);
+  }
+
+  /* Form grid */
+  .zen-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 24px; }
+  .zen-form-grid .full { grid-column: 1 / -1; }
+  .zen-form-label { font-size: 13px; color: var(--zen-text); font-weight: 500; margin-bottom: 6px; display: block; }
+  .zen-form-label .req { color: #ef4444; margin-right: 2px; }
+
+  /* Total bar */
+  .zen-total-bar {
+    background: #f9fafb; border: 1px dashed var(--zen-border); border-radius: var(--zen-radius);
+    padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; margin-top: 16px;
+  }
+  .zen-total-bar .label { font-size: 13px; color: var(--zen-text-soft); }
+  .zen-total-bar .value { font-size: 24px; font-weight: 700; color: var(--zen-primary); }
+
+  /* Discount input cell */
+  .discount-input { width: 80px; }
+  .discount-input .el-input__inner { text-align: center; }
+
+  /* Amount cells */
+  .amount-auto { color: var(--zen-text-soft); font-size: 12px; }
+  .amount-final { font-weight: 600; color: var(--zen-text); }
+
+  /* Tabs */
+  .zen-tabs { background: #fff; border-radius: var(--zen-radius); border: 1px solid var(--zen-border); }
+  .zen-tabs .el-tabs__header { margin: 0; padding: 0 20px; border-bottom: 1px solid var(--zen-border); background: #fafafa; border-radius: var(--zen-radius) var(--zen-radius) 0 0; }
+  .zen-tabs .el-tabs__nav-wrap::after { background: transparent; }
+  .zen-tabs .el-tabs__item.is-active { color: var(--zen-primary); }
+  .zen-tabs .el-tabs__active-bar { background-color: var(--zen-primary); }
+  .zen-tabs .el-tabs__content { padding: 20px 24px; }
+
+  /* Detail header */
+  .zen-detail-header {
+    background: #fff; border-radius: var(--zen-radius); border: 1px solid var(--zen-border);
+    padding: 20px 24px; margin-bottom: 16px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+  }
+  .zen-detail-meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px 24px; flex: 1; }
+  .zen-detail-meta .item .label { font-size: 12px; color: var(--zen-text-soft); margin-bottom: 4px; }
+  .zen-detail-meta .item .value { font-size: 14px; font-weight: 500; }
+
+  /* Summary card */
+  .zen-summary {
+    background: #fff; border-radius: var(--zen-radius); border: 1px solid var(--zen-border);
+    padding: 16px 20px; margin-bottom: 16px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+  }
+  .zen-summary .item .label { font-size: 12px; color: var(--zen-text-soft); margin-bottom: 6px; }
+  .zen-summary .item .value { font-size: 20px; font-weight: 600; }
+  .zen-summary .item .sub { font-size: 11px; color: var(--zen-text-soft); margin-top: 2px; }
+  .zen-summary .item.highlight .value { color: var(--zen-primary); }
+
+  /* Plan timeline */
+  .zen-plan-step {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; border: 1px solid var(--zen-border); border-radius: var(--zen-radius);
+    background: #fff; margin-bottom: 8px;
+  }
+  .zen-plan-step .dot {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; color: #fff;
+  }
+  .zen-plan-step.pending .dot { background: #d1d5db; color: #6b7280; }
+  .zen-plan-step.urgent .dot { background: #f59e0b; }
+  .zen-plan-step.done .dot { background: #10b981; }
+  .zen-plan-step .body { flex: 1; }
+  .zen-plan-step .body .title { font-size: 14px; font-weight: 500; }
+  .zen-plan-step .body .sub { font-size: 12px; color: var(--zen-text-soft); margin-top: 2px; }
+  .zen-plan-step .amount { font-size: 16px; font-weight: 600; color: var(--zen-primary); }
+
+  /* Misc */
+  .text-soft { color: var(--zen-text-soft); }
+  .text-mono { font-family: 'SF Mono', Menlo, Consolas, monospace; font-size: 13px; }
+  .text-right { text-align: right; }
+  .text-center { text-align: center; }
+  .empty-tip { text-align: center; padding: 32px; color: var(--zen-text-soft); font-size: 13px; }
+  .row-gap-12 > * + * { margin-top: 12px; }
+  .zen-divider { height: 1px; background: var(--zen-border); margin: 20px 0; }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- Topbar -->
+  <div class="zen-topbar">
+    <div class="zen-brand">🌲 ZenCRM</div>
+    <div class="zen-nav">
+      <a v-for="v in navItems" :key="v.id"
+         :class="['zen-nav-item', {active: current === v.id}]"
+         @click="current = v.id">{{v.label}}</a>
+    </div>
+    <el-select v-model="role" size="small" style="width: 150px;" @change="onRoleChange">
+      <el-option label="李销售 (普通销售)" value="sales" />
+      <el-option label="张总监 (销售总监)" value="director" />
+      <el-option label="赵财务 (财务人员)" value="finance" />
+    </el-select>
+    <div class="zen-user">
+      <div class="zen-avatar">{{ avatarText }}</div>
+      <span>{{ currentUser.name }} · {{ currentUser.roleText }}</span>
+    </div>
+  </div>
+
+  <div class="zen-page">
+
+    <!-- ============== 视图 1: 合同列表 (全员可见) ============== -->
+    <template v-if="current === 'contract-list'">
+      <div class="zen-page-header">
+        <div>
+          <h1 class="zen-page-title">合同管理</h1>
+          <p class="zen-page-subtitle">查看 / 新建 / 审批合同</p>
+        </div>
+        <el-button v-if="role === 'sales'" type="primary" class="btn-zen-primary" @click="current = 'contract-submit'">+ 新建合同</el-button>
+        <el-button v-if="role === 'director'" type="primary" class="btn-zen-primary" @click="current = 'approval'">前往审批中心 →</el-button>
+      </div>
+
+      <div class="zen-card">
+        <div class="zen-toolbar">
+          <el-input v-model="contractFilter.keyword" placeholder="合同编号 / 名称" clearable />
+          <el-select v-model="contractFilter.status" placeholder="状态" clearable>
+            <el-option label="审批中" :value="0" />
+            <el-option label="执行中" :value="1" />
+            <el-option label="已结束" :value="2" />
+            <el-option label="已作废" :value="3" />
+          </el-select>
+          <el-button @click="loadContracts">查询</el-button>
+          <el-button text @click="contractFilter.keyword=''; contractFilter.status=null">重置</el-button>
+        </div>
+
+        <el-table :data="filteredContracts" stripe>
+          <el-table-column prop="num" label="合同编号" width="160">
+            <template #default="{row}"><a class="text-mono" style="color: var(--zen-primary); cursor: pointer;" @click="openDetail(row)">{{ row.num }}</a></template>
+          </el-table-column>
+          <el-table-column prop="name" label="合同名称" min-width="220" />
+          <el-table-column prop="customer" label="客户" width="180" />
+          <el-table-column label="合同金额" width="140" align="right">
+            <template #default="{row}">¥ {{ row.total.toLocaleString() }}</template>
+          </el-table-column>
+          <el-table-column label="状态" width="110" align="center">
+            <template #default="{row}">
+              <span v-if="row.status === 0" class="zen-status warn">审批中</span>
+              <span v-else-if="row.status === 1" class="zen-status blue">执行中</span>
+              <span v-else-if="row.status === 2" class="zen-status ok">已结束</span>
+              <span v-else class="zen-status gray">已作废</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="owner" label="签约人" width="100" />
+          <el-table-column prop="createTime" label="创建时间" width="160" />
+          <el-table-column label="操作" width="160" align="center" fixed="right">
+            <template #default="{row}">
+              <el-button text type="primary" @click="openDetail(row)">详情</el-button>
+              <el-button v-if="role === 'sales' && row.status === 1" text type="primary" @click="openDetail(row)">录计划</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <div class="empty-tip" v-if="!filteredContracts.length">暂无数据</div>
+      </div>
+    </template>
+
+    <!-- ============== 视图 2: 新建合同 (销售提交) ============== -->
+    <template v-if="current === 'contract-submit'">
+      <div class="zen-breadcrumb">
+        <a @click="current = 'contract-list'">合同列表</a> / 新建合同
+      </div>
+      <div class="zen-page-header">
+        <div>
+          <h1 class="zen-page-title">新建合同</h1>
+          <p class="zen-page-subtitle">系统将按明细实时核算金额，折扣低于 8.5 折自动进入总监审批</p>
+        </div>
+      </div>
+
+      <!-- 基础信息 -->
+      <div class="zen-card">
+        <div class="zen-card-header">
+          <span class="zen-card-title">基础信息</span>
+        </div>
+        <div class="zen-form-grid">
+          <div>
+            <label class="zen-form-label"><span class="req">*</span>客户</label>
+            <el-select v-model="form.customerId" placeholder="搜索客户名称" filterable style="width: 100%;">
+              <el-option v-for="c in customers" :key="c.id" :label="c.name" :value="c.id" />
+            </el-select>
+          </div>
+          <div>
+            <label class="zen-form-label">商机</label>
+            <el-select v-model="form.businessId" placeholder="可选,从商机带出" clearable style="width: 100%;">
+              <el-option label="BD-2026-018 蓝海科技 旗舰版" :value="18" />
+              <el-option label="BD-2026-022 华东医药 二期" :value="22" />
+            </el-select>
+          </div>
+          <div>
+            <label class="zen-form-label"><span class="req">*</span>合同名称</label>
+            <el-input v-model="form.name" placeholder="如: 蓝海科技 200 席位旗舰版" />
+          </div>
+          <div>
+            <label class="zen-form-label">合同编号</label>
+            <el-input v-model="form.num" placeholder="留空将自动生成 HT-YYYYMMDD-XXXX" />
+          </div>
+          <div>
+            <label class="zen-form-label">开始日期</label>
+            <el-date-picker v-model="form.startDate" type="date" value-format="YYYY-MM-DD" style="width: 100%;" />
+          </div>
+          <div>
+            <label class="zen-form-label">结束日期</label>
+            <el-date-picker v-model="form.endDate" type="date" value-format="YYYY-MM-DD" style="width: 100%;" />
+          </div>
+        </div>
+      </div>
+
+      <!-- 商品明细 -->
+      <div class="zen-card">
+        <div class="zen-card-header">
+          <span class="zen-card-title">商品明细</span>
+          <el-button text type="primary" @click="addItem">+ 添加一行</el-button>
+        </div>
+
+        <el-table :data="form.items" :border="false">
+          <el-table-column label="#" type="index" width="50" align="center" />
+          <el-table-column label="产品" min-width="220">
+            <template #default="{row, $index}">
+              <el-select v-model="row.productId" placeholder="选择产品" filterable style="width: 100%;" @change="(v) => onProductChange($index, v)">
+                <el-option v-for="p in products" :key="p.id" :label="`${p.name} (¥${p.price.toLocaleString()})`" :value="p.id" />
+              </el-select>
+              <div v-if="row.productId" class="amount-auto" style="margin-top: 4px;">{{ getProduct(row.productId).spec }} · {{ getProduct(row.productId).unit }}</div>
+            </template>
+          </el-table-column>
+          <el-table-column label="数量" width="100" align="center">
+            <template #default="{row}">
+              <el-input-number v-model="row.count" :min="1" :max="9999" controls-position="right" style="width: 90px;" @change="recalc" />
+            </template>
+          </el-table-column>
+          <el-table-column label="折扣" width="120" align="center">
+            <template #default="{row}">
+              <div style="display: flex; align-items: center; gap: 4px;">
+                <el-input-number v-model="row.discount" :min="1" :max="10" :step="0.1" :precision="1" controls-position="right" class="discount-input" @change="recalc" />
+                <span class="amount-auto">折</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="标准单价" width="120" align="right">
+            <template #default="{row}">
+              <span v-if="row.productId" class="amount-auto">¥ {{ (row.standardPrice || 0).toLocaleString() }}</span>
+              <span v-else class="amount-auto">—</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="实际单价" width="130" align="right">
+            <template #default="{row}">
+              <span v-if="row.productId" class="amount-final">¥ {{ computeSalesPrice(row).toLocaleString() }}</span>
+              <span v-else class="amount-auto">—</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="小计" width="140" align="right">
+            <template #default="{row}">
+              <span v-if="row.productId" class="amount-final">¥ {{ computeSubtotal(row).toLocaleString() }}</span>
+              <span v-else class="amount-auto">—</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="" width="60" align="center">
+            <template #default="{$index}">
+              <el-button text @click="removeItem($index)" :disabled="form.items.length === 1">×</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <div class="zen-total-bar">
+          <div>
+            <div class="label">合同总金额 (按明细实时核算)</div>
+            <div class="text-soft" style="font-size: 12px; margin-top: 4px;" v-if="minDiscount > 0">
+              最低折扣: <b :style="{color: minDiscount < 8.5 ? '#ef4444' : '#111827'}">{{ minDiscount.toFixed(1) }} 折</b>
+              <span v-if="minDiscount < 8.5"> · 低于 8.5 折审批线</span>
+            </div>
+          </div>
+          <div class="value">¥ {{ totalAmount.toLocaleString() }}</div>
+        </div>
+
+        <div v-if="minDiscount < 8.5" class="zen-warn-banner" style="margin-top: 16px;">
+          <span class="icon">⚠️</span>
+          <div>
+            <b>该合同最低折扣 {{ minDiscount.toFixed(1) }} 折，低于 8.5 折审批线</b><br>
+            提交后将自动进入【销售总监】审批流程，<b>合同状态置为"审批中"</b>，审批通过后转为"执行中"。
+          </div>
+        </div>
+        <div v-else class="zen-info-banner" style="margin-top: 16px;">
+          <span>✓</span>
+          <div>折扣合规，提交后合同将直接进入【执行中】状态。</div>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px;">
+        <el-button @click="current = 'contract-list'">取消</el-button>
+        <el-button type="primary" class="btn-zen-primary" @click="submitContract">
+          {{ minDiscount < 8.5 ? '提交至销售总监审批' : '提交合同' }}
+        </el-button>
+      </div>
+    </template>
+
+    <!-- ============== 视图 3: 合同详情 (Tabs: 明细 / 回款计划 / 回款记录) ============== -->
+    <template v-if="current === 'contract-detail'">
+      <div class="zen-breadcrumb">
+        <a @click="current = 'contract-list'">合同列表</a> / {{ detailContract.num }}
+      </div>
+
+      <!-- 详情头 -->
+      <div class="zen-detail-header">
+        <div style="flex: 1;">
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+            <h2 style="font-size: 18px; font-weight: 600; margin: 0;">{{ detailContract.name }}</h2>
+            <span v-if="detailContract.status === 0" class="zen-status warn">审批中</span>
+            <span v-else-if="detailContract.status === 1" class="zen-status blue">执行中</span>
+            <span v-else-if="detailContract.status === 2" class="zen-status ok">已结束</span>
+            <span v-else class="zen-status gray">已作废</span>
+          </div>
+          <div class="text-soft text-mono">{{ detailContract.num }}</div>
+          <div style="margin-top: 12px; display: flex; gap: 12px; align-items: center;">
+            <span class="text-soft" style="font-size: 12px;">📐 页面布局:</span>
+            <el-radio-group v-model="detailLayout" size="small">
+              <el-radio-button label="long">长页面滚动</el-radio-button>
+              <el-radio-button label="tabs">Tab 切换</el-radio-button>
+            </el-radio-group>
+            <template v-if="detailLayout === 'long'">
+              <span class="text-soft" style="font-size: 12px; margin-left: 8px;">📋 计划展示:</span>
+              <el-radio-group v-model="planDisplay" size="small">
+                <el-radio-button label="card">卡片时间轴</el-radio-button>
+                <el-radio-button label="table">表格</el-radio-button>
+              </el-radio-group>
+            </template>
+          </div>
+        </div>
+        <div style="text-align: right;">
+          <div class="text-soft" style="font-size: 12px; margin-bottom: 4px;">合同总金额</div>
+          <div style="font-size: 24px; font-weight: 700; color: var(--zen-primary);">¥ {{ detailContract.total.toLocaleString() }}</div>
+        </div>
+      </div>
+
+      <!-- 汇总卡 -->
+      <div class="zen-summary">
+        <div class="item highlight">
+          <div class="label">合同总额</div>
+          <div class="value">¥ {{ detailContract.total.toLocaleString() }}</div>
+        </div>
+        <div class="item">
+          <div class="label">已实收</div>
+          <div class="value">¥ {{ actualReceived.toLocaleString() }}</div>
+          <div class="sub">回款记录 {{ detailReceivables.length }} 笔</div>
+        </div>
+        <div class="item">
+          <div class="label">待回款</div>
+          <div class="value">¥ {{ (detailContract.total - actualReceived).toLocaleString() }}</div>
+          <div class="sub">未收比例 {{ ((1 - actualReceived/detailContract.total) * 100).toFixed(1) }}%</div>
+        </div>
+        <div class="item">
+          <div class="label">回款完成度</div>
+          <div class="value">{{ ((actualReceived/detailContract.total) * 100).toFixed(0) }}%</div>
+          <el-progress :percentage="Math.round(actualReceived/detailContract.total*100)" :stroke-width="6" :show-text="false" style="margin-top: 8px;" />
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div v-if="detailLayout === 'tabs'">
+        <div class="zen-tabs">
+          <el-tabs v-model="detailTab">
+            <el-tab-pane label="商品明细" name="items">
+              <el-table :data="detailItems" :border="false">
+                <el-table-column prop="name" label="产品" min-width="220" />
+                <el-table-column prop="spec" label="规格" width="160" />
+                <el-table-column prop="count" label="数量" width="80" align="center" />
+                <el-table-column label="标准单价" width="120" align="right">
+                  <template #default="{row}">¥ {{ row.standardPrice.toLocaleString() }}</template>
+                </el-table-column>
+                <el-table-column label="折扣" width="100" align="center">
+                  <template #default="{row}">
+                    <span :style="{color: row.discount < 8.5 ? '#ef4444' : 'inherit', fontWeight: row.discount < 8.5 ? 600 : 400}">
+                      {{ row.discount.toFixed(1) }} 折
+                    </span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="实际单价" width="120" align="right">
+                  <template #default="{row}">¥ {{ row.salesPrice.toLocaleString() }}</template>
+                </el-table-column>
+                <el-table-column label="小计" width="140" align="right">
+                  <template #default="{row}"><b>¥ {{ (row.salesPrice * row.count).toLocaleString() }}</b></template>
+                </el-table-column>
+              </el-table>
+            </el-tab-pane>
+
+            <el-tab-pane :label="`回款计划 (${detailPlans.length})`" name="plans">
+              <div v-if="role === 'sales' && detailContract.status === 1" style="margin-bottom: 12px;">
+                <el-button type="primary" class="btn-zen-primary" @click="addPlanDialog = true">+ 新增回款计划</el-button>
+              </div>
+              <div class="zen-plan-step pending" v-for="p in detailPlans" :key="p.id" :class="planClass(p)">
+                <div class="dot">{{ p.period }}</div>
+                <div class="body">
+                  <div class="title">第 {{ p.period }} 期 · {{ p.remark || '—' }}</div>
+                  <div class="sub">预计回款日: {{ p.expectedDate }} · 预计金额 ¥ {{ p.expected.toLocaleString() }}</div>
+                </div>
+                <div style="text-align: right;">
+                  <div class="amount">¥ {{ (p.received || 0).toLocaleString() }} / {{ p.expected.toLocaleString() }}</div>
+                  <div class="text-soft" style="font-size: 12px; margin-top: 2px;">
+                    <span v-if="p.status === 0" class="zen-status gray">未到期</span>
+                    <span v-else-if="p.status === 1" class="zen-status warn">催款中</span>
+                    <span v-else class="zen-status ok">已回款</span>
+                  </div>
+                </div>
+              </div>
+              <div v-if="!detailPlans.length" class="empty-tip">暂无回款计划</div>
+            </el-tab-pane>
+
+            <el-tab-pane :label="`回款记录 (${detailReceivables.length})`" name="receivables">
+              <div v-if="role === 'finance'" style="margin-bottom: 12px;">
+                <el-button type="primary" class="btn-zen-primary" @click="addReceivableDialog = true">+ 录入回款</el-button>
+              </div>
+              <el-table :data="detailReceivables" :border="false">
+                <el-table-column prop="num" label="回款编号" width="160">
+                  <template #default="{row}"><span class="text-mono">{{ row.num }}</span></template>
+                </el-table-column>
+                <el-table-column label="对应计划" width="120">
+                  <template #default="{row}">
+                    <span v-if="row.planId">第 {{ getPlanPeriod(row.planId) }} 期</span>
+                    <span v-else class="text-soft">计划外</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="回款金额" width="140" align="right">
+                  <template #default="{row}"><b>¥ {{ row.amount.toLocaleString() }}</b></template>
+                </el-table-column>
+                <el-table-column prop="returnDate" label="回款日期" width="120" />
+                <el-table-column prop="method" label="支付方式" width="100" />
+                <el-table-column prop="recorder" label="录入人" width="100" />
+              </el-table>
+              <div v-if="!detailReceivables.length" class="empty-tip">暂无回款记录</div>
+            </el-tab-pane>
+          </el-tabs>
+        </div>
+      </div>
+
+      <!-- 长页面模式 -->
+      <div v-else>
+        <!-- Section 1: 商品明细 -->
+        <div class="zen-card">
+          <div class="zen-card-header">
+            <span class="zen-card-title">📦 商品明细 · {{ detailItems.length }} 项</span>
+            <span class="zen-card-extra">小计合计 ¥ {{ detailItems.reduce((s, r) => s + r.salesPrice * r.count, 0).toLocaleString() }}</span>
+          </div>
+          <el-table :data="detailItems" :border="false">
+            <el-table-column prop="name" label="产品" min-width="200" />
+            <el-table-column prop="spec" label="规格" width="160" />
+            <el-table-column prop="count" label="数量" width="80" align="center" />
+            <el-table-column label="标准单价" width="110" align="right">
+              <template #default="{row}"><span class="amount-auto">¥ {{ row.standardPrice.toLocaleString() }}</span></template>
+            </el-table-column>
+            <el-table-column label="折扣" width="90" align="center">
+              <template #default="{row}">
+                <span :style="{color: row.discount < 8.5 ? '#ef4444' : 'inherit', fontWeight: row.discount < 8.5 ? 600 : 400}">
+                  {{ row.discount.toFixed(1) }} 折
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column label="实际单价" width="110" align="right">
+              <template #default="{row}"><b>¥ {{ row.salesPrice.toLocaleString() }}</b></template>
+            </el-table-column>
+            <el-table-column label="小计" width="130" align="right">
+              <template #default="{row}"><b style="color: var(--zen-primary);">¥ {{ (row.salesPrice * row.count).toLocaleString() }}</b></template>
+            </el-table-column>
+          </el-table>
+        </div>
+
+        <!-- Section 2: 回款计划 -->
+        <div class="zen-card">
+          <div class="zen-card-header">
+            <span class="zen-card-title">📅 回款计划 · {{ detailPlans.length }} 期</span>
+            <el-button v-if="role === 'sales' && detailContract.status === 1" type="primary" class="btn-zen-primary" size="small" @click="addPlanDialog = true">+ 新增回款计划</el-button>
+          </div>
+
+          <!-- 卡片时间轴 -->
+          <div v-if="planDisplay === 'card'">
+            <div class="zen-plan-step pending" v-for="p in detailPlans" :key="p.id" :class="planClass(p)">
+              <div class="dot">{{ p.period }}</div>
+              <div class="body">
+                <div class="title">第 {{ p.period }} 期 · {{ p.remark || '—' }}</div>
+                <div class="sub">预计回款日: {{ p.expectedDate }} · 备注: {{ p.remark || '—' }}</div>
+                <div style="margin-top: 6px; display: flex; align-items: center; gap: 12px;">
+                  <div style="flex: 1; max-width: 240px;">
+                    <el-progress :percentage="Math.min(100, Math.round((p.received || 0) / p.expected * 100))" :stroke-width="5" :show-text="false" />
+                  </div>
+                  <span class="text-soft" style="font-size: 12px;">{{ Math.round((p.received || 0) / p.expected * 100) }}%</span>
+                </div>
+              </div>
+              <div style="text-align: right; min-width: 160px;">
+                <div class="amount">¥ {{ (p.received || 0).toLocaleString() }} / {{ p.expected.toLocaleString() }}</div>
+                <div style="margin-top: 4px;">
+                  <span v-if="p.status === 0" class="zen-status gray">未到期</span>
+                  <span v-else-if="p.status === 1" class="zen-status warn">催款中</span>
+                  <span v-else class="zen-status ok">已回款</span>
+                </div>
+              </div>
+            </div>
+            <div v-if="!detailPlans.length" class="empty-tip">暂无回款计划</div>
+          </div>
+
+          <!-- 表格 -->
+          <div v-else>
+            <el-table :data="detailPlans" :border="false">
+              <el-table-column prop="period" label="期数" width="70" align="center">
+                <template #default="{row}"><b>第 {{ row.period }} 期</b></template>
+              </el-table-column>
+              <el-table-column prop="expectedDate" label="预计回款日" width="130" />
+              <el-table-column label="预计金额" width="130" align="right">
+                <template #default="{row}">¥ {{ row.expected.toLocaleString() }}</template>
+              </el-table-column>
+              <el-table-column label="已实收" width="130" align="right">
+                <template #default="{row}">¥ {{ (row.received || 0).toLocaleString() }}</template>
+              </el-table-column>
+              <el-table-column label="完成度" min-width="200">
+                <template #default="{row}">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <el-progress :percentage="Math.min(100, Math.round((row.received || 0) / row.expected * 100))" :stroke-width="6" :show-text="false" style="flex: 1;" />
+                    <span style="font-size: 12px; color: var(--zen-text-soft); min-width: 40px;">{{ Math.round((row.received || 0) / row.expected * 100) }}%</span>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column label="状态" width="100" align="center">
+                <template #default="{row}">
+                  <span v-if="row.status === 0" class="zen-status gray">未到期</span>
+                  <span v-else-if="row.status === 1" class="zen-status warn">催款中</span>
+                  <span v-else class="zen-status ok">已回款</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="remark" label="备注" min-width="120" />
+            </el-table>
+            <div v-if="!detailPlans.length" class="empty-tip">暂无回款计划</div>
+          </div>
+        </div>
+
+        <!-- Section 3: 回款记录 -->
+        <div class="zen-card">
+          <div class="zen-card-header">
+            <span class="zen-card-title">💰 回款记录 · {{ detailReceivables.length }} 笔</span>
+            <el-button v-if="role === 'finance'" type="primary" class="btn-zen-primary" size="small" @click="addReceivableDialog = true">+ 录入回款</el-button>
+          </div>
+          <el-table :data="detailReceivables" :border="false">
+            <el-table-column prop="num" label="回款编号" width="160">
+              <template #default="{row}"><span class="text-mono">{{ row.num }}</span></template>
+            </el-table-column>
+            <el-table-column label="对应计划" width="120">
+              <template #default="{row}">
+                <span v-if="row.planId">第 {{ getPlanPeriod(row.planId) }} 期</span>
+                <span v-else class="text-soft">计划外</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="回款金额" width="140" align="right">
+              <template #default="{row}"><b>¥ {{ row.amount.toLocaleString() }}</b></template>
+            </el-table-column>
+            <el-table-column prop="returnDate" label="回款日期" width="120" />
+            <el-table-column prop="method" label="支付方式" width="100" />
+            <el-table-column prop="recorder" label="录入人" width="100" />
+          </el-table>
+          <div v-if="!detailReceivables.length" class="empty-tip">暂无回款记录</div>
+        </div>
+      </div>
+
+      <!-- 新增回款计划对话框 -->
+      <el-dialog v-model="addPlanDialog" title="新增回款计划" width="500px">
+        <el-form :model="newPlan" label-width="100px">
+          <el-form-item label="期数"><el-input-number v-model="newPlan.period" :min="1" /></el-form-item>
+          <el-form-item label="预计金额"><el-input-number v-model="newPlan.expected" :min="0" :precision="2" :step="1000" style="width: 100%;" /></el-form-item>
+          <el-form-item label="预计日期"><el-date-picker v-model="newPlan.expectedDate" type="date" value-format="YYYY-MM-DD" style="width: 100%;" /></el-form-item>
+          <el-form-item label="备注"><el-input v-model="newPlan.remark" placeholder="如: 首款 40%" /></el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="addPlanDialog = false">取消</el-button>
+          <el-button type="primary" class="btn-zen-primary" @click="confirmAddPlan">确认</el-button>
+        </template>
+      </el-dialog>
+
+      <!-- 录入回款对话框 -->
+      <el-dialog v-model="addReceivableDialog" title="录入回款" width="500px">
+        <el-form :model="newReceivable" label-width="100px">
+          <el-form-item label="对应计划">
+            <el-select v-model="newReceivable.planId" placeholder="可选,留空为计划外" clearable style="width: 100%;">
+              <el-option v-for="p in detailPlans.filter(p => p.status !== 2)" :key="p.id" :label="`第 ${p.period} 期 · ¥ ${p.expected.toLocaleString()}`" :value="p.id" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="回款金额"><el-input-number v-model="newReceivable.amount" :min="0.01" :precision="2" :step="1000" style="width: 100%;" /></el-form-item>
+          <el-form-item label="回款日期"><el-date-picker v-model="newReceivable.returnDate" type="date" value-format="YYYY-MM-DD" style="width: 100%;" /></el-form-item>
+          <el-form-item label="支付方式">
+            <el-select v-model="newReceivable.method" style="width: 100%;">
+              <el-option label="银行转账" value="银行转账" />
+              <el-option label="微信" value="微信" />
+              <el-option label="支付宝" value="支付宝" />
+              <el-option label="现金" value="现金" />
+            </el-select>
+          </el-form-item>
+        </el-form>
+        <template #footer>
+          <el-button @click="addReceivableDialog = false">取消</el-button>
+          <el-button type="primary" class="btn-zen-primary" @click="confirmAddReceivable">确认</el-button>
+        </template>
+      </el-dialog>
+    </template>
+
+    <!-- ============== 视图 4: 审批中心 (总监) ============== -->
+    <template v-if="current === 'approval'">
+      <div class="zen-page-header">
+        <div>
+          <h1 class="zen-page-title">审批中心</h1>
+          <p class="zen-page-subtitle">合同折扣低于 8.5 折时需总监审批 · 共 {{ pendingApprovals.length }} 条待审</p>
+        </div>
+      </div>
+
+      <div class="zen-card">
+        <div class="zen-toolbar">
+          <el-radio-group v-model="approvalFilter.status" size="default">
+            <el-radio-button :value="0">待审 ({{ pendingApprovals.length }})</el-radio-button>
+            <el-radio-button :value="1">已通过</el-radio-button>
+            <el-radio-button :value="2">已驳回</el-radio-button>
+          </el-radio-group>
+        </div>
+
+        <el-table :data="filteredApprovals" stripe>
+          <el-table-column prop="contractNum" label="合同编号" width="160">
+            <template #default="{row}"><span class="text-mono">{{ row.contractNum }}</span></template>
+          </el-table-column>
+          <el-table-column prop="contractName" label="合同名称" min-width="220" />
+          <el-table-column prop="applicant" label="申请人" width="100" />
+          <el-table-column prop="customer" label="客户" width="180" />
+          <el-table-column label="合同金额" width="130" align="right">
+            <template #default="{row}">¥ {{ row.total.toLocaleString() }}</template>
+          </el-table-column>
+          <el-table-column label="最低折扣" width="110" align="center">
+            <template #default="{row}">
+              <span style="color: #ef4444; font-weight: 600;">{{ row.minDiscount.toFixed(1) }} 折</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="reason" label="触发原因" min-width="200" />
+          <el-table-column prop="createTime" label="申请时间" width="160" />
+          <el-table-column label="操作" width="180" align="center" fixed="right">
+            <template #default="{row}">
+              <template v-if="row.status === 0">
+                <el-button text type="primary" @click="approveDialog(row, true)">通过</el-button>
+                <el-button text style="color: #ef4444;" @click="approveDialog(row, false)">驳回</el-button>
+              </template>
+              <el-button v-else text @click="viewDetail(row)">查看</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <div v-if="!filteredApprovals.length" class="empty-tip">暂无审批记录</div>
+      </div>
+
+      <!-- 审批对话框 -->
+      <el-dialog v-model="approveModal.show" :title="approveModal.action === 'approve' ? '审批通过' : '驳回合同'" width="500px">
+        <div v-if="approveModal.row" style="margin-bottom: 16px;">
+          <div style="font-size: 13px; color: var(--zen-text-soft);">合同</div>
+          <div style="font-weight: 500;">{{ approveModal.row.contractName }}</div>
+          <div class="text-soft" style="font-size: 12px; margin-top: 4px;">{{ approveModal.row.contractNum }} · 最低折扣 {{ approveModal.row.minDiscount.toFixed(1) }} 折</div>
+        </div>
+        <el-input v-model="approveModal.comment" type="textarea" :rows="3" :placeholder="approveModal.action === 'approve' ? '审批意见 (选填)' : '请填写驳回原因'" />
+        <template #footer>
+          <el-button @click="approveModal.show = false">取消</el-button>
+          <el-button v-if="approveModal.action === 'approve'" type="primary" class="btn-zen-primary" @click="confirmApprove">确认通过</el-button>
+          <el-button v-else type="danger" @click="confirmReject">确认驳回</el-button>
+        </template>
+      </el-dialog>
+    </template>
+
+    <!-- ============== 视图 5: 回款管理 (财务) ============== -->
+    <template v-if="current === 'receivable'">
+      <div class="zen-page-header">
+        <div>
+          <h1 class="zen-page-title">回款管理</h1>
+          <p class="zen-page-subtitle">录入实际回款 · 系统自动联动回款计划与合同状态</p>
+        </div>
+        <el-button type="primary" class="btn-zen-primary" @click="addReceivableDialog2 = true">+ 录入回款</el-button>
+      </div>
+
+      <div class="zen-card">
+        <div class="zen-toolbar">
+          <el-select v-model="receivableFilter.contractId" placeholder="合同" clearable filterable style="width: 240px;">
+            <el-option v-for="c in contracts" :key="c.id" :label="`${c.num} ${c.name}`" :value="c.id" />
+          </el-select>
+          <el-date-picker v-model="receivableFilter.dateRange" type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" value-format="YYYY-MM-DD" />
+          <el-button @click="loadReceivables">查询</el-button>
+          <div class="spacer"></div>
+          <div class="text-soft" style="font-size: 13px;">本月共录入 <b style="color: var(--zen-primary);">{{ detailReceivables.length }}</b> 笔，合计 <b style="color: var(--zen-primary);">¥ {{ actualReceived.toLocaleString() }}</b></div>
+        </div>
+
+        <el-table :data="detailReceivables" stripe>
+          <el-table-column prop="num" label="回款编号" width="160">
+            <template #default="{row}"><span class="text-mono">{{ row.num }}</span></template>
+          </el-table-column>
+          <el-table-column label="合同" min-width="220">
+            <template #default="{row}">
+              <a style="color: var(--zen-primary); cursor: pointer;" @click="openDetailById(row.contractId)">{{ getContractName(row.contractId) }}</a>
+            </template>
+          </el-table-column>
+          <el-table-column label="对应计划" width="120">
+            <template #default="{row}">
+              <span v-if="row.planId">第 {{ getPlanPeriod(row.planId) }} 期</span>
+              <span v-else class="text-soft">计划外</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="回款金额" width="140" align="right">
+            <template #default="{row}"><b>¥ {{ row.amount.toLocaleString() }}</b></template>
+          </el-table-column>
+          <el-table-column prop="returnDate" label="回款日期" width="120" />
+          <el-table-column prop="method" label="支付方式" width="100" />
+          <el-table-column prop="recorder" label="录入人" width="100" />
+        </el-table>
+        <div v-if="!detailReceivables.length" class="empty-tip">暂无回款记录</div>
+      </div>
+
+      <!-- 录入回款对话框 (财务端) -->
+      <el-dialog v-model="addReceivableDialog2" title="录入回款" width="500px">
+        <el-form :model="newReceivable2" label-width="100px">
+          <el-form-item label="合同">
+            <el-select v-model="newReceivable2.contractId" placeholder="选择合同" filterable style="width: 100%;" @change="onReceivableContractChange">
+              <el-option v-for="c in contracts.filter(c => c.status === 1)" :key="c.id" :label="`${c.num} ${c.name}`" :value="c.id" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="对应计划">
+            <el-select v-model="newReceivable2.planId" placeholder="可选,留空为计划外" clearable :disabled="!newReceivable2.contractId" style="width: 100%;">
+              <el-option v-for="p in getPlansByContract(newReceivable2.contractId).filter(p => p.status !== 2)" :key="p.id" :label="`第 ${p.period} 期 · ¥ ${p.expected.toLocaleString()}`" :value="p.id" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="回款金额"><el-input-number v-model="newReceivable2.amount" :min="0.01" :precision="2" :step="1000" style="width: 100%;" /></el-form-item>
+          <el-form-item label="回款日期"><el-date-picker v-model="newReceivable2.returnDate" type="date" value-format="YYYY-MM-DD" style="width: 100%;" /></el-form-item>
+          <el-form-item label="支付方式">
+            <el-select v-model="newReceivable2.method" style="width: 100%;">
+              <el-option label="银行转账" value="银行转账" />
+              <el-option label="微信" value="微信" />
+              <el-option label="支付宝" value="支付宝" />
+              <el-option label="现金" value="现金" />
+            </el-select>
+          </el-form-item>
+        </el-form>
+        <div v-if="newReceivable2.planId && getPlanById(newReceivable2.planId)" class="zen-info-banner" style="margin-top: 0;">
+          <span>ℹ️</span>
+          <div>本次录入后,该计划累计实收 ¥ {{ ((getPlanById(newReceivable2.planId).received || 0) + (newReceivable2.amount || 0)).toLocaleString() }} /
+            ¥ {{ getPlanById(newReceivable2.planId).expected.toLocaleString() }}
+            <span v-if="(getPlanById(newReceivable2.planId).received || 0) + (newReceivable2.amount || 0) >= getPlanById(newReceivable2.planId).expected">
+              · <b style="color: var(--zen-primary);">提交后该计划将自动置为"已回款"</b>
+            </span>
+          </div>
+        </div>
+        <template #footer>
+          <el-button @click="addReceivableDialog2 = false">取消</el-button>
+          <el-button type="primary" class="btn-zen-primary" @click="confirmAddReceivable2">确认录入</el-button>
+        </template>
+      </el-dialog>
+    </template>
+
+  </div>
+</div>
+
+<script>
+const { createApp, ref, reactive, computed, watch } = Vue;
+
+// Mock data
+const products = [
+  { id: 1, code: 'P-CRM-001', name: 'ZenCRM 企业版 (50 席位)', spec: '50 用户 / 1 年', price: 128000, unit: '套' },
+  { id: 2, code: 'P-CRM-002', name: 'ZenCRM 旗舰版 (200 席位)', spec: '200 用户 / 1 年', price: 480000, unit: '套' },
+  { id: 3, code: 'P-IMPL-001', name: '实施服务', spec: '人天', price: 3000, unit: '人天' },
+  { id: 4, code: 'P-TRN-001', name: '管理员培训', spec: '2 天 / 班', price: 12000, unit: '班' },
+  { id: 5, code: 'P-SUP-001', name: 'VIP 运维支持', spec: '1 年', price: 36000, unit: '套' },
+];
+
+const customers = [
+  { id: 1, name: '华东医药集团' },
+  { id: 2, name: '蓝海科技股份有限公司' },
+  { id: 3, name: '和顺物流有限公司' },
+  { id: 4, name: '中科云创' },
+];
+
+const contracts = [
+  { id: 1, num: 'HT-2026-001', name: '华东医药 CRM 一期', customerId: 1, customer: '华东医药集团', total: 386000, status: 1, owner: '李销售', createTime: '2026-06-25 14:30' },
+  { id: 2, num: 'HT-2026-002', name: '蓝海科技 200 席位旗舰版', customerId: 2, customer: '蓝海科技股份有限公司', total: 960000, status: 0, owner: '陈销售', createTime: '2026-06-26 09:15' },
+  { id: 3, num: 'HT-2026-003', name: '和顺物流 实施服务', customerId: 3, customer: '和顺物流有限公司', total: 60000, status: 2, owner: '李销售', createTime: '2026-06-20 11:00' },
+  { id: 4, num: 'HT-2026-004', name: '中科云创 二期扩容', customerId: 4, customer: '中科云创', total: 250000, status: 1, owner: '李销售', createTime: '2026-06-27 10:00' },
+];
+
+const MOCK_ITEMS = [
+  { contractId: 1, productId: 1, name: 'ZenCRM 企业版 (50 席位)', spec: '50 用户 / 1 年', count: 1, standardPrice: 128000, discount: 9.5, salesPrice: 121600 },
+  { contractId: 1, productId: 3, name: '实施服务', spec: '人天', count: 60, standardPrice: 3000, discount: 9.0, salesPrice: 2700 },
+  { contractId: 1, productId: 4, name: '管理员培训', spec: '2 天 / 班', count: 2, standardPrice: 12000, discount: 9.5, salesPrice: 11400 },
+  { contractId: 2, productId: 2, name: 'ZenCRM 旗舰版 (200 席位)', spec: '200 用户 / 1 年', count: 2, standardPrice: 480000, discount: 7.5, salesPrice: 360000 },
+  { contractId: 3, productId: 3, name: '实施服务', spec: '人天', count: 20, standardPrice: 3000, discount: 10.0, salesPrice: 3000 },
+  { contractId: 4, productId: 1, name: 'ZenCRM 企业版 (50 席位)', spec: '50 用户 / 1 年', count: 1, standardPrice: 128000, discount: 9.0, salesPrice: 115200 },
+  { contractId: 4, productId: 3, name: '实施服务', spec: '人天', count: 35, standardPrice: 3000, discount: 9.0, salesPrice: 2700 },
+  { contractId: 4, productId: 5, name: 'VIP 运维支持', spec: '1 年', count: 1, standardPrice: 36000, discount: 9.0, salesPrice: 32400 },
+];
+
+const plans = [
+  { id: 1, contractId: 1, period: 1, expected: 154400, expectedDate: '2026-07-15', status: 2, received: 154400, remark: '首款 40%' },
+  { id: 2, contractId: 1, period: 2, expected: 193000, expectedDate: '2026-09-30', status: 1, received: 0, remark: '中期款 50%' },
+  { id: 3, contractId: 1, period: 3, expected: 38600, expectedDate: '2027-01-30', status: 0, received: 0, remark: '质保金 10%' },
+  { id: 4, contractId: 4, period: 1, expected: 100000, expectedDate: '2026-08-15', status: 0, received: 0, remark: '首款 40%' },
+  { id: 5, contractId: 4, period: 2, expected: 100000, expectedDate: '2026-12-15', status: 0, received: 0, remark: '中期款 40%' },
+  { id: 6, contractId: 4, period: 3, expected: 50000, expectedDate: '2027-06-15', status: 0, received: 0, remark: '尾款 20%' },
+];
+
+const receivables = [
+  { id: 1, num: 'SK-2026-001', contractId: 1, planId: 1, amount: 154400, returnDate: '2026-07-15', method: '银行转账', recorder: '赵财务' },
+  { id: 2, num: 'SK-2026-002', contractId: 4, planId: null, amount: 10000, returnDate: '2026-06-25', method: '银行转账', recorder: '赵财务' },
+];
+
+const approvals = [
+  { id: 1, contractId: 2, contractNum: 'HT-2026-002', contractName: '蓝海科技 200 席位旗舰版', applicant: '陈销售', customer: '蓝海科技股份有限公司', total: 960000, minDiscount: 7.5, reason: '折扣 7.5 折,低于 8.5 折审批线', status: 0, createTime: '2026-06-26 09:15' },
+  { id: 2, contractId: 1, contractNum: 'HT-2026-001', contractName: '华东医药 CRM 一期', applicant: '李销售', customer: '华东医药集团', total: 386000, minDiscount: 9.0, reason: '折扣 9.0 折,低于 8.5 折审批线 - 已被总监通过', status: 1, createTime: '2026-06-25 10:00', approver: '张总监', comment: '客户战略客户,特批通过' },
+  { id: 3, contractId: 3, contractNum: 'HT-2026-003', contractName: '和顺物流 实施服务', applicant: '李销售', customer: '和顺物流', total: 60000, minDiscount: 7.8, reason: '折扣 7.8 折,低于 8.5 折审批线', status: 2, createTime: '2026-06-18 14:00', approver: '张总监', comment: '利润空间不足,建议重新报价' },
+];
+
+const app = createApp({
+  setup() {
+    const role = ref('sales');
+    const current = ref('contract-list');
+
+    const navItems = computed(() => {
+      if (role.value === 'sales') {
+        return [
+          { id: 'contract-list', label: '合同' },
+          { id: 'contract-submit', label: '新建合同' },
+          { id: 'contract-detail', label: '合同详情' },
+        ];
+      }
+      if (role.value === 'director') {
+        return [
+          { id: 'contract-list', label: '合同' },
+          { id: 'approval', label: '审批中心' },
+          { id: 'contract-detail', label: '合同详情' },
+        ];
+      }
+      if (role.value === 'finance') {
+        return [
+          { id: 'contract-list', label: '合同' },
+          { id: 'receivable', label: '回款管理' },
+          { id: 'contract-detail', label: '合同详情' },
+        ];
+      }
+      return [];
+    });
+
+    const currentUser = computed(() => {
+      if (role.value === 'sales') return { name: '李销售', roleText: '普通销售' };
+      if (role.value === 'director') return { name: '张总监', roleText: '销售总监' };
+      if (role.value === 'finance') return { name: '赵财务', roleText: '财务人员' };
+    });
+    const avatarText = computed(() => currentUser.value.name[0]);
+
+    const onRoleChange = () => {
+      // 切角色时跳到该角色首个导航
+      if (navItems.value.length) current.value = navItems.value[0].id;
+    };
+
+    // 合同列表
+    const contractFilter = reactive({ keyword: '', status: null });
+    const filteredContracts = computed(() => {
+      let list = contracts;
+      // 数据权限 mock: 销售只看自己; 财务/总监看全部
+      if (role.value === 'sales') list = list.filter(c => c.owner === currentUser.value.name);
+      if (contractFilter.keyword) {
+        const kw = contractFilter.keyword.toLowerCase();
+        list = list.filter(c => c.num.toLowerCase().includes(kw) || c.name.toLowerCase().includes(kw));
+      }
+      if (contractFilter.status !== null) list = list.filter(c => c.status === contractFilter.status);
+      return list;
+    });
+    const loadContracts = () => { /* mock */ };
+
+    // 合同详情
+    const detailContract = ref(contracts[0]);
+    const detailTab = ref('items');
+    const detailLayout = ref('long'); // 'tabs' | 'long'  页面布局
+    const planDisplay = ref('card'); // 'card' | 'table' 回款计划展示
+    const openDetail = (row) => {
+      detailContract.value = row;
+      detailTab.value = 'items';
+      current.value = 'contract-detail';
+    };
+    const openDetailById = (id) => {
+      const c = contracts.find(x => x.id === id);
+      if (c) openDetail(c);
+    };
+    const detailItems = computed(() => MOCK_ITEMS.filter(i => i.contractId === detailContract.value.id));
+    const detailPlans = computed(() => plans.filter(p => p.contractId === detailContract.value.id));
+    const detailReceivables = computed(() => receivables.filter(r => r.contractId === detailContract.value.id));
+    const actualReceived = computed(() => detailReceivables.value.reduce((s, r) => s + r.amount, 0));
+    const getPlanPeriod = (planId) => { const p = plans.find(x => x.id === planId); return p ? p.period : '-'; };
+    const planClass = (p) => p.status === 2 ? 'done' : p.status === 1 ? 'urgent' : 'pending';
+    const getContractName = (id) => { const c = contracts.find(x => x.id === id); return c ? `${c.num} ${c.name}` : '-'; };
+
+    // 新建合同
+    const form = reactive({
+      customerId: null, businessId: null, name: '', num: '',
+      startDate: '', endDate: '',
+      items: [{ productId: null, count: 1, discount: 10.0, standardPrice: 0 }],
+    });
+    const getProduct = (id) => products.find(p => p.id === id) || {};
+    const onProductChange = (idx, pid) => {
+      const p = getProduct(pid);
+      form.items[idx].standardPrice = p.price || 0;
+      recalc();
+    };
+    const computeSalesPrice = (row) => {
+      if (!row.productId || !row.standardPrice) return 0;
+      return Math.round(row.standardPrice * row.discount * 10) / 100; // × discount / 10
+    };
+    const computeSubtotal = (row) => Math.round(computeSalesPrice(row) * row.count * 100) / 100;
+    const totalAmount = computed(() => {
+      return Math.round(form.items.reduce((s, r) => s + computeSubtotal(r), 0) * 100) / 100;
+    });
+    const minDiscount = computed(() => {
+      const ds = form.items.filter(r => r.productId).map(r => r.discount);
+      return ds.length ? Math.min(...ds) : 10;
+    });
+    const recalc = () => { /* 触发 computed 自动重算 */ };
+    const addItem = () => form.items.push({ productId: null, count: 1, discount: 10.0, standardPrice: 0 });
+    const removeItem = (idx) => form.items.splice(idx, 1);
+    const submitContract = () => {
+      ElementPlus.ElMessage.success(minDiscount.value < 8.5
+        ? '合同已提交,等待销售总监审批'
+        : '合同已提交,直接进入执行中');
+      current.value = 'contract-list';
+    };
+
+    // 回款计划对话框
+    const addPlanDialog = ref(false);
+    const newPlan = reactive({ period: 1, expected: 0, expectedDate: '', remark: '' });
+    const confirmAddPlan = () => {
+      plans.push({ id: plans.length + 10, contractId: detailContract.value.id, ...newPlan, status: 0, received: 0 });
+      addPlanDialog.value = false;
+      ElementPlus.ElMessage.success('回款计划已添加');
+    };
+
+    // 回款录入对话框 (合同详情)
+    const addReceivableDialog = ref(false);
+    const newReceivable = reactive({ planId: null, amount: 0, returnDate: '', method: '银行转账' });
+    const confirmAddReceivable = () => {
+      receivables.push({
+        id: receivables.length + 10, num: 'SK-2026-' + String(receivables.length + 100).padStart(3, '0'),
+        contractId: detailContract.value.id, ...newReceivable, recorder: '赵财务',
+      });
+      addReceivableDialog.value = false;
+      ElementPlus.ElMessage.success('回款已录入,计划状态将自动联动');
+    };
+
+    // 审批中心
+    const approvalFilter = reactive({ status: 0 });
+    const pendingApprovals = computed(() => approvals.filter(a => a.status === 0));
+    const filteredApprovals = computed(() => {
+      if (approvalFilter.status === 0) return approvals.filter(a => a.status === 0);
+      if (approvalFilter.status === 1) return approvals.filter(a => a.status === 1);
+      if (approvalFilter.status === 2) return approvals.filter(a => a.status === 2);
+      return approvals;
+    });
+    const approveModal = reactive({ show: false, row: null, action: 'approve', comment: '' });
+    const approveDialog = (row, ok) => { approveModal.row = row; approveModal.action = ok ? 'approve' : 'reject'; approveModal.comment = ''; approveModal.show = true; };
+    const confirmApprove = () => {
+      const a = approveModal.row; a.status = 1; a.approver = '张总监'; a.comment = approveModal.comment;
+      const c = contracts.find(x => x.id === a.contractId); if (c) c.status = 1;
+      approveModal.show = false;
+      ElementPlus.ElMessage.success('已通过,合同进入执行中');
+    };
+    const confirmReject = () => {
+      const a = approveModal.row; a.status = 2; a.approver = '张总监'; a.comment = approveModal.comment;
+      const c = contracts.find(x => x.id === a.contractId); if (c) c.status = 3;
+      approveModal.show = false;
+      ElementPlus.ElMessage.success('已驳回');
+    };
+    const viewDetail = () => ElementPlus.ElMessage.info('审批详情查看');
+
+    // 回款管理
+    const receivableFilter = reactive({ contractId: null, dateRange: null });
+    const addReceivableDialog2 = ref(false);
+    const newReceivable2 = reactive({ contractId: null, planId: null, amount: 0, returnDate: '', method: '银行转账' });
+    const onReceivableContractChange = () => { newReceivable2.planId = null; };
+    const getPlansByContract = (cid) => plans.filter(p => p.contractId === cid);
+    const getPlanById = (pid) => plans.find(p => p.id === pid);
+    const confirmAddReceivable2 = () => {
+      receivables.push({
+        id: receivables.length + 10, num: 'SK-2026-' + String(receivables.length + 100).padStart(3, '0'),
+        ...newReceivable2, recorder: '赵财务',
+      });
+      addReceivableDialog2.value = false;
+      ElementPlus.ElMessage.success('回款已录入,Spring Event 已触发联动');
+      newReceivable2.contractId = null; newReceivable2.planId = null; newReceivable2.amount = 0; newReceivable2.returnDate = '';
+    };
+
+    return {
+      role, current, navItems, currentUser, avatarText, onRoleChange,
+      // 合同列表
+      contractFilter, filteredContracts, loadContracts, openDetail, openDetailById,
+      // 合同详情
+      detailContract, detailTab, detailLayout, planDisplay, detailItems, detailPlans, detailReceivables, actualReceived, getPlanPeriod, planClass, getContractName,
+      // 新建合同
+      form, products, customers, getProduct, onProductChange, computeSalesPrice, computeSubtotal, totalAmount, minDiscount, recalc, addItem, removeItem, submitContract,
+      // 计划
+      addPlanDialog, newPlan, confirmAddPlan,
+      // 回款
+      addReceivableDialog, newReceivable, confirmAddReceivable,
+      // 审批
+      approvalFilter, pendingApprovals, filteredApprovals, approveModal, approveDialog, confirmApprove, confirmReject, viewDetail,
+      // 回款管理
+      receivableFilter, addReceivableDialog2, newReceivable2, onReceivableContractChange, getPlansByContract, getPlanById, confirmAddReceivable2,
+    };
+  }
+});
+app.use(ElementPlus);
+app.mount('#app');
+</script>
+</body>
+</html>

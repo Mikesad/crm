@@ -6,7 +6,7 @@
         <div class="page-sub">共 {{ total }} 个商机 · 商机总金额 ¥ {{ formatAmount(totalAmount) }}</div>
       </div>
       <div>
-        <el-button :icon="Plus" @click="handleCreate">新建商机</el-button>
+        <el-button :icon="Plus" class="btn-zen-primary" @click="handleCreate">新建商机</el-button>
       </div>
     </div>
 
@@ -19,7 +19,7 @@
           <el-select v-model="query.stage" placeholder="全部阶段" class="filter" clearable @change="handleSearch">
             <el-option v-for="s in STAGES" :key="s" :label="s" :value="s" />
           </el-select>
-          <el-input v-model.number="query.customerId" placeholder="客户 ID（可选）" class="filter-sm" clearable @keyup.enter="handleSearch" />
+          <el-input v-model.number="query.customerId" placeholder="客户 ID" class="filter-sm" clearable @keyup.enter="handleSearch" />
           <div class="spacer" />
           <el-button :icon="Search" @click="handleSearch">查询</el-button>
           <el-button :icon="Download" @click="handleExport">导出</el-button>
@@ -110,7 +110,7 @@
           <el-input v-model="editing.expectedAmount" placeholder="如：2400000.00" />
         </el-form-item>
         <el-form-item label="预计结单日期">
-          <el-date-picker v-model="editing.expectedDealDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+          <el-date-picker v-model="editing.expectedDealDate" type="date" value-format="YYYY-MM-DD" placeholder="请选择日期" style="width: 200px" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -251,7 +251,7 @@ async function handleSave() {
 
 async function handleDelete(row) {
   try {
-    await ElMessageBox.confirm(`确认删除商机「${row.businessName}」？`, '提示', { type: 'warning' })
+    await ElMessageBox.confirm(`确认删除商机「${row.businessName}」？`, '提示', { type: 'warning', confirmButtonClass: 'btn-zen-primary', customClass: 'msgbox-zen-confirm' })
     await deleteBusiness(row.id)
     ElMessage.success('已删除')
     loadList()

@@ -100,6 +100,19 @@ const routes = [
     ]
   },
   {
+    path: '/product',
+    component: () => import('@/layout/index.vue'),
+    meta: { title: '产品管理', icon: 'Goods' },
+    children: [
+      {
+        path: 'list',
+        name: 'ProductList',
+        component: () => import('@/views/product/list.vue'),
+        meta: { title: '产品库', permissions: ['crm:product:list'] }
+      }
+    ]
+  },
+  {
     path: '/contract',
     component: () => import('@/layout/index.vue'),
     meta: { title: '合同与回款', icon: 'Document' },
@@ -111,10 +124,28 @@ const routes = [
         meta: { title: '合同列表', permissions: ['crm:contract:list'] }
       },
       {
+        path: 'submit',
+        name: 'ContractSubmit',
+        component: () => import('@/views/contract/submit.vue'),
+        meta: { title: '新建合同', permissions: ['crm:contract:edit'] }
+      },
+      {
+        path: 'approval',
+        name: 'ApprovalList',
+        component: () => import('@/views/approval/list.vue'),
+        meta: { title: '审批中心', permissions: ['crm:contract:approve'] }
+      },
+      {
         path: 'receivable',
         name: 'ReceivableList',
-        component: () => import('@/views/contract/receivable.vue'),
-        meta: { title: '回款管理', permissions: ['crm:contract:receivable'] }
+        component: () => import('@/views/receivable/list.vue'),
+        meta: { title: '回款管理', permissions: ['crm:receivable:list'] }
+      },
+      {
+        path: ':id',
+        name: 'ContractDetail',
+        component: () => import('@/views/contract/detail.vue'),
+        meta: { title: '合同详情', permissions: ['crm:contract:list'], hidden: true }
       }
     ]
   },

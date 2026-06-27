@@ -13,8 +13,11 @@
 | 04 联系人 | [contact.md](./contact.md) | 4 | stable | 2026-06-27 |
 | 05 商机管理 | [business.md](./business.md) | 6 | stable | 2026-06-27 |
 | 06 跟进记录 | [record.md](./record.md) | 2 | stable | 2026-06-27 |
-| 合同管理 | contract.md | 待补 | planned | 阶段三 |
-| 回款管理 | receivable.md | 待补 | planned | 阶段三 |
+| 07 产品管理 | [product.md](./product.md) | 5 | stable | 2026-06-27 |
+| 08 合同管理 | [contract.md](./contract.md) | 5 | stable | 2026-06-27 |
+| 09 合同审批 | [approval.md](./approval.md) | 3 | stable | 2026-06-27 |
+| 10 回款计划 | [receivable-plan.md](./receivable-plan.md) | 5 | stable | 2026-06-27 |
+| 11 回款管理 | [receivable.md](./receivable.md) | 3 | stable | 2026-06-27 |
 | 公海池 | pool.md | 待补 | planned | 阶段四 |
 | 数据字典 | dict.md | 待补 | planned | - |
 
@@ -84,7 +87,7 @@ Authorization: <Sa-Token token>
 
 ## 阶段二新增权限码
 
-阶段二在 `crm_full.sql` 同步新增 / 重命名了以下权限码：
+阶段二在 `sql/crm_full.sql` 同步新增 / 重命名了以下权限码：
 
 | 旧 | 新 | 说明 |
 |:---|:---|:---|
@@ -93,7 +96,19 @@ Authorization: <Sa-Token token>
 | - | `crm:contact:list` / `crm:contact:edit` | 联系人模块（全新） |
 | - | `crm:record:list` / `crm:record:add` | 跟进记录模块（全新） |
 
-**已初始化数据库的迁移**：见 `docs/db-migrations/phase2-menu-update.sql`（在阶段二交付时同步生成）。
+**已初始化数据库的迁移**：见 `sql/migrations/phase2-menu-update.sql`（在阶段二交付时同步生成）。
+
+## 阶段三新增权限码
+
+| 权限码 | 角色绑定 | 说明 |
+|:---|:---|:---|
+| `crm:product:list` | admin / director / lead / sales / finance | 产品列表,公共资源 |
+| `crm:product:edit` | admin / director / sales | 产品编辑 |
+| `crm:contract:approve` | admin / director | 合同审批 (销售总监专用) |
+| `crm:receivable:edit` | admin / finance | 回款编辑 (财务录入) |
+| `crm:receivable_plan:edit` | admin / director / lead / sales | 回款计划编辑 (销售录入) |
+
+**已初始化数据库的迁移**：见 `sql/migrations/phase3-approval-and-plan-soft-delete.sql`（含 crm_approval 新表 + crm_receivable_plan 补 5 字段 + 5 菜单幂等插入 + 角色权限重绑）。
 
 ## 更新流程
 

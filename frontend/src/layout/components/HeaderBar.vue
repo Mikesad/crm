@@ -18,15 +18,14 @@
       />
       <el-dropdown @command="handleCommand" trigger="click">
         <span class="user-info">
-          <div class="user-avatar">{{ userInitial }}</div>
-          <span class="nickname">{{ userStore.nickname || userStore.username || '未登录' }}</span>
+          <span class="nickname">{{ userStore.nickname || userStore.username || '' }}</span>
           <el-icon><ArrowDown /></el-icon>
         </span>
         <template #dropdown>
           <el-dropdown-menu>
             <el-dropdown-item disabled>
               <div class="dropdown-header">
-                <div class="name">{{ userStore.nickname || userStore.username || '未登录' }}</div>
+                <div class="name">{{ userStore.nickname || userStore.username || '' }}</div>
                 <div class="role">{{ roleLabel }}</div>
               </div>
             </el-dropdown-item>
@@ -57,7 +56,7 @@ const userInitial = computed(() => {
 
 const roleLabel = computed(() => {
   const keys = userStore.roleKeys || []
-  if (keys.length === 0) return '访客'
+  if (keys.length === 0) return ''
   const map = {
     admin: '系统管理员',
     sales_director: '销售总监',

@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<!--
+  phase2-lead.html
+  阶段二 · 线索管理页（列表 + 转客户弹窗）
+
+  Layout: 主内容 + 右侧 300px 辅助面板（解决右侧空白）
+  - 左侧：线索列表（带筛选、状态色彩、分页）
+  - 右侧面板：今日待办 / 本月统计 / 快速查看
+  - 弹窗层：点击"转客户"按钮后弹出的转客户表单
+
+  Design Read: B2B CRM 销售视角。延续 Focus 变体设计令牌。
+  Dials: VARIANCE 5 / MOTION 3 / DENSITY 5。
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>线索管理 · ZenCRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:           #fafaf9;
+      --bg-warm:      #ffffff;
+      --ink:          #18181b;
+      --ink-soft:     #3f3f46;
+      --muted:        #71717a;
+      --subtle:       #a1a1aa;
+      --hairline:     #e4e4e7;
+      --hairline-soft:#f4f4f5;
+      --surface:      #ffffff;
+      --accent:       #166534;
+      --accent-soft:  #dcfce7;
+      --accent-pale:  #f0fdf4;
+      --accent-ring:  rgba(22, 101, 52, 0.12);
+      --info:         #1e40af;
+      --info-soft:    #dbeafe;
+      --warn:         #b45309;
+      --warn-soft:    #fef3c7;
+      --danger:       #b91c1c;
+      --danger-soft:  #fee2e2;
+      --font-sans:    'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+      --radius:       6px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--ink);
+      background: var(--bg);
+      margin: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+    .mono { font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
+    .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+
+    .sidebar { background: var(--bg-warm); border-right: 1px solid var(--hairline); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; }
+    .sidebar-top { padding: 20px 20px 16px; }
+    .wordmark { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+    .wordmark-glyph { width: 18px; height: 18px; background: var(--accent); border-radius: 4px; }
+    .nav { padding: 8px 12px; flex: 1; overflow-y: auto; }
+    .nav-group { margin-bottom: 20px; }
+    .nav-label { padding: 8px 8px 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--subtle); font-weight: 500; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: var(--radius); color: var(--ink-soft); cursor: pointer; font-size: 13.5px; }
+    .nav-item:hover { background: var(--bg); color: var(--ink); }
+    .nav-item.active { background: var(--accent-ring); color: var(--accent); font-weight: 500; }
+    .nav-item .badge { margin-left: auto; font-size: 11px; padding: 1px 6px; background: var(--hairline); color: var(--muted); border-radius: 8px; font-feature-settings: 'tnum' 1; }
+    .nav-item.active .badge { background: var(--accent); color: white; }
+    .user-card { margin: 0 12px 16px; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: var(--radius); display: flex; align-items: center; gap: 10px; }
+    .user-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+    .user-info { flex: 1; line-height: 1.3; min-width: 0; }
+    .user-name { font-size: 13px; font-weight: 500; }
+    .user-role { font-size: 11.5px; color: var(--muted); }
+
+    /* === Main: 主内容 + 右侧辅助栏 === */
+    .main { padding: 32px 32px 48px; min-width: 0; }
+    .breadcrumb { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+    .breadcrumb a { color: var(--muted); text-decoration: none; }
+    .breadcrumb a:hover { color: var(--accent); }
+    .breadcrumb .sep { margin: 0 6px; color: var(--subtle); }
+    .page-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 20px; }
+    .page-title { font-size: 24px; font-weight: 600; letter-spacing: -0.015em; }
+    .page-sub { color: var(--muted); font-size: 13.5px; margin-top: 4px; }
+
+    /* Two-column layout */
+    .layout { display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
+    @media (max-width: 1280px) { .layout { grid-template-columns: 1fr; } }
+    .layout-main { min-width: 0; }
+    .layout-side { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 20px; }
+    @media (max-width: 1280px) { .layout-side { position: static; } }
+
+    /* Toolbar */
+    .toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .search { flex: 1 1 240px; min-width: 200px; position: relative; }
+    .search input { width: 100%; height: 34px; padding: 0 12px 0 32px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); font-size: 13px; color: var(--ink); font-family: inherit; }
+    .search input:focus { outline: none; border-color: var(--accent); }
+    .search::before { content: '⌕'; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--subtle); font-size: 14px; pointer-events: none; }
+    .filter-select { height: 34px; padding: 0 28px 0 12px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); font-size: 13px; color: var(--ink-soft); font-family: inherit; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23a1a1aa' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; cursor: pointer; }
+    .btn { padding: 7px 14px; font-size: 13px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); cursor: pointer; color: var(--ink); font-family: inherit; font-weight: 500; transition: all 0.12s; }
+    .btn:hover { border-color: var(--muted); }
+    .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+    .btn-primary:hover { background: #14532d; border-color: #14532d; }
+    .btn-ghost { background: transparent; border-color: transparent; color: var(--ink-soft); padding: 4px 8px; font-size: 12.5px; }
+    .btn-ghost:hover { background: var(--bg); color: var(--accent); }
+
+    /* Table */
+    .table-wrap { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); overflow: hidden; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .data-table thead th { text-align: left; font-weight: 500; color: var(--muted); padding: 10px 16px; font-size: 12px; background: var(--bg); border-bottom: 1px solid var(--hairline); }
+    .data-table tbody td { padding: 12px 16px; border-bottom: 1px solid var(--hairline-soft); vertical-align: middle; }
+    .data-table tbody tr:last-child td { border-bottom: none; }
+    .data-table tbody tr:hover { background: var(--accent-pale); }
+    .data-table .name { font-weight: 500; }
+    .data-table .num { font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
+    .row-actions { display: flex; gap: 4px; }
+    .tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; font-size: 11.5px; border-radius: 3px; font-weight: 500; line-height: 1.5; }
+    .tag-muted { background: var(--hairline-soft); color: var(--muted); }
+    .tag-info { background: var(--info-soft); color: var(--info); }
+    .tag-accent { background: var(--accent-soft); color: var(--accent); }
+    .tag-warn { background: var(--warn-soft); color: var(--warn); }
+    .tag-danger { background: var(--danger-soft); color: var(--danger); }
+    .tag-dot::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; display: inline-block; }
+    .pagination { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-top: 1px solid var(--hairline); font-size: 12.5px; color: var(--muted); }
+    .pagination .pages { display: flex; gap: 4px; }
+    .page-btn { min-width: 28px; height: 28px; padding: 0 8px; background: var(--surface); border: 1px solid var(--hairline); border-radius: 4px; font-size: 12.5px; color: var(--ink-soft); cursor: pointer; font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
+    .page-btn.active { background: var(--ink); color: white; border-color: var(--ink); }
+    .page-btn:hover:not(.active) { border-color: var(--muted); }
+
+    /* === Side panel (right column) === */
+    .side-panel { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); padding: 16px 18px; }
+    .side-panel-title { font-size: 12.5px; font-weight: 600; color: var(--ink); margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+    .side-panel-title .more { font-size: 11.5px; color: var(--muted); font-weight: normal; cursor: pointer; }
+    .side-panel-title .more:hover { color: var(--accent); }
+
+    /* Todo list */
+    .todo-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--hairline-soft); font-size: 12.5px; }
+    .todo-item:last-child { border-bottom: none; padding-bottom: 0; }
+    .todo-item:first-child { padding-top: 0; }
+    .todo-dot { width: 6px; height: 6px; border-radius: 50%; margin-top: 6px; flex-shrink: 0; }
+    .todo-content { flex: 1; min-width: 0; }
+    .todo-title { line-height: 1.4; }
+    .todo-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+    /* Stats grid */
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .stat { padding: 10px 12px; background: var(--bg); border-radius: var(--radius); }
+    .stat-label { font-size: 11.5px; color: var(--muted); margin-bottom: 4px; }
+    .stat-value { font-size: 20px; font-weight: 600; font-family: var(--font-mono); font-feature-settings: 'tnum' 1; letter-spacing: -0.01em; }
+    .stat.accent .stat-value { color: var(--accent); }
+    .stat.warn .stat-value { color: var(--warn); }
+    .stat.danger .stat-value { color: var(--danger); }
+
+    /* Quick links */
+    .quick-list { display: flex; flex-direction: column; }
+    .quick-link { display: flex; align-items: center; justify-content: space-between; padding: 7px 0; font-size: 12.5px; color: var(--ink-soft); cursor: pointer; border-bottom: 1px solid var(--hairline-soft); }
+    .quick-link:last-child { border-bottom: none; }
+    .quick-link:hover { color: var(--accent); }
+    .quick-link .count { font-size: 11.5px; color: var(--muted); font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
+    .quick-link:hover .count { color: var(--accent); }
+
+    /* Modal */
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(24, 24, 27, 0.4); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .modal { background: var(--surface); border-radius: 8px; width: 100%; max-width: 480px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.12); overflow: hidden; }
+    .modal-header { padding: 18px 20px 14px; border-bottom: 1px solid var(--hairline-soft); }
+    .modal-title { font-size: 16px; font-weight: 600; }
+    .modal-body { padding: 20px; max-height: 70vh; overflow-y: auto; }
+    .modal-footer { padding: 14px 20px; border-top: 1px solid var(--hairline-soft); display: flex; justify-content: flex-end; gap: 8px; }
+    .form-row { margin-bottom: 14px; }
+    .form-row:last-child { margin-bottom: 0; }
+    .form-label { display: block; font-size: 12.5px; font-weight: 500; color: var(--ink-soft); margin-bottom: 6px; }
+    .form-label .req { color: var(--danger); margin-right: 2px; }
+    .form-input { width: 100%; padding: 7px 10px; font-size: 13px; font-family: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); }
+    .form-input:focus { outline: none; border-color: var(--accent); }
+    .form-hint { font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+    .radio-group { display: flex; gap: 14px; }
+    .radio { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+    .radio input { accent-color: var(--accent); }
+    .modal-banner { display: flex; gap: 10px; padding: 10px 12px; background: var(--warn-soft); border-radius: var(--radius); margin-bottom: 16px; font-size: 12.5px; color: var(--warn); line-height: 1.5; }
+    .modal-banner .icon { flex-shrink: 0; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <div class="wordmark"><div class="wordmark-glyph"></div>ZenCRM</div>
+      </div>
+      <nav class="nav">
+        <div class="nav-group">
+          <div class="nav-label">工作区</div>
+          <div class="nav-item">仪表盘</div>
+          <div class="nav-item active">线索 <span class="badge">28</span></div>
+          <div class="nav-item">客户 <span class="badge">156</span></div>
+          <div class="nav-item">联系人</div>
+          <div class="nav-item">商机 <span class="badge">42</span></div>
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">交易</div>
+          <div class="nav-item">合同</div>
+          <div class="nav-item">回款</div>
+          <div class="nav-item">产品</div>
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">协作</div>
+          <div class="nav-item">跟进记录</div>
+          <div class="nav-item">报表</div>
+        </div>
+      </nav>
+      <div class="user-card">
+        <div class="user-avatar">李</div>
+        <div class="user-info">
+          <div class="user-name">李明</div>
+          <div class="user-role">华东大区 / 销售</div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb">
+        <a href="#">工作台</a><span class="sep">/</span><span>线索管理</span>
+      </div>
+
+      <div class="page-header">
+        <div>
+          <div class="page-title">线索管理</div>
+          <div class="page-sub">共 28 条线索 · 跟进中 12 · 未跟进 10 · 已转客户 4 · 已死线索 2</div>
+        </div>
+      </div>
+
+      <div class="layout">
+        <!-- 主区 -->
+        <div class="layout-main">
+          <div class="toolbar">
+            <div class="search"><input placeholder="搜索线索名称、联系人、电话"></div>
+            <select class="filter-select"><option>全部来源</option><option>线上留单</option><option>展会</option><option>广告</option><option>客户介绍</option></select>
+            <select class="filter-select"><option>全部状态</option><option>未跟进</option><option>跟进中</option><option>已转客户</option><option>已死线索</option></select>
+            <div style="flex: 1"></div>
+            <button class="btn">+ 导入线索</button>
+            <button class="btn btn-primary">+ 新建线索</button>
+          </div>
+
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th style="width: 32px"><input type="checkbox"></th>
+                  <th>线索名称</th>
+                  <th>联系人</th>
+                  <th>电话</th>
+                  <th>来源</th>
+                  <th>状态</th>
+                  <th>负责人</th>
+                  <th>创建时间</th>
+                  <th style="width: 200px">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><input type="checkbox"></td>
+                  <td class="name">北京星辰科技</td>
+                  <td>王晓东</td>
+                  <td class="num">138 0013 8000</td>
+                  <td><span class="tag tag-muted">线上留单</span></td>
+                  <td><span class="tag tag-info tag-dot">跟进中</span></td>
+                  <td>李明</td>
+                  <td class="num">2026-06-20</td>
+                  <td>
+                    <div class="row-actions">
+                      <button class="btn btn-ghost">详情</button>
+                      <button class="btn btn-ghost">编辑</button>
+                      <button class="btn btn-ghost" style="color: var(--accent)">转客户</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox"></td>
+                  <td class="name">上海矩阵数据</td>
+                  <td>张磊</td>
+                  <td class="num">139 0013 9000</td>
+                  <td><span class="tag tag-muted">展会</span></td>
+                  <td><span class="tag tag-muted tag-dot">未跟进</span></td>
+                  <td>王芳</td>
+                  <td class="num">2026-06-25</td>
+                  <td>
+                    <div class="row-actions">
+                      <button class="btn btn-ghost">详情</button>
+                      <button class="btn btn-ghost">编辑</button>
+                      <button class="btn btn-ghost" style="color: var(--accent)">转客户</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox"></td>
+                  <td class="name">深圳光子科技</td>
+                  <td>陈刚</td>
+                  <td class="num">137 0013 7000</td>
+                  <td><span class="tag tag-muted">客户介绍</span></td>
+                  <td><span class="tag tag-accent tag-dot">已转客户</span></td>
+                  <td>李明</td>
+                  <td class="num">2026-06-15</td>
+                  <td>
+                    <div class="row-actions">
+                      <button class="btn btn-ghost">详情</button>
+                      <button class="btn btn-ghost" disabled style="opacity: 0.4">转客户</button>
+                      <button class="btn btn-ghost" style="color: var(--danger)">删除</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox"></td>
+                  <td class="name">广州星云互联</td>
+                  <td>刘洋</td>
+                  <td class="num">136 0013 6000</td>
+                  <td><span class="tag tag-muted">广告</span></td>
+                  <td><span class="tag tag-info tag-dot">跟进中</span></td>
+                  <td>陈刚</td>
+                  <td class="num">2026-06-18</td>
+                  <td>
+                    <div class="row-actions">
+                      <button class="btn btn-ghost">详情</button>
+                      <button class="btn btn-ghost">编辑</button>
+                      <button class="btn btn-ghost" style="color: var(--accent)">转客户</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox"></td>
+                  <td class="name">北京废旧回收</td>
+                  <td>赵明</td>
+                  <td class="num">135 0013 5000</td>
+                  <td><span class="tag tag-muted">广告</span></td>
+                  <td><span class="tag tag-danger tag-dot">已死线索</span></td>
+                  <td>李明</td>
+                  <td class="num">2026-05-30</td>
+                  <td>
+                    <div class="row-actions">
+                      <button class="btn btn-ghost">详情</button>
+                      <button class="btn btn-ghost">编辑</button>
+                      <button class="btn btn-ghost" style="color: var(--accent)">转客户</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox"></td>
+                  <td class="name">杭州蓝芯科技</td>
+                  <td>孙丽</td>
+                  <td class="num">158 0013 8000</td>
+                  <td><span class="tag tag-muted">线上留单</span></td>
+                  <td><span class="tag tag-info tag-dot">跟进中</span></td>
+                  <td>李明</td>
+                  <td class="num">2026-06-22</td>
+                  <td>
+                    <div class="row-actions">
+                      <button class="btn btn-ghost">详情</button>
+                      <button class="btn btn-ghost">编辑</button>
+                      <button class="btn btn-ghost" style="color: var(--accent)">转客户</button>
+                    </div>
+                  </td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox"></td>
+                  <td class="name">成都极星数据</td>
+                  <td>周强</td>
+                  <td class="num">189 0013 9000</td>
+                  <td><span class="tag tag-muted">展会</span></td>
+                  <td><span class="tag tag-muted tag-dot">未跟进</span></td>
+                  <td>王芳</td>
+                  <td class="num">2026-06-26</td>
+                  <td>
+                    <div class="row-actions">
+                      <button class="btn btn-ghost">详情</button>
+                      <button class="btn btn-ghost">编辑</button>
+                      <button class="btn btn-ghost" style="color: var(--accent)">转客户</button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="pagination">
+              <div>共 28 条</div>
+              <div class="pages">
+                <button class="page-btn">‹</button>
+                <button class="page-btn active">1</button>
+                <button class="page-btn">2</button>
+                <button class="page-btn">3</button>
+                <button class="page-btn">4</button>
+                <button class="page-btn">›</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右侧辅助面板 -->
+        <aside class="layout-side">
+          <!-- 今日待办 -->
+          <div class="side-panel">
+            <div class="side-panel-title">今日待办 <span class="more">查看全部 →</span></div>
+            <div>
+              <div class="todo-item">
+                <div class="todo-dot" style="background: var(--danger)"></div>
+                <div class="todo-content">
+                  <div class="todo-title">跟进入度 · <strong>华为集团</strong></div>
+                  <div class="todo-sub">已逾期 5 天</div>
+                </div>
+              </div>
+              <div class="todo-item">
+                <div class="todo-dot" style="background: var(--warn)"></div>
+                <div class="todo-content">
+                  <div class="todo-title">提交报价 · <strong>腾讯云</strong></div>
+                  <div class="todo-sub">17:00 前</div>
+                </div>
+              </div>
+              <div class="todo-item">
+                <div class="todo-dot" style="background: var(--accent)"></div>
+                <div class="todo-content">
+                  <div class="todo-title">转化线索 · <strong>北京星辰</strong></div>
+                  <div class="todo-sub">已确认意向</div>
+                </div>
+              </div>
+              <div class="todo-item">
+                <div class="todo-dot" style="background: var(--accent)"></div>
+                <div class="todo-content">
+                  <div class="todo-title">回访 · <strong>字节跳动</strong></div>
+                  <div class="todo-sub">等待方案反馈</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 本月统计 -->
+          <div class="side-panel">
+            <div class="side-panel-title">本月统计 <span class="more">6 月</span></div>
+            <div class="stat-grid">
+              <div class="stat accent">
+                <div class="stat-label">新增线索</div>
+                <div class="stat-value">12</div>
+              </div>
+              <div class="stat">
+                <div class="stat-label">已转化</div>
+                <div class="stat-value">4</div>
+              </div>
+              <div class="stat warn">
+                <div class="stat-label">跟进中</div>
+                <div class="stat-value">12</div>
+              </div>
+              <div class="stat danger">
+                <div class="stat-label">死线索</div>
+                <div class="stat-value">2</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 快速查看 -->
+          <div class="side-panel">
+            <div class="side-panel-title">快速查看</div>
+            <div class="quick-list">
+              <a class="quick-link"><span>我负责的线索</span><span class="count">28</span></a>
+              <a class="quick-link"><span>我创建的</span><span class="count">14</span></a>
+              <a class="quick-link"><span>本周新增</span><span class="count">12</span></a>
+              <a class="quick-link"><span>已转客户</span><span class="count">4</span></a>
+              <a class="quick-link"><span>已死线索</span><span class="count">2</span></a>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </main>
+  </div>
+
+  <!-- 转客户弹窗 -->
+  <div class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">线索转客户</div>
+      </div>
+      <div class="modal-body">
+        <div class="modal-banner">
+          <span class="icon">⚠</span>
+          <div>转客户后，原线索「北京星辰科技」将标记为「已转客户」且不可撤销。原线索会保留作为审计追溯。</div>
+        </div>
+        <div class="form-row">
+          <label class="form-label"><span class="req">*</span>客户名称</label>
+          <input class="form-input" value="北京星辰科技有限公司">
+        </div>
+        <div class="form-row">
+          <label class="form-label">行业</label>
+          <input class="form-input" value="智能硬件">
+        </div>
+        <div class="form-row">
+          <label class="form-label">客户级别</label>
+          <div class="radio-group">
+            <label class="radio"><input type="radio" name="lvl"> A 重要</label>
+            <label class="radio"><input type="radio" name="lvl" checked> B 普通</label>
+            <label class="radio"><input type="radio" name="lvl"> C 意向</label>
+          </div>
+        </div>
+        <div class="form-row">
+          <label class="form-label">主联系人职务</label>
+          <input class="form-input" value="采购经理">
+        </div>
+        <div class="form-row">
+          <label class="form-label">主联系人手机</label>
+          <input class="form-input" value="138 0013 8000">
+          <div class="form-hint">默认沿用线索电话，可在此修改</div>
+        </div>
+        <div class="form-row">
+          <label class="form-label">主联系人决策权重</label>
+          <div class="radio-group">
+            <label class="radio"><input type="radio" name="dw" checked> 1 核心决策者</label>
+            <label class="radio"><input type="radio" name="dw"> 2 弱影响者</label>
+            <label class="radio"><input type="radio" name="dw"> 3 普通职员</label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn">取消</button>
+        <button class="btn btn-primary">确认转客户</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -220,16 +220,26 @@
   background: transparent !important;
   cursor: not-allowed;
 }
-/* 破坏性操作：默认中性灰、hover 才显 danger，保持页面绿色基调 */
+/* 破坏性操作：与 .action-link 视觉完全一致,字重/hover/active 行为同步 */
 .el-button.action-link.danger,
 .el-button--text.action-link.danger {
-  color: var(--muted) !important;
-  font-weight: 400;
+  color: var(--accent) !important;
+  font-weight: 500;
 }
 .el-button.action-link.danger:hover,
 .el-button--text.action-link.danger:hover {
-  color: var(--danger) !important;
-  background-color: var(--danger-soft);
+  color: var(--accent-hover) !important;
+  background-color: var(--accent-pale);
+}
+.el-button.action-link.danger:active,
+.el-button--text.action-link.danger:active {
+  color: var(--accent-hover) !important;
+  background-color: var(--accent-soft);
+}
+
+/* 删除确认弹窗：顶部 warning 三角图标改主题绿，全套绿色基调 */
+.msgbox-zen-confirm .el-message-box__status.el-icon--warning {
+  color: var(--accent) !important;
 }
 
 /* el-input / el-select：高度统一 34px */

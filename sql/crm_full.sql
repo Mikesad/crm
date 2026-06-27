@@ -209,7 +209,10 @@ CREATE TABLE `crm_product` (
   `price` decimal(12,2) NOT NULL DEFAULT '0.00' COMMENT '标准售价',
   `unit` varchar(10) DEFAULT '个' COMMENT '单位',
   `status` tinyint DEFAULT 1 COMMENT '状态（0下架 1上架）',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   `is_deleted` tinyint DEFAULT 0 COMMENT '是否删除',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_product_code` (`product_code`)
@@ -259,6 +262,11 @@ CREATE TABLE `crm_receivable_plan` (
   `expected_date` date NOT NULL COMMENT '预计回款日期',
   `status` tinyint DEFAULT 0 COMMENT '状态（0未到期 1催款中 2已回款）',
   `remark` varchar(255) DEFAULT NULL COMMENT '催款说明/备注',
+  `is_deleted` tinyint DEFAULT 0 COMMENT '是否删除(阶段三补齐,与 CLAUDE.md 对齐)',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (`id`),
   KEY `idx_contract_id` (`contract_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='回款计划表';
@@ -278,6 +286,26 @@ CREATE TABLE `crm_receivable` (
   UNIQUE KEY `uk_receivable_num` (`receivable_num`),
   KEY `idx_contract_id` (`contract_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='回款记录表';
+
+-- 19. 合同审批表 (阶段三新增)
+CREATE TABLE `crm_approval` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '审批ID',
+  `contract_id` bigint NOT NULL COMMENT '合同ID',
+  `applicant_id` bigint NOT NULL COMMENT '申请人(销售)ID',
+  `approver_id` bigint DEFAULT NULL COMMENT '审批人(总监)ID',
+  `status` tinyint DEFAULT 0 COMMENT '状态(0待审 1通过 2驳回 3撤回)',
+  `trigger_reason` varchar(255) DEFAULT NULL COMMENT '触发原因(如:折扣8.4折,低于8.5折审批线)',
+  `comment` varchar(500) DEFAULT NULL COMMENT '审批意见/驳回原因',
+  `finish_time` datetime DEFAULT NULL COMMENT '审批完成时间',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '申请时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `is_deleted` tinyint DEFAULT 0 COMMENT '是否删除',
+  PRIMARY KEY (`id`),
+  KEY `idx_contract_id` (`contract_id`),
+  KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='合同审批表';
 
 -- ====================== 种子数据 ======================
 
@@ -301,20 +329,27 @@ INSERT INTO `sys_role` (`id`, `role_name`, `role_key`, `data_scope`) VALUES
 -- menu_type='F' 表示按钮级权限；status=1 + perms 非空 才会被 SysMenuMapper 查出来
 -- 阶段二对齐：crm:opportunity:list → crm:business:list（与实际表 crm_business 一致），
 --             新增 business:edit / contact:list / contact:edit / record:list / record:add
+-- 阶段三新增：crm:contract:approve / crm:receivable:edit / crm:receivable_plan:edit /
+--             crm:product:list / crm:product:edit
 INSERT INTO `sys_menu` (`id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `menu_type`, `perms`, `status`) VALUES
-  (1,  '客户列表',     0, 1,  '', NULL, 'F', 'crm:customer:list',  1),
-  (2,  '客户编辑',     0, 2,  '', NULL, 'F', 'crm:customer:edit',  1),
-  (3,  '线索列表',     0, 3,  '', NULL, 'F', 'crm:lead:list',      1),
-  (4,  '线索编辑',     0, 4,  '', NULL, 'F', 'crm:lead:edit',      1),
-  (5,  '商机列表',     0, 5,  '', NULL, 'F', 'crm:business:list',  1),
-  (6,  '商机编辑',     0, 6,  '', NULL, 'F', 'crm:business:edit',  1),
-  (7,  '联系人列表',   0, 7,  '', NULL, 'F', 'crm:contact:list',   1),
-  (8,  '联系人编辑',   0, 8,  '', NULL, 'F', 'crm:contact:edit',   1),
-  (9,  '跟进记录列表', 0, 9,  '', NULL, 'F', 'crm:record:list',    1),
-  (10, '新增跟进',     0, 10, '', NULL, 'F', 'crm:record:add',     1),
-  (11, '合同列表',     0, 11, '', NULL, 'F', 'crm:contract:list',  1),
-  (12, '合同编辑',     0, 12, '', NULL, 'F', 'crm:contract:edit',  1),
-  (13, '回款列表',     0, 13, '', NULL, 'F', 'crm:receivable:list',1);
+  (1,  '客户列表',     0, 1,  '', NULL, 'F', 'crm:customer:list',      1),
+  (2,  '客户编辑',     0, 2,  '', NULL, 'F', 'crm:customer:edit',      1),
+  (3,  '线索列表',     0, 3,  '', NULL, 'F', 'crm:lead:list',          1),
+  (4,  '线索编辑',     0, 4,  '', NULL, 'F', 'crm:lead:edit',          1),
+  (5,  '商机列表',     0, 5,  '', NULL, 'F', 'crm:business:list',      1),
+  (6,  '商机编辑',     0, 6,  '', NULL, 'F', 'crm:business:edit',      1),
+  (7,  '联系人列表',   0, 7,  '', NULL, 'F', 'crm:contact:list',       1),
+  (8,  '联系人编辑',   0, 8,  '', NULL, 'F', 'crm:contact:edit',       1),
+  (9,  '跟进记录列表', 0, 9,  '', NULL, 'F', 'crm:record:list',        1),
+  (10, '新增跟进',     0, 10, '', NULL, 'F', 'crm:record:add',         1),
+  (11, '合同列表',     0, 11, '', NULL, 'F', 'crm:contract:list',      1),
+  (12, '合同编辑',     0, 12, '', NULL, 'F', 'crm:contract:edit',      1),
+  (13, '回款列表',     0, 13, '', NULL, 'F', 'crm:receivable:list',    1),
+  (14, '合同审批',     0, 14, '', NULL, 'F', 'crm:contract:approve',   1),
+  (15, '回款编辑',     0, 15, '', NULL, 'F', 'crm:receivable:edit',    1),
+  (16, '回款计划编辑', 0, 16, '', NULL, 'F', 'crm:receivable_plan:edit', 1),
+  (17, '产品列表',     0, 17, '', NULL, 'F', 'crm:product:list',       1),
+  (18, '产品编辑',     0, 18, '', NULL, 'F', 'crm:product:edit',       1);
 
 -- 用户（6 个，密码统一 123456，BCrypt hash 由 backend-tools/crm-tools 生成）
 -- 当前 hash 是 123456 的一次有效编码；如需更换密码：mvn exec:java -Dexec.args="新密码"
@@ -335,23 +370,23 @@ INSERT INTO `sys_user_role` (`user_id`, `role_id`) VALUES
   (5, 4),  -- sales_chen   -> 普通销售
   (6, 5);  -- finance      -> 财务人员
 
--- 角色-权限绑定
--- admin (1)        : 全部
--- sales_director(2): 客户/线索/商机/联系人/跟进（含编辑），合同（含编辑），无回款
--- sales_lead (3)   : 客户/线索/商机/联系人/跟进/合同（仅列表）
--- sales       (4)  : 客户/线索/商机/联系人/跟进（仅列表）
--- finance     (5)  : 合同/回款（仅列表）
+-- 角色-权限绑定（阶段三：含合同审批/回款编辑/回款计划编辑/产品权限）
+-- admin (1)        : 全部（含合同审批/回款编辑/回款计划编辑/产品全）
+-- sales_director(2): 业务+合同+审批+计划编辑+产品全,无回款编辑
+-- sales_lead (3)   : 业务+合同(仅列表)+回款(仅列表)+计划编辑+产品(仅列表)
+-- sales       (4)  : 业务+合同(含编辑)+计划编辑+产品全,无回款
+-- finance     (5)  : 合同(仅列表)+回款(含编辑)+产品(仅列表)
 INSERT INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES
-  -- admin (全开)
-  (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9), (1, 10), (1, 11), (1, 12), (1, 13),
-  -- sales_director (业务 + 合同，无回款)
-  (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7), (2, 8), (2, 9), (2, 10), (2, 11), (2, 12),
-  -- sales_lead (业务 + 合同，仅列表)
-  (3, 1), (3, 3), (3, 5), (3, 7), (3, 9), (3, 11),
-  -- sales (业务，仅列表)
-  (4, 1), (4, 3), (4, 5), (4, 7), (4, 9),
-  -- finance (合同/回款，仅列表)
-  (5, 11), (5, 13);
+  -- admin (全开 1-18)
+  (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9), (1, 10), (1, 11), (1, 12), (1, 13), (1, 14), (1, 15), (1, 16), (1, 17), (1, 18),
+  -- sales_director (业务 + 合同 + 审批 + 计划 + 产品,无回款)
+  (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7), (2, 8), (2, 9), (2, 10), (2, 11), (2, 12), (2, 14), (2, 16), (2, 17), (2, 18),
+  -- sales_lead (业务 + 合同list + 回款list + 计划edit + 产品list,无edit)
+  (3, 1), (3, 3), (3, 5), (3, 7), (3, 9), (3, 11), (3, 13), (3, 16), (3, 17),
+  -- sales (业务 + 合同全 + 计划edit + 产品全,无回款)
+  (4, 1), (4, 2), (4, 3), (4, 4), (4, 5), (4, 6), (4, 7), (4, 8), (4, 9), (4, 10), (4, 11), (4, 12), (4, 16), (4, 17), (4, 18),
+  -- finance (合同list + 回款全 + 产品list,无业务)
+  (5, 11), (5, 13), (5, 15), (5, 17);
 
 SET FOREIGN_KEY_CHECKS = 1;
 

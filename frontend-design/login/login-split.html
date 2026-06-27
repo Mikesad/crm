@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<!--
+  login-split.html
+  Variant 1: Split-screen, left brand narrative with data accents and right login card.
+
+  Design Read: B2B SaaS login for sales/finance users. Linear / Attio gravity.
+  Dials: VARIANCE 5 / MOTION 3 / DENSITY 3.
+
+  Design decisions (rationale for the frontend team when porting to Vue):
+  - 50/50 split. Brand panel uses slightly warmer off-white (#f4f4f0) to create quiet hierarchy without resorting to color blocks.
+  - Single accent: deep forest green #166534 (NOT purple, NOT gradient). Communicates serious B2B trust without defaulting to SaaS blue.
+  - Mono numerals in data strip (font-variant-numeric: tabular-nums). Linear convention, prevents width jitter if numbers update live.
+  - Border radii capped at 6px. Inputs and pills share one radius scale. No mix-and-match.
+  - Data strip separated by hairline, not card-with-shadow. Per skill rule, use cards only when elevation communicates hierarchy.
+  - Quote attribution uses plain text + comma, no em-dash (em-dash ban).
+  - Quick-fill pills are <button type="button"> with data-fill; small inline JS wires them to autofill the form.
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 · ZenCRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* Reset */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* Design tokens, single source of truth for this variant */
+    :root {
+      --bg:           #fafaf9;   /* off-white paper */
+      --bg-warm:      #f4f4f0;   /* brand panel base, slightly warmer */
+      --ink:          #18181b;   /* near-black ink */
+      --ink-soft:     #3f3f46;
+      --muted:        #71717a;
+      --hairline:     #e4e4e7;
+      --surface:      #ffffff;
+      --accent:       #166534;   /* deep forest green */
+      --accent-ring:  rgba(22, 101, 52, 0.12);
+      --font-sans:    'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+      --radius:       6px;
+      --max-form:     380px;
+    }
+
+    html, body { height: 100%; }
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--ink);
+      background: var(--bg);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    /* Layout: 50/50 split, full viewport */
+    .login-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: 100dvh;
+    }
+
+    /* === LEFT: Brand panel === */
+    .brand-panel {
+      background: var(--bg-warm);
+      padding: 40px 56px;
+      border-right: 1px solid var(--hairline);
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Wordmark, minimal, no decorative SVG */
+    .wordmark {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      letter-spacing: -0.01em;
+      color: var(--ink);
+    }
+    .wordmark-glyph {
+      width: 14px;
+      height: 14px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+
+    /* Centered content block (headline + data + quote) */
+    .brand-content {
+      margin: auto 0;
+      max-width: 480px;
+    }
+
+    .brand-content h1 {
+      font-size: clamp(32px, 3.6vw, 44px);
+      font-weight: 600;
+      line-height: 1.08;
+      letter-spacing: -0.025em;
+      color: var(--ink);
+    }
+    .brand-content h1 .accent { color: var(--accent); }
+
+    .brand-subtitle {
+      margin-top: 16px;
+      font-size: 15px;
+      line-height: 1.55;
+      color: var(--ink-soft);
+      max-width: 36ch;
+    }
+
+    /* Data strip, two metrics separated by hairline */
+    .data-strip {
+      margin-top: 40px;
+      padding-top: 24px;
+      border-top: 1px solid var(--hairline);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+    }
+    .data-strip dt {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .data-strip dd {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+    }
+    .data-strip .num {
+      font-family: var(--font-mono);
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.01em;
+    }
+    .data-strip .unit {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* Quote, short italic body and plain attribution */
+    .quote {
+      margin-top: 40px;
+      padding-top: 24px;
+      border-top: 1px solid var(--hairline);
+    }
+    .quote p {
+      font-size: 14.5px;
+      font-style: italic;
+      line-height: 1.55;
+      color: var(--ink-soft);
+      max-width: 38ch;
+    }
+    .quote cite {
+      font-style: normal;
+      color: var(--ink);
+      font-weight: 500;
+    }
+    .quote .role {
+      color: var(--muted);
+      font-weight: 400;
+    }
+
+    .brand-footer {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.02em;
+    }
+
+    /* === RIGHT: Form panel === */
+    .form-panel {
+      padding: 40px 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .form-wrap {
+      width: 100%;
+      max-width: var(--max-form);
+    }
+
+    .form-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+    }
+    .form-header h2 {
+      margin-top: 8px;
+      font-size: 26px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      color: var(--ink);
+    }
+    .form-header p {
+      margin-top: 6px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .login-form {
+      margin-top: 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--ink);
+      margin-bottom: 6px;
+    }
+    .field input {
+      width: 100%;
+      height: 40px;
+      padding: 0 12px;
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      color: var(--ink);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .field input::placeholder { color: #a1a1aa; }
+    .field input:hover { border-color: #d4d4d8; }
+    .field input:focus {
+      outline: none;
+      border-color: var(--ink);
+      box-shadow: 0 0 0 3px rgba(24, 24, 27, 0.08);
+    }
+
+    .field-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      margin-top: -4px;
+    }
+    .checkbox {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--ink-soft);
+      cursor: pointer;
+      user-select: none;
+    }
+    .checkbox input {
+      width: 14px;
+      height: 14px;
+      accent-color: var(--ink);
+      cursor: pointer;
+    }
+    .forgot {
+      color: var(--ink-soft);
+      text-decoration: none;
+    }
+    .forgot:hover { color: var(--ink); text-decoration: underline; }
+
+    .btn-primary {
+      margin-top: 8px;
+      height: 44px;
+      padding: 0 18px;
+      background: var(--ink);
+      color: var(--surface);
+      border: none;
+      border-radius: var(--radius);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.08s ease;
+    }
+    .btn-primary:hover { background: #000; }
+    .btn-primary:active { transform: translateY(1px); }
+    .btn-primary .arrow { transition: transform 0.15s ease; }
+    .btn-primary:hover .arrow { transform: translateX(2px); }
+
+    /* Quick-fill pills, monospace, single border, no fill until hover */
+    .quick-fill {
+      margin-top: 28px;
+      padding-top: 20px;
+      border-top: 1px solid var(--hairline);
+    }
+    .quick-fill-label {
+      display: block;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .quick-fill-pills {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .pill {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding: 6px 10px;
+      background: transparent;
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius);
+      color: var(--ink-soft);
+      cursor: pointer;
+      transition: all 0.12s ease;
+    }
+    .pill:hover {
+      border-color: var(--ink);
+      color: var(--ink);
+      background: var(--surface);
+    }
+    .pill .role-tag {
+      color: var(--muted);
+      margin-left: 4px;
+    }
+    .pill:hover .role-tag { color: var(--ink-soft); }
+
+    .form-footer {
+      margin-top: 24px;
+      font-size: 13px;
+      color: var(--muted);
+      text-align: center;
+    }
+    .form-footer a {
+      color: var(--ink);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    .form-footer a:hover { text-decoration: underline; }
+
+    /* Mobile collapse: stack vertically, brand panel becomes a slim header */
+    @media (max-width: 900px) {
+      .login-split {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr;
+      }
+      .brand-panel {
+        padding: 32px 24px;
+        border-right: none;
+        border-bottom: 1px solid var(--hairline);
+      }
+      .brand-content { margin: 24px 0; }
+      .brand-content h1 { font-size: 26px; }
+      .data-strip {
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-top: 28px;
+        padding-top: 20px;
+      }
+      .data-strip .num { font-size: 20px; }
+      .quote { display: none; }
+      .brand-footer { display: none; }
+      .form-panel {
+        padding: 32px 24px;
+        align-items: flex-start;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .data-strip { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="login-split">
+    <!-- LEFT: Brand panel -->
+    <aside class="brand-panel" aria-label="品牌介绍">
+      <a href="#" class="wordmark" aria-label="ZenCRM 首页">
+        <span class="wordmark-glyph" aria-hidden="true"></span>
+        <span>ZenCRM</span>
+      </a>
+
+      <div class="brand-content">
+        <h1>把时间还给<span class="accent">客户</span>，<br>而不是表格。</h1>
+        <p class="brand-subtitle">为认真做 ToB 的销售团队设计。从线索到回款，一个工作台走完。</p>
+
+        <dl class="data-strip">
+          <div>
+            <dt>本季度成交</dt>
+            <dd><span class="num">47,832</span><span class="unit">单</span></dd>
+          </div>
+          <div>
+            <dt>管理中管线</dt>
+            <dd><span class="num">¥2.4B</span><span class="unit">/ 1,284 客户</span></dd>
+          </div>
+        </dl>
+
+        <blockquote class="quote">
+          <p>"上线三个月，我们少开了四次周会，多签了六单。"</p>
+          <p style="margin-top: 6px;"><cite>李伟</cite><span class="role">, 销售总监, 瀚海工业</span></p>
+        </blockquote>
+      </div>
+
+      <p class="brand-footer">© 2026 ZenCRM · v1.0</p>
+    </aside>
+
+    <!-- RIGHT: Form panel -->
+    <section class="form-panel" aria-label="登录表单">
+      <div class="form-wrap">
+        <header class="form-header">
+          <span class="form-eyebrow">Team workspace</span>
+          <h2>登录工作台</h2>
+          <p>使用 crm_full.sql 种子账号即可体验。</p>
+        </header>
+
+        <form class="login-form" action="#" method="post" autocomplete="on" novalidate>
+          <div class="field">
+            <label for="username">账号</label>
+            <input
+              type="text"
+              id="username"
+              name="username"
+              autocomplete="username"
+              placeholder="admin"
+              required>
+          </div>
+
+          <div class="field">
+            <label for="password">密码</label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              autocomplete="current-password"
+              placeholder="••••••"
+              required>
+          </div>
+
+          <div class="field-row">
+            <label class="checkbox">
+              <input type="checkbox" name="remember">
+              <span>记住我</span>
+            </label>
+            <a href="#" class="forgot">忘记密码？</a>
+          </div>
+
+          <button type="submit" class="btn-primary">
+            <span>登录</span>
+            <svg class="arrow" width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M2 7h10M8 3l4 4-4 4"/>
+            </svg>
+          </button>
+        </form>
+
+        <div class="quick-fill">
+          <span class="quick-fill-label">快速试用</span>
+          <div class="quick-fill-pills">
+            <button type="button" class="pill" data-fill="admin" data-pass="123456">
+              admin<span class="role-tag">管理员</span>
+            </button>
+            <button type="button" class="pill" data-fill="sales_li" data-pass="123456">
+              sales_li<span class="role-tag">销售</span>
+            </button>
+            <button type="button" class="pill" data-fill="finance" data-pass="123456">
+              finance<span class="role-tag">财务</span>
+            </button>
+          </div>
+        </div>
+
+        <p class="form-footer">还没有账号？<a href="#">联系商务</a></p>
+      </div>
+    </section>
+  </main>
+
+  <!-- Minimal autofill wiring. Replace with Pinia store actions when porting to Vue. -->
+  <script>
+    (function () {
+      var username = document.getElementById('username');
+      var password = document.getElementById('password');
+      var pills = document.querySelectorAll('.pill[data-fill]');
+      pills.forEach(function (pill) {
+        pill.addEventListener('click', function () {
+          username.value = pill.getAttribute('data-fill');
+          password.value = pill.getAttribute('data-pass') || '';
+          username.focus();
+          password.focus();
+          password.blur();
+        });
+      });
+    })();
+  </script>
+</body>
+</html>

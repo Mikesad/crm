@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<!--
+  dashboard-variant-3-bento.html
+  变体 3 - 编辑大网格 (Bento)
+
+  Design Read: B2B CRM Dashboard,目标用户为高级管理层(销售总监 / 副总)看月度战略。
+  Dials: VARIANCE 8 / MOTION 4 / DENSITY 5。
+  延续设计令牌:深森林绿 #166534 + Inter + 6px 圆角 + 暖白 #fafaf9。
+
+  设计决策:
+  - 64px 极窄图标侧栏(节省水平空间,主体信息更突出)。
+  - 6 列 bento 网格,混合 1/2/3/6 跨度的格子,产生"控制中心"般的不对称节奏。
+  - 1 张大尺寸深色高亮 tile(关键指标 #166534 实色填充 + 白字),其他 tile 维持白底。
+    这是页面唯一的反色 tile,放在左上,符合"重要数字 + 视觉重量优先"的视觉语言。
+  - 字号放大:KPI 数字 32-44px,远大于其他变体;greeting 32px 接近杂志标题感。
+  - tile 之间用 14px 间距(比变体 1 的 12px 略大,营造呼吸感)。
+  - 圆角 8-12px(略大,因为 bento tile 本身更大,圆角同步放大,保持视觉比例)。
+  - 零 em-dash,单一强调色,无 fake screenshot。
+
+  前端移植注意:
+  - 圆角在本变体可放宽到 10px(login 用 6px 是登录卡片场景,这里是 dashboard tile)。
+  - 建议在 frontend/src/styles/bento.css 单独维护,不影响其他模块。
+  - 6 列 bento 用 CSS Grid auto-fit + minmax,响应式折叠时自动变 2 列 / 1 列。
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>工作台 · ZenCRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:           #f4f4f5;
+      --surface:      #ffffff;
+      --ink:          #18181b;
+      --ink-soft:     #3f3f46;
+      --muted:        #71717a;
+      --subtle:       #a1a1aa;
+      --hairline:     #e7e5e4;
+      --hairline-soft:#f4f4f5;
+      --accent:       #166534;
+      --accent-soft:  #dcfce7;
+      --highlight-bg: #052e16;
+      --highlight-fg: #f0fdf4;
+      --warn:         #b45309;
+      --danger:       #b91c1c;
+      --font-sans:    'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+      --radius:       10px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--ink);
+      background: var(--bg);
+      margin: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+    .mono { font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
+
+    .app { display: grid; grid-template-columns: 64px 1fr; min-height: 100vh; }
+
+    /* === Icon rail sidebar === */
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--hairline);
+      padding: 16px 0;
+      display: flex; flex-direction: column; align-items: center;
+      gap: 6px;
+    }
+    .wordmark-glyph {
+      width: 36px; height: 36px;
+      background: var(--accent);
+      color: white; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 700;
+      margin-bottom: 14px;
+    }
+    .icon-btn {
+      width: 40px; height: 40px;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 8px;
+      color: var(--muted); cursor: pointer;
+      font-size: 14px; font-weight: 600;
+      transition: all 0.12s;
+      position: relative;
+    }
+    .icon-btn:hover { background: var(--bg); color: var(--ink); }
+    .icon-btn.active { background: var(--ink); color: white; }
+    .icon-btn .dot {
+      position: absolute; top: 8px; right: 8px;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent);
+    }
+    .icon-btn.active .dot { background: var(--highlight-fg); }
+    .sidebar-bottom { margin-top: auto; }
+
+    /* === Main === */
+    .main { padding: 36px 44px 48px; max-width: 1400px; width: 100%; }
+    .page-header {
+      margin-bottom: 28px;
+      display: flex; align-items: flex-end; justify-content: space-between;
+    }
+    .greeting { font-size: 34px; font-weight: 600; letter-spacing: -0.025em; line-height: 1.05; }
+    .greeting-sub { color: var(--muted); font-size: 14px; margin-top: 8px; }
+    .header-actions { display: flex; gap: 8px; }
+    .btn {
+      padding: 8px 16px; font-size: 13.5px; border-radius: var(--radius);
+      border: 1px solid var(--hairline); background: var(--surface); cursor: pointer;
+      font-family: inherit; color: var(--ink); font-weight: 500;
+      transition: all 0.12s;
+    }
+    .btn:hover { border-color: var(--muted); }
+    .btn-primary { background: var(--ink); color: white; border-color: var(--ink); }
+    .btn-primary:hover { background: #000; border-color: #000; }
+
+    /* Bento grid */
+    .bento {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      grid-auto-rows: minmax(120px, auto);
+      gap: 14px;
+    }
+    .tile {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 22px 24px;
+      display: flex; flex-direction: column;
+      position: relative; overflow: hidden;
+    }
+    .tile-label { font-size: 12.5px; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
+    .tile-value { font-size: 36px; font-weight: 600; letter-spacing: -0.025em; line-height: 1.05; }
+    .tile-value.mono { font-family: var(--font-mono); }
+    .tile-trend { font-size: 12px; margin-top: 10px; font-family: var(--font-mono); }
+    .trend-up { color: var(--accent); }
+    .trend-warn { color: var(--warn); }
+    .tile-meta { font-size: 12px; color: var(--muted); margin-top: auto; padding-top: 16px; }
+
+    .span-1 { grid-column: span 1; }
+    .span-2 { grid-column: span 2; }
+    .span-3 { grid-column: span 3; }
+    .span-4 { grid-column: span 4; }
+    .span-6 { grid-column: span 6; }
+    .row-2 { grid-row: span 2; }
+
+    /* Highlight tile (dark) */
+    .tile-highlight {
+      background: var(--highlight-bg);
+      color: var(--highlight-fg);
+    }
+    .tile-highlight .tile-label { color: rgba(240, 253, 244, 0.65); }
+    .tile-highlight .tile-meta { color: rgba(240, 253, 244, 0.55); }
+    .tile-highlight .trend-up { color: #86efac; }
+
+    /* Funnel */
+    .funnel { display: flex; flex-direction: column; gap: 12px; margin-top: 4px; }
+    .funnel-stage { display: grid; grid-template-columns: 88px 1fr 50px; align-items: center; gap: 14px; }
+    .funnel-name { font-size: 13px; color: var(--muted); }
+    .funnel-track { height: 8px; background: var(--hairline-soft); border-radius: 4px; position: relative; overflow: hidden; }
+    .funnel-fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); border-radius: 4px; }
+    .funnel-num { font-size: 14px; font-weight: 600; text-align: right; font-family: var(--font-mono); }
+
+    /* Lists */
+    .list-rows { display: flex; flex-direction: column; gap: 14px; margin-top: 4px; }
+    .list-item { display: flex; align-items: center; gap: 12px; font-size: 13.5px; line-height: 1.4; }
+    .list-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+    /* Customer rows */
+    .cust-rows { display: flex; flex-direction: column; margin-top: 4px; }
+    .cust-row {
+      display: grid; grid-template-columns: 1fr auto;
+      gap: 12px; padding: 12px 0; align-items: center;
+      border-bottom: 1px solid var(--hairline-soft);
+    }
+    .cust-row:last-child { border-bottom: none; padding-bottom: 0; }
+    .cust-row:first-child { padding-top: 0; }
+    .cust-name { font-size: 14px; font-weight: 500; }
+    .cust-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .cust-amount { font-family: var(--font-mono); font-size: 15px; font-weight: 600; }
+
+    /* Activity */
+    .activity-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 36px; margin-top: 6px; }
+    .activity-item { display: grid; grid-template-columns: 84px 1fr; gap: 14px; padding: 9px 0; align-items: start; }
+    .activity-time { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); padding-top: 2px; }
+    .activity-text { font-size: 13.5px; line-height: 1.45; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Icon rail -->
+    <aside class="sidebar">
+      <div class="wordmark-glyph">Z</div>
+      <div class="icon-btn active" title="仪表盘">▦<span class="dot"></span></div>
+      <div class="icon-btn" title="线索">▤</div>
+      <div class="icon-btn" title="客户">▣</div>
+      <div class="icon-btn" title="联系人">◉</div>
+      <div class="icon-btn" title="商机">▥</div>
+      <div class="icon-btn" title="合同">▦</div>
+      <div class="icon-btn" title="回款">▧</div>
+      <div class="icon-btn" title="跟进">▨</div>
+      <div class="sidebar-bottom">
+        <div class="icon-btn" title="用户">●</div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <div class="page-header">
+        <div>
+          <div class="greeting">下午好,李明。</div>
+          <div class="greeting-sub">6 月 27 日 · 你有 4 位客户今天需要跟进</div>
+        </div>
+        <div class="header-actions">
+          <button class="btn">导出报表</button>
+          <button class="btn btn-primary">+ 新建</button>
+        </div>
+      </div>
+
+      <div class="bento">
+        <!-- Row 1: Big highlight (2x2) + funnel (2x2) + 2 mini KPIs -->
+        <div class="tile span-2 row-2 tile-highlight">
+          <div class="tile-label">商机总金额</div>
+          <div class="tile-value mono" style="font-size: 48px">¥ 8.23M</div>
+          <div class="tile-trend trend-up">+18.2% vs 上月</div>
+          <div class="tile-meta">本月赢单 5 个 · 累计金额 ¥ 1.86M</div>
+        </div>
+
+        <div class="tile span-1">
+          <div class="tile-label">我的线索</div>
+          <div class="tile-value mono">28</div>
+          <div class="tile-trend trend-up">+12 本周</div>
+        </div>
+        <div class="tile span-1">
+          <div class="tile-label">我的客户</div>
+          <div class="tile-value mono">156</div>
+          <div class="tile-trend trend-up">+5 本月</div>
+        </div>
+
+        <div class="tile span-2 row-2">
+          <div class="tile-label">商机漏斗</div>
+          <div class="funnel">
+            <div class="funnel-stage">
+              <div class="funnel-name">需求分析</div>
+              <div class="funnel-track"><div class="funnel-fill" style="width: 100%"></div></div>
+              <div class="funnel-num">38</div>
+            </div>
+            <div class="funnel-stage">
+              <div class="funnel-name">方案报价</div>
+              <div class="funnel-track"><div class="funnel-fill" style="width: 58%"></div></div>
+              <div class="funnel-num">22</div>
+            </div>
+            <div class="funnel-stage">
+              <div class="funnel-name">商务谈判</div>
+              <div class="funnel-track"><div class="funnel-fill" style="width: 32%"></div></div>
+              <div class="funnel-num">12</div>
+            </div>
+            <div class="funnel-stage">
+              <div class="funnel-name">赢单</div>
+              <div class="funnel-track"><div class="funnel-fill" style="width: 13%"></div></div>
+              <div class="funnel-num">5</div>
+            </div>
+          </div>
+          <div class="tile-meta">总转化率 13.2% · 行业均值 9.4%</div>
+        </div>
+
+        <!-- Row 2 (cont): highlight + funnel cont + todo (span-3) -->
+        <div class="tile span-3">
+          <div class="tile-label">今日待办</div>
+          <div class="list-rows">
+            <div class="list-item">
+              <div class="list-dot" style="background: var(--danger)"></div>
+              <div><strong>华为集团</strong> · 已逾期 5 天,需紧急跟进</div>
+            </div>
+            <div class="list-item">
+              <div class="list-dot" style="background: var(--warn)"></div>
+              <div><strong>腾讯云</strong> · 今日 17:00 前提交报价</div>
+            </div>
+            <div class="list-item">
+              <div class="list-dot" style="background: var(--accent)"></div>
+              <div><strong>字节跳动</strong> · 等待方案反馈</div>
+            </div>
+            <div class="list-item">
+              <div class="list-dot" style="background: var(--accent)"></div>
+              <div><strong>北京星辰</strong> · 转化线索为客户</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row 3: Top customers (span-3) + next cell -->
+        <div class="tile span-3">
+          <div class="tile-label">高价值客户</div>
+          <div class="cust-rows">
+            <div class="cust-row">
+              <div>
+                <div class="cust-name">华为集团</div>
+                <div class="cust-meta">通信 · 商务谈判</div>
+              </div>
+              <div class="cust-amount">¥ 2.4M</div>
+            </div>
+            <div class="cust-row">
+              <div>
+                <div class="cust-name">腾讯云</div>
+                <div class="cust-meta">云计算 · 商务谈判</div>
+              </div>
+              <div class="cust-amount">¥ 1.8M</div>
+            </div>
+            <div class="cust-row">
+              <div>
+                <div class="cust-name">字节跳动</div>
+                <div class="cust-meta">互联网 · 方案报价</div>
+              </div>
+              <div class="cust-amount">¥ 1.56M</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Row 3 cont: month return (span-2) + win rate (span-1) -->
+        <div class="tile span-2">
+          <div class="tile-label">本月回款</div>
+          <div class="tile-value mono">¥ 1.24M</div>
+          <div class="tile-trend">达成率 67%</div>
+          <div class="tile-meta">目标 ¥ 1.85M · 距目标 ¥ 0.61M</div>
+        </div>
+        <div class="tile span-1">
+          <div class="tile-label">赢率</div>
+          <div class="tile-value mono">13.2%</div>
+          <div class="tile-trend trend-up">+2.1pt</div>
+        </div>
+
+        <!-- Row 4 (full): activity timeline -->
+        <div class="tile span-6">
+          <div class="tile-label">最近跟进 · 时间轴</div>
+          <div class="activity-cols">
+            <div>
+              <div class="activity-item">
+                <div class="activity-time">14:23</div>
+                <div class="activity-text"><strong>张磊</strong> 跟进了 <strong>华为集团</strong> · 电话沟通 25 分钟</div>
+              </div>
+              <div class="activity-item">
+                <div class="activity-time">11:05</div>
+                <div class="activity-text"><strong>你</strong> 为 <strong>字节跳动</strong> 上传了方案文档</div>
+              </div>
+              <div class="activity-item">
+                <div class="activity-time">09:48</div>
+                <div class="activity-text"><strong>王芳</strong> 将 <strong>腾讯云</strong> 推进至商务谈判</div>
+              </div>
+            </div>
+            <div>
+              <div class="activity-item">
+                <div class="activity-time">昨日 17:42</div>
+                <div class="activity-text"><strong>王芳</strong> 转化了线索 <strong>小米科技</strong> 为客户</div>
+              </div>
+              <div class="activity-item">
+                <div class="activity-time">昨日 15:18</div>
+                <div class="activity-text"><strong>你</strong> 推进了 <strong>腾讯云</strong> 阶段至商务谈判</div>
+              </div>
+              <div class="activity-item">
+                <div class="activity-time">昨日 10:30</div>
+                <div class="activity-text"><strong>陈刚</strong> 记录了 <strong>阿里达摩院</strong> 需求调研</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

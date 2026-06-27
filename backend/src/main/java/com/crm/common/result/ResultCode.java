@@ -25,7 +25,14 @@ public enum ResultCode {
     USER_PASSWORD_ERROR(2002, "用户名或密码错误"),
     USER_NOT_EXISTS(2003, "用户不存在"),
 
-    BUSINESS_ERROR(3001, "业务异常");
+    // ---- 阶段三合同/回款专用业务码 (3001-3099) ----
+    BUSINESS_ERROR(3001, "业务异常"),
+    AMOUNT_MISMATCH(3002, "合同金额与明细不符"),
+    PLAN_NOT_BELONG_CONTRACT(3003, "回款计划不属于该合同"),
+    CONTRACT_NOT_IN_EXECUTION(3004, "合同非执行中,不能录入"),
+    PLAN_ALREADY_PAID(3005, "已回款的计划不能操作"),
+    APPROVAL_NOT_PENDING(3006, "该审批单已处理,不能重复操作"),
+    CONTRACT_CANNOT_UPDATE(3007, "已结束/已作废的合同不能修改");
 
     private final Integer code;
     private final String message;
