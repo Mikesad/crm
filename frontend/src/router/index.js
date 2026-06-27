@@ -1,4 +1,8 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
+import { useUserStore } from '@/store/user'
+
+// 无需登录即可访问的白名单
+const WHITE_LIST = ['/login']
 
 /**
  * 路由配置
@@ -51,10 +55,28 @@ const routes = [
         meta: { title: '客户列表', permissions: ['crm:customer:list'] }
       },
       {
+        path: ':id',
+        name: 'CustomerDetail',
+        component: () => import('@/views/customer/detail.vue'),
+        meta: { title: '客户详情', permissions: ['crm:customer:list'], hidden: true }
+      },
+      {
         path: 'public',
         name: 'CustomerPublic',
         component: () => import('@/views/customer/public.vue'),
-        meta: { title: '公海池', permissions: ['crm:customer:public'] }
+        meta: { title: '公海池', permissions: ['crm:customer:list'] }
+      }
+    ]
+  },
+  {
+    path: '/contact',
+    component: () => import('@/layout/index.vue'),
+    children: [
+      {
+        path: 'list',
+        name: 'ContactList',
+        component: () => import('@/views/contact/list.vue'),
+        meta: { title: '联系人', permissions: ['crm:contact:list'] }
       }
     ]
   },
@@ -138,6 +160,35 @@ const routes = [
 const router = createRouter({
   history: createWebHashHistory(),
   routes
+})
+
+/**
+ * 全局路由守卫：登录态校验
+ *
+ * - 未登录访问任何应用路由 → 重定向到 /login，附 redirect query 让登录后跳回原页面
+ * - 已登录访问 /login → 直接跳 /dashboard，避免重复登录
+ * - 404 路由（/:pathMatch(.*)*）允许直接访问
+ */
+router.beforeEach((to, from, next) => {
+  const userStore = useUserStore()
+  const hasToken = !!userStore.token
+
+  // 已登录访问登录页：直接跳主页
+  if (to.path === '/login') {
+    return hasToken ? next({ path: '/dashboard' }) : next()
+  }
+
+  // 白名单（除 /login 外的公开页面，如 404）直接放行
+  if (WHITE_LIST.includes(to.path)) {
+    return next()
+  }
+
+  // 需要登录的路由：没 token 跳登录页，附 redirect
+  if (!hasToken) {
+    return next({ path: '/login', query: { redirect: to.fullPath } })
+  }
+
+  next()
 })
 
 export default router

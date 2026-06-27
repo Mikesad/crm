@@ -1,0 +1,69 @@
+/* =========================================================================
+   设计令牌 - ZenCRM Focus 变体
+   单一来源：所有 Vue 组件、SCSS 文件、Element Plus 主题覆盖都从这里取
+   同步：crm-dashboard-design-choice + crm-phase2-frontend-design
+   ========================================================================= */
+
+:root {
+  /* ---- 背景 ---- */
+  --bg:              #fafaf9;   /* 暖白底色（页面） */
+  --bg-warm:         #ffffff;   /* 卡片 / 侧栏底色 */
+  --surface:         #ffffff;   /* 同 bg-warm，保持令牌对称 */
+
+  /* ---- 文本 ---- */
+  --ink:             #18181b;   /* 主文本（接近黑） */
+  --ink-soft:        #3f3f46;   /* 次要文本 */
+  --muted:           #71717a;   /* 辅助文本 */
+  --subtle:          #a1a1aa;   /* 极弱文本（占位、辅助标签） */
+
+  /* ---- 描边 ---- */
+  --hairline:        #e4e4e7;   /* 主分隔线 */
+  --hairline-soft:   #f4f4f5;   /* 表格行内细分隔线 */
+
+  /* ---- 主强调色：森林绿（与登录页一致） ---- */
+  --accent:          #166534;
+  --accent-hover:    #14532d;   /* hover 态 */
+  --accent-soft:     #dcfce7;   /* 浅底色（tag / badge） */
+  --accent-pale:     #f0fdf4;   /* 极浅底（hover 高亮行） */
+  --accent-ring:     rgba(22, 101, 52, 0.12);  /* 激活态背景 */
+
+  /* ---- 状态色（只用这 4 个色相） ---- */
+  --info:            #1e40af;   /* 蓝：进行中、提示 */
+  --info-soft:       #dbeafe;
+  --success:         #166534;   /* 绿：成功（与 accent 同源） */
+  --success-soft:    #dcfce7;
+  --warn:            #b45309;   /* 琥珀：警告、逾期 */
+  --warn-soft:       #fef3c7;
+  --danger:          #b91c1c;   /* 红：终止、错误 */
+  --danger-soft:     #fee2e2;
+
+  /* ---- 圆角（统一 6px，bento / 弹窗用 8px） ---- */
+  --radius:          6px;
+  --radius-lg:       8px;
+  --radius-sm:       4px;
+
+  /* ---- 字号（Focus 风格：克制） ---- */
+  --fs-xs:           11.5px;    /* 辅助 tag / eyebrow */
+  --fs-sm:           12.5px;    /* 表头、辅助文本 */
+  --fs-base:         14px;      /* 默认 */
+  --fs-md:           15px;      /* 略大 */
+  --fs-lg:           18px;      /* 弹窗标题 */
+  --fs-xl:           24px;      /* 页面标题 */
+  --fs-2xl:          32px;      /* KPI 数字 */
+  --fs-3xl:          44px;      /* 大数字 */
+
+  /* ---- 字体 ---- */
+  --font-sans:       'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont,
+                     'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --font-mono:       'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+
+  /* ---- 间距 ---- */
+  --space-1:         4px;
+  --space-2:         8px;
+  --space-3:         12px;
+  --space-4:         16px;
+  --space-5:         20px;
+  --space-6:         24px;
+  --space-8:         32px;
+  --space-10:        40px;
+}

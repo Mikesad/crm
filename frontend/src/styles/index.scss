@@ -1,5 +1,7 @@
-/* 全局样式入口 */
+/* 全局样式入口 - 顺序：先令牌、再 reset、最后 EP 主题覆盖、最后业务样式 */
+@import './tokens.scss';
 @import './variables.scss';
 @import './reset.scss';
+@import './element-overrides.scss';
 @import './login.scss';
 @import './nprogress.scss';

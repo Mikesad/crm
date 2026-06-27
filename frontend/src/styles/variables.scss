@@ -1,11 +1,29 @@
-/* 全局 SCSS 变量 */
-$primary: #409eff;
-$success: #67c23a;
-$warning: #e6a23c;
-$danger: #f56c6c;
-$info: #909399;
+/* 全局 SCSS 变量 - 与 tokens.scss 的 CSS 变量保持一致
+   保留 SCSS 变量以兼容旧代码（@import 方式）
+   新代码优先使用 tokens.scss 里的 CSS 变量（--xxx） */
 
-$sidebar-width: 220px;
-$sidebar-collapse-width: 64px;
-$header-height: 56px;
-$tags-height: 38px;
+$primary:           #166534;
+$primary-hover:     #14532d;
+$success:           #166534;
+$warning:           #b45309;
+$danger:            #b91c1c;
+$info:              #1e40af;
+
+$accent-soft:       #dcfce7;
+$warn-soft:         #fef3c7;
+$danger-soft:       #fee2e2;
+$info-soft:         #dbeafe;
+
+$ink:               #18181b;
+$ink-soft:          #3f3f46;
+$muted:             #71717a;
+$subtle:            #a1a1aa;
+
+$hairline:          #e4e4e7;
+$hairline-soft:     #f4f4f5;
+
+$bg:                #fafaf9;
+$bg-warm:           #ffffff;
+
+$sidebar-width:     240px;
+$header-height:     48px;

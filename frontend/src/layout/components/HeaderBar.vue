@@ -1,77 +1,197 @@
 <template>
-  <div class="header-bar">
-    <el-icon class="collapse-btn" @click="appStore.toggleSidebar()">
-      <Fold v-if="!appStore.sidebarCollapsed" />
-      <Expand v-else />
-    </el-icon>
+  <header class="header-bar">
+    <div class="left">
+      <el-breadcrumb separator="/" class="breadcrumb">
+        <el-breadcrumb-item v-for="(crumb, i) in breadcrumbs" :key="i">
+          <router-link v-if="crumb.to && i < breadcrumbs.length - 1" :to="crumb.to">{{ crumb.title }}</router-link>
+          <span v-else>{{ crumb.title }}</span>
+        </el-breadcrumb-item>
+      </el-breadcrumb>
+    </div>
     <div class="right">
-      <el-dropdown @command="handleCommand">
+      <el-input
+        v-model="searchText"
+        placeholder="搜索客户、线索、商机..."
+        class="search"
+        :prefix-icon="Search"
+        clearable
+      />
+      <el-dropdown @command="handleCommand" trigger="click">
         <span class="user-info">
-          <el-avatar :size="28" :icon="UserFilled" />
-          <span class="nickname">{{ userStore.userInfo?.nickname || '未登录' }}</span>
+          <div class="user-avatar">{{ userInitial }}</div>
+          <span class="nickname">{{ userStore.nickname || userStore.username || '未登录' }}</span>
           <el-icon><ArrowDown /></el-icon>
         </span>
         <template #dropdown>
           <el-dropdown-menu>
-            <el-dropdown-item command="profile">个人中心</el-dropdown-item>
+            <el-dropdown-item disabled>
+              <div class="dropdown-header">
+                <div class="name">{{ userStore.nickname || userStore.username || '未登录' }}</div>
+                <div class="role">{{ roleLabel }}</div>
+              </div>
+            </el-dropdown-item>
             <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
           </el-dropdown-menu>
         </template>
       </el-dropdown>
     </div>
-  </div>
+  </header>
 </template>
 
 <script setup>
-import { ElMessageBox, ElMessage } from 'element-plus'
-import { useRouter } from 'vue-router'
-import { useAppStore } from '@/store/app'
+import { ref, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Search, ArrowDown } from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/user'
 
-const appStore = useAppStore()
-const userStore = useUserStore()
+const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
+const searchText = ref('')
+
+const userInitial = computed(() => {
+  const n = userStore.nickname || userStore.username || 'U'
+  return n.charAt(0)
+})
+
+const roleLabel = computed(() => {
+  const keys = userStore.roleKeys || []
+  if (keys.length === 0) return '访客'
+  const map = {
+    admin: '系统管理员',
+    sales_director: '销售总监',
+    sales_lead: '销售主管',
+    sales: '销售',
+    finance: '财务'
+  }
+  return map[keys[0]] || keys[0]
+})
+
+// 面包屑：根据路由 meta.title + 父路径生成
+const breadcrumbs = computed(() => {
+  const list = []
+  const segments = route.path.split('/').filter(Boolean)
+  let p = ''
+  segments.forEach((seg, i) => {
+    p += '/' + seg
+    const matched = router.getRoutes().find(r => r.path === p)
+    if (matched && matched.meta?.title) {
+      list.push({ title: matched.meta.title, to: p === route.path ? null : p })
+    } else {
+      list.push({ title: seg })
+    }
+  })
+  return list.length > 0 ? list : [{ title: '工作台' }]
+})
 
 const handleCommand = async (cmd) => {
   if (cmd === 'logout') {
-    await ElMessageBox.confirm('确认退出登录？', '提示', {
-      type: 'warning'
-    }).catch(() => null)
-    await userStore.logout()
-    ElMessage.success('已退出登录')
-    router.push('/login')
-  } else if (cmd === 'profile') {
-    ElMessage.info('个人中心 - 待实现')
+    try {
+      await ElMessageBox.confirm('确认退出登录？', '提示', { type: 'warning' })
+      await userStore.logout()
+      ElMessage.success('已退出登录')
+      router.push('/login')
+    } catch (e) { /* 用户取消 */ }
   }
 }
 </script>
 
 <style lang="scss" scoped>
 .header-bar {
-  height: 100%;
+  height: 48px;
+  background: var(--bg-warm);
+  border-bottom: 1px solid var(--hairline);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  .collapse-btn {
-    font-size: 20px;
-    cursor: pointer;
-    color: #555;
+  padding: 0 24px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.left {
+  flex: 0 0 auto;
+}
+.breadcrumb {
+  font-size: 13px;
+  :deep(.el-breadcrumb__item__inner) {
+    color: var(--muted);
+    font-weight: normal;
   }
-  .right {
-    display: flex;
-    align-items: center;
-    gap: 16px;
+  :deep(a) {
+    color: var(--muted);
+    text-decoration: none;
+    &:hover { color: var(--accent); }
   }
-  .user-info {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    cursor: pointer;
-    color: #333;
-    .nickname {
-      font-size: 14px;
-    }
+  :deep(.el-breadcrumb__item:last-child .el-breadcrumb__item__inner) {
+    color: var(--ink);
+    font-weight: 500;
+  }
+}
+
+.right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.search {
+  width: 240px;
+  :deep(.el-input__wrapper) {
+    background: var(--bg);
+    border-radius: var(--radius);
+    box-shadow: none;
+    border: 1px solid var(--hairline);
+  }
+  :deep(.el-input__wrapper:hover) {
+    border-color: var(--muted);
+  }
+  :deep(.el-input__wrapper.is-focus) {
+    border-color: var(--accent);
+  }
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 0 4px;
+  &:hover { color: var(--accent); }
+}
+
+.user-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.nickname {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.dropdown-header {
+  padding: 4px 0;
+  .name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink);
+  }
+  .role {
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 2px;
   }
 }
 </style>

@@ -1,86 +1,159 @@
 <template>
-  <el-menu
-    :default-active="activeMenu"
-    :collapse="appStore.sidebarCollapsed"
-    background-color="#001529"
-    text-color="#c9d1d9"
-    active-text-color="#fff"
-    router
-    class="sidebar-menu"
-  >
-    <template v-for="route in menuRoutes" :key="route.path">
-      <SidebarItem :item="route" />
-    </template>
-  </el-menu>
+  <nav class="nav">
+    <div v-for="group in menuGroups" :key="group.label || group.path" class="nav-group">
+      <div v-if="group.label" class="nav-label">{{ group.label }}</div>
+
+      <!-- 单级菜单项 -->
+      <router-link
+        v-if="!group.children && hasPerm(group)"
+        :to="group.path"
+        class="nav-item"
+        :class="{ active: isActive(group.path) }"
+      >
+        <el-icon v-if="group.icon" class="nav-icon"><component :is="group.icon" /></el-icon>
+        <span class="nav-text">{{ group.title }}</span>
+        <span v-if="group.badge" class="nav-badge">{{ group.badge }}</span>
+      </router-link>
+
+      <!-- 分组菜单（含子项） -->
+      <template v-else-if="group.children">
+        <router-link
+          v-for="child in group.children.filter(hasPerm)"
+          :key="child.path"
+          :to="child.path"
+          class="nav-item"
+          :class="{ active: isActive(child.path) }"
+        >
+          <el-icon v-if="child.icon" class="nav-icon"><component :is="child.icon" /></el-icon>
+          <span class="nav-text">{{ child.title }}</span>
+          <span v-if="child.badge" class="nav-badge">{{ child.badge }}</span>
+        </router-link>
+      </template>
+    </div>
+  </nav>
 </template>
 
 <script setup>
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import SidebarItem from './SidebarItem.vue'
-import { useAppStore } from '@/store/app'
+import { useUserStore } from '@/store/user'
 
 const route = useRoute()
-const appStore = useAppStore()
+const userStore = useUserStore()
 
-const activeMenu = computed(() => route.path)
-
-// 简单菜单元数据，可后续改为从后端拉取
-const menuRoutes = [
-  { path: '/dashboard', meta: { title: '首页', icon: 'HomeFilled' } },
+/**
+ * 菜单定义（顺序：工作区 → 交易 → 协作）
+ * icon 使用 Element Plus Icons（已在 main.js 全局注册）
+ * perm 缺失则默认全部角色可见；存在则校验用户 permissions
+ * badge 由业务模块通过 store 注入（阶段二先硬编码）
+ */
+const menuGroups = [
   {
-    path: '/lead',
-    meta: { title: '线索管理', icon: 'Aim' },
-    children: [{ path: '/lead/list', meta: { title: '线索列表' } }]
-  },
-  {
-    path: '/customer',
-    meta: { title: '客户管理', icon: 'User' },
+    label: '工作区',
     children: [
-      { path: '/customer/list', meta: { title: '客户列表' } },
-      { path: '/customer/public', meta: { title: '公海池' } }
+      { path: '/dashboard', title: '仪表盘', icon: 'HomeFilled' },
+      { path: '/lead/list', title: '线索', icon: 'Aim', badge: 28 },
+      { path: '/customer/list', title: '客户', icon: 'User', badge: 156 },
+      { path: '/business/list', title: '商机', icon: 'TrendCharts', badge: 42 }
     ]
   },
   {
-    path: '/business',
-    meta: { title: '商机管理', icon: 'TrendCharts' },
+    label: '交易',
     children: [
-      { path: '/business/list', meta: { title: '商机列表' } },
-      { path: '/business/funnel', meta: { title: '销售漏斗' } }
+      { path: '/contract/list', title: '合同', icon: 'Document' },
+      { path: '/contract/receivable', title: '回款', icon: 'Money' }
     ]
   },
   {
-    path: '/contract',
-    meta: { title: '合同与回款', icon: 'Document' },
+    label: '协作',
     children: [
-      { path: '/contract/list', meta: { title: '合同列表' } },
-      { path: '/contract/receivable', meta: { title: '回款管理' } }
-    ]
-  },
-  {
-    path: '/system',
-    meta: { title: '系统管理', icon: 'Setting' },
-    children: [
-      { path: '/system/user', meta: { title: '用户管理' } },
-      { path: '/system/role', meta: { title: '角色管理' } },
-      { path: '/system/menu', meta: { title: '菜单权限' } },
-      { path: '/system/dept', meta: { title: '部门管理' } }
+      { path: '/record/list', title: '跟进记录', icon: 'ChatLineRound' },
+      { path: '/report', title: '报表', icon: 'DataLine' }
     ]
   }
 ]
+
+const activePath = computed(() => route.path)
+
+function isActive(path) {
+  return activePath.value === path || activePath.value.startsWith(path + '/')
+}
+
+function hasPerm(item) {
+  if (!item.perm) return true
+  const perms = userStore.userInfo?.permissions || []
+  return perms.includes(item.perm)
+}
 </script>
 
 <style lang="scss" scoped>
-.sidebar-menu {
-  border-right: none;
-  height: calc(100vh - 56px);
-  :deep(.el-menu-item),
-  :deep(.el-sub-menu__title) {
-    height: 48px;
-    line-height: 48px;
+.nav {
+  padding: 0;
+  flex: 1;
+}
+
+.nav-group {
+  margin-bottom: 16px;
+}
+
+.nav-label {
+  padding: 6px 8px 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--subtle);
+  font-weight: 500;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: var(--radius);
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  text-decoration: none;
+  transition: background 0.12s, color 0.12s;
+
+  &:hover {
+    background: var(--bg);
+    color: var(--ink);
   }
-  :deep(.el-menu-item.is-active) {
-    background: #1890ff !important;
+
+  &.active {
+    background: var(--accent-ring);
+    color: var(--accent);
+    font-weight: 500;
   }
+}
+
+.nav-icon {
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.nav-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-badge {
+  font-size: 11px;
+  padding: 1px 6px;
+  background: var(--hairline);
+  color: var(--muted);
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-feature-settings: 'tnum' 1;
+  flex-shrink: 0;
+}
+
+.nav-item.active .nav-badge {
+  background: var(--accent);
+  color: #fff;
 }
 </style>

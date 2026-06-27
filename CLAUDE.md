@@ -94,6 +94,24 @@ backend/src/main/java/com/crm/
 - Pinia store 默认开启 `pinia-plugin-persistedstate`（token 等存 localStorage）。
 - 路由 `meta.permissions` / `meta.roles` 字段供后续指令式权限校验使用，目前路由未做硬拦截（依赖后端注解）。
 
+## 接口文档维护约定（强制）
+
+> **每次新增 / 修改任何后端 HTTP 接口时，必须同步维护接口文档，供前端对接使用，不得遗漏。**
+
+- **文档位置**：`docs/api/<模块名>.md`，按业务模块划分文件（如 `auth.md`、`customer.md`、`contract.md`）。
+- **索引文件**：`docs/api/README.md` 汇总所有接口的入口路径、负责人、最近更新时间。
+- **每个接口必须包含**：
+  1. **基本信息**：接口名称、请求方式（GET/POST/PUT/DELETE）、路径、是否需要登录（Sa-Token）、所需权限码（如 `crm:customer:list`）。
+  2. **请求参数**：以表格列出字段名、类型、是否必填、说明、示例值；包含 `query` / `path` / `body` 三类来源；如为分页接口需列出分页参数（`pageNum`/`pageSize`）。
+  3. **响应参数**：以表格列出字段名、类型、说明；明确统一响应结构 `Result<T>` 的 `code` / `msg` / `data` 含义。
+  4. **业务码说明**：列出该接口可能返回的业务异常码（来自 `ResultCode`）。
+  5. **调用示例**：提供 `curl` 命令与一份最小化的请求 / 响应 JSON 样例。
+- **更新触发点**（满足任一即更新文档）：
+  - 新增 Controller 里的任何 `@GetMapping` / `@PostMapping` 等注解方法。
+  - 修改现有接口的入参、出参、权限注解或业务逻辑导致响应结构变化。
+  - 新增 / 修改 `dto` 或 `vo` 类字段。
+- **自动化辅助**：每个 Controller 类使用 Knife4j `@Tag` / `@Operation` 注解，文档作为 Knife4j 输出的 Markdown 镜像；如有差异以 `docs/api/` 下的 Markdown 为准。
+
 ## 默认账号（来自 crm_full.sql 种子数据）
 
 | 账号 | 角色 | 密码 |

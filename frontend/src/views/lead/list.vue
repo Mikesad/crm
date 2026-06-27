@@ -1,34 +1,646 @@
 <template>
   <div class="page">
-    <el-card>
-      <div class="toolbar">
-        <el-button type="success" :icon="Plus">新增线索</el-button>
-        <el-button type="warning" :icon="Refresh">批量导入</el-button>
+    <div class="page-header">
+      <div>
+        <div class="page-title">线索管理</div>
+        <div class="page-sub">{{ summaryText }}</div>
       </div>
-      <el-table :data="list" border>
-        <el-table-column prop="name" label="线索名称" />
-        <el-table-column prop="contact" label="联系人" />
-        <el-table-column prop="phone" label="电话" />
-        <el-table-column prop="source" label="来源" />
-        <el-table-column prop="status" label="状态">
-          <template #default>
-            <el-tag>未跟进</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="220">
-          <template #default>
-            <el-button link type="primary">跟进</el-button>
-            <el-button link type="success">转为客户</el-button>
-            <el-button link type="danger">放弃</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+    </div>
+
+    <div class="layout">
+      <!-- 主区 -->
+      <div class="layout-main">
+        <!-- 工具栏 -->
+        <div class="toolbar">
+          <el-input
+            v-model="query.keyword"
+            placeholder="搜索线索名称、联系人、电话"
+            class="search"
+            clearable
+            @keyup.enter="handleSearch"
+          >
+            <template #prefix><el-icon><Search /></el-icon></template>
+          </el-input>
+          <el-select v-model="query.status" placeholder="全部状态" class="filter" clearable @change="handleSearch">
+            <el-option label="未跟进" :value="1" />
+            <el-option label="跟进中" :value="2" />
+            <el-option label="已转客户" :value="3" />
+            <el-option label="已死线索" :value="4" />
+          </el-select>
+          <el-select v-model="query.source" placeholder="全部来源" class="filter" clearable @change="handleSearch">
+            <el-option v-for="s in sourceOptions" :key="s" :label="s" :value="s" />
+          </el-select>
+          <div class="spacer" />
+          <el-button @click="handleSearch" :icon="Search">查询</el-button>
+          <el-button :icon="Upload" @click="handleImport">导入</el-button>
+          <el-button :icon="Download" @click="handleExport">导出</el-button>
+          <el-button class="btn-zen-primary" :icon="Plus" @click="handleCreate">新建线索</el-button>
+        </div>
+
+        <!-- 表格 -->
+        <el-card class="table-card" v-loading="loading">
+          <el-table :data="list" stripe @row-dblclick="handleRowDblClick">
+            <el-table-column type="selection" width="40" />
+            <el-table-column prop="leadName" label="线索名称" min-width="160">
+              <template #default="{ row }">
+                <span class="name">{{ row.leadName }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="contactName" label="联系人" width="100" />
+            <el-table-column prop="phone" label="电话" width="130">
+              <template #default="{ row }">
+                <span class="mono">{{ row.phone || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="source" label="来源" width="110">
+              <template #default="{ row }">
+                <el-tag v-if="row.source" type="info" effect="plain">{{ row.source }}</el-tag>
+                <span v-else class="text-muted">-</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="status" label="状态" width="100">
+              <template #default="{ row }">
+                <el-tag :type="statusTagType(row.status)" effect="light">{{ statusText(row.status) }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="ownerName" label="负责人" width="90" />
+            <el-table-column prop="createTime" label="创建时间" width="110">
+              <template #default="{ row }">
+                <span class="mono">{{ formatDate(row.createTime) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="200" fixed="right">
+              <template #default="{ row }">
+                <el-button link class="action-link" @click="handleDetail(row)">详情</el-button>
+                <el-button link class="action-link" @click="handleEdit(row)">编辑</el-button>
+                <el-button
+                  v-if="row.status !== 3"
+                  link
+                  class="action-link"
+                  @click="handleConvert(row)"
+                >转客户</el-button>
+                <el-button v-else link class="action-link danger" @click="handleDelete(row)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <el-pagination
+            v-model:current-page="query.pageNum"
+            v-model:page-size="query.pageSize"
+            :total="total"
+            :page-sizes="[10, 20, 50]"
+            layout="total, sizes, prev, pager, next"
+            class="pagination"
+            @current-change="loadList"
+            @size-change="loadList"
+          />
+        </el-card>
+      </div>
+
+      <!-- 右侧辅助面板 -->
+      <aside class="layout-side">
+        <div class="side-panel">
+          <div class="side-panel-title">
+            今日待办
+            <span class="more" @click="$router.push('/dashboard')">查看全部 →</span>
+          </div>
+          <div
+            v-for="t in todos"
+            :key="t.id"
+            class="todo-item"
+          >
+            <div class="todo-dot" :style="{ background: t.color }" />
+            <div class="todo-content">
+              <div class="todo-title" v-html="t.title" />
+              <div class="todo-sub">{{ t.sub }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="side-panel">
+          <div class="side-panel-title">
+            本月统计
+            <span class="more">6 月</span>
+          </div>
+          <div class="stat-grid">
+            <div class="stat accent">
+              <div class="stat-label">新增线索</div>
+              <div class="stat-value">{{ stats.created }}</div>
+            </div>
+            <div class="stat">
+              <div class="stat-label">已转化</div>
+              <div class="stat-value">{{ stats.converted }}</div>
+            </div>
+            <div class="stat info">
+              <div class="stat-label">跟进中</div>
+              <div class="stat-value">{{ stats.following }}</div>
+            </div>
+            <div class="stat danger">
+              <div class="stat-label">死线索</div>
+              <div class="stat-value">{{ stats.dead }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="side-panel">
+          <div class="side-panel-title">快速查看</div>
+          <div class="quick-list">
+            <a v-for="q in quickLinks" :key="q.label" class="quick-link" @click="quickFilter(q)">
+              <span>{{ q.label }}</span>
+              <span class="count">{{ q.count }}</span>
+            </a>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- 新建/编辑弹窗 -->
+    <el-dialog
+      v-model="editVisible"
+      :title="editing.id ? '编辑线索' : '新建线索'"
+      width="480px"
+      @closed="resetEditForm"
+    >
+      <el-form ref="editFormRef" :model="editing" :rules="editRules" label-width="84px" label-position="top">
+        <el-form-item label="线索名称" prop="leadName">
+          <el-input v-model="editing.leadName" placeholder="如：北京星辰科技" />
+        </el-form-item>
+        <el-form-item label="联系人姓名" prop="contactName">
+          <el-input v-model="editing.contactName" placeholder="如：王晓东" />
+        </el-form-item>
+        <el-form-item label="联系电话" prop="phone">
+          <el-input v-model="editing.phone" placeholder="如：138 0013 8000" />
+        </el-form-item>
+        <el-form-item label="来源">
+          <el-select v-model="editing.source" placeholder="选择来源" clearable allow-create filterable>
+            <el-option v-for="s in sourceOptions" :key="s" :label="s" :value="s" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="editing.remark" type="textarea" :rows="3" placeholder="客户背景、需求要点等" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="handleSave">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 转客户弹窗 -->
+    <el-dialog
+      v-model="convertVisible"
+      title="线索转客户"
+      width="480px"
+    >
+      <div class="convert-banner">
+        <el-icon><WarningFilled /></el-icon>
+        <div>
+          转客户后，原线索「<strong>{{ converting.leadName }}</strong>」将标记为「已转客户」且不可撤销。原线索会保留作为审计追溯。
+        </div>
+      </div>
+      <el-form ref="convertFormRef" :model="convertForm" :rules="convertRules" label-width="100px" label-position="top">
+        <el-form-item label="客户名称" prop="customerName">
+          <el-input v-model="convertForm.customerName" />
+        </el-form-item>
+        <el-form-item label="所属行业">
+          <el-input v-model="convertForm.industry" placeholder="如：智能硬件、互联网" />
+        </el-form-item>
+        <el-form-item label="客户级别">
+          <el-radio-group v-model="convertForm.level">
+            <el-radio value="A">A 重要</el-radio>
+            <el-radio value="B">B 普通</el-radio>
+            <el-radio value="C">C 意向</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="主联系人职务">
+          <el-input v-model="convertForm.post" />
+        </el-form-item>
+        <el-form-item label="主联系人手机" prop="phone">
+          <el-input v-model="convertForm.phone" />
+          <div class="form-hint">默认沿用线索电话，可在此修改</div>
+        </el-form-item>
+        <el-form-item label="决策权重">
+          <el-radio-group v-model="convertForm.decisionWeight">
+            <el-radio :value="1">1 核心决策者</el-radio>
+            <el-radio :value="2">2 弱影响者</el-radio>
+            <el-radio :value="3">3 普通职员</el-radio>
+          </el-radio-group>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="convertVisible = false">取消</el-button>
+        <el-button type="primary" :loading="converting_" @click="handleConvertSubmit">确认转客户</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { Plus, Refresh } from '@element-plus/icons-vue'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Search, Plus, Upload, Download, WarningFilled } from '@element-plus/icons-vue'
+import {
+  pageLead,
+  addLead,
+  updateLead,
+  deleteLead,
+  convertLead
+} from '@/api/lead'
+
+defineOptions({ name: 'LeadList' })
+
+const router = useRouter()
+
+// ---------- 查询 / 列表 ----------
+const query = reactive({
+  keyword: '',
+  status: null,
+  source: '',
+  pageNum: 1,
+  pageSize: 10
+})
 const list = ref([])
+const total = ref(0)
+const loading = ref(false)
+
+const sourceOptions = ['线上留单', '展会', '广告', '客户介绍', '官网注册', '电话咨询']
+
+const statusText = (s) => ({ 1: '未跟进', 2: '跟进中', 3: '已转客户', 4: '已死线索' }[s] || '-')
+const statusColor = (s) => ({ 1: '#a1a1aa', 2: '#1e40af', 3: '#166534', 4: '#b91c1c' }[s] || '#a1a1aa')
+const statusTagType = (s) => ({ 1: 'info', 2: 'primary', 3: 'success', 4: 'danger' }[s] || 'info')
+const formatDate = (t) => t ? t.substring(0, 10) : '-'
+
+const summaryText = computed(() => {
+  const c = list.value.length
+  return c === 0 && !loading.value ? '暂无数据' : `共 ${total.value} 条线索 · 当前显示 ${c} 条`
+})
+
+async function loadList() {
+  loading.value = true
+  try {
+    const res = await pageLead({
+      keyword: query.keyword || undefined,
+      status: query.status || undefined,
+      source: query.source || undefined,
+      pageNum: query.pageNum,
+      pageSize: query.pageSize
+    })
+    list.value = res.data?.records || []
+    total.value = res.data?.total || 0
+  } catch (e) {
+    list.value = []
+    total.value = 0
+  } finally {
+    loading.value = false
+  }
+}
+
+function handleSearch() {
+  query.pageNum = 1
+  loadList()
+}
+
+function quickFilter(q) {
+  if (q.status !== undefined) query.status = q.status
+  if (q.keyword !== undefined) query.keyword = q.keyword
+  handleSearch()
+}
+
+// ---------- 右侧辅助面板（mock 数据；阶段三接入业务规则） ----------
+const todos = ref([
+  { id: 1, color: '#b91c1c', title: '跟进入度 · <strong>华为集团</strong>', sub: '已逾期 5 天' },
+  { id: 2, color: '#b45309', title: '提交报价 · <strong>腾讯云</strong>', sub: '17:00 前' },
+  { id: 3, color: '#166534', title: '转化线索 · <strong>北京星辰</strong>', sub: '已确认意向' },
+  { id: 4, color: '#166534', title: '回访 · <strong>字节跳动</strong>', sub: '等待方案反馈' }
+])
+
+const stats = reactive({ created: 12, converted: 4, following: 12, dead: 2 })
+
+const quickLinks = ref([
+  { label: '我负责的线索', count: 28 },
+  { label: '我创建的', count: 14 },
+  { label: '本周新增', count: 12 },
+  { label: '已转客户', count: 4, status: 3 },
+  { label: '已死线索', count: 2, status: 4 }
+])
+
+// ---------- 新建 / 编辑 ----------
+const editVisible = ref(false)
+const saving = ref(false)
+const editFormRef = ref(null)
+const editing = reactive({ id: null, leadName: '', contactName: '', phone: '', source: '', remark: '' })
+// 中国手机号校验：空值可选；非空时先剥离空格/中划线/括号再匹配 11 位 1[3-9] 开头
+const phoneRule = {
+  validator: (rule, value, callback) => {
+    if (!value) return callback()
+    const normalized = String(value).replace(/[\s\-()]/g, '')
+    if (!/^1[3-9]\d{9}$/.test(normalized)) {
+      return callback(new Error('请输入正确的 11 位手机号'))
+    }
+    callback()
+  },
+  trigger: 'blur'
+}
+const editRules = {
+  leadName: [{ required: true, message: '请输入线索名称', trigger: 'blur' }],
+  contactName: [{ required: true, message: '请输入联系人姓名', trigger: 'blur' }],
+  phone: [phoneRule]
+}
+
+function resetEditForm() {
+  editing.id = null
+  editing.leadName = ''
+  editing.contactName = ''
+  editing.phone = ''
+  editing.source = ''
+  editing.remark = ''
+}
+
+function handleCreate() {
+  resetEditForm()
+  editVisible.value = true
+}
+
+function handleEdit(row) {
+  Object.assign(editing, row)
+  editVisible.value = true
+}
+
+async function handleSave() {
+  await editFormRef.value.validate()
+  saving.value = true
+  try {
+    if (editing.id) {
+      await updateLead(editing)
+      ElMessage.success('已更新')
+    } else {
+      await addLead(editing)
+      ElMessage.success('已创建')
+    }
+    editVisible.value = false
+    loadList()
+  } finally {
+    saving.value = false
+  }
+}
+
+async function handleDelete(row) {
+  try {
+    await ElMessageBox.confirm(`确认删除线索「${row.leadName}」？此操作不可恢复。`, '提示', { type: 'warning' })
+    await deleteLead(row.id)
+    ElMessage.success('已删除')
+    loadList()
+  } catch (e) { /* 取消 */ }
+}
+
+function handleDetail(row) {
+  ElMessage.info('线索详情 - 待阶段三实现独立详情页（阶段二列表+弹窗已够用）')
+}
+
+function handleRowDblClick(row) {
+  handleEdit(row)
+}
+
+// ---------- 导入 / 导出（占位，阶段二交付时实现基础版） ----------
+function handleImport() {
+  ElMessage.info('导入线索 - 阶段二提供模板上传 + 解析，阶段三加字段映射规则')
+}
+function handleExport() {
+  ElMessage.info('导出线索 - 阶段二导出当前筛选结果为 Excel，阶段三加字段选择')
+}
+
+// ---------- 转客户 ----------
+const convertVisible = ref(false)
+const converting_ = ref(false)
+const convertFormRef = ref(null)
+const converting = ref({})
+const convertForm = reactive({
+  customerName: '',
+  industry: '',
+  level: 'B',
+  post: '',
+  phone: '',
+  decisionWeight: 1
+})
+const convertRules = {
+  customerName: [{ required: true, message: '请输入客户名称', trigger: 'blur' }],
+  phone: [phoneRule]
+}
+
+function handleConvert(row) {
+  converting.value = row
+  Object.assign(convertForm, {
+    customerName: row.leadName + '有限公司',
+    industry: '',
+    level: 'B',
+    post: '',
+    phone: row.phone || '',
+    decisionWeight: 1
+  })
+  convertVisible.value = true
+}
+
+async function handleConvertSubmit() {
+  await convertFormRef.value.validate()
+  converting_.value = true
+  try {
+    const res = await convertLead(converting.value.id, convertForm)
+    ElMessage.success(`已转客户，新客户 ID = ${res.data}`)
+    convertVisible.value = false
+    loadList()
+  } finally {
+    converting_.value = false
+  }
+}
+
+onMounted(loadList)
 </script>
+
+<style lang="scss" scoped>
+.page {
+  padding: 32px 32px 48px;
+}
+
+.page-header {
+  margin-bottom: 20px;
+}
+.page-title {
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+}
+.page-sub {
+  margin-top: 4px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+/* 两栏布局 */
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 20px;
+  align-items: start;
+}
+@media (max-width: 1280px) {
+  .layout { grid-template-columns: 1fr; }
+}
+.layout-main { min-width: 0; }
+.layout-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  position: sticky;
+  top: 20px;
+}
+@media (max-width: 1280px) { .layout-side { position: static; } }
+
+/* 工具栏 */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.search { width: 280px; }
+.filter { width: 140px; }
+.spacer { flex: 1; }
+
+/* 表格 */
+.table-card { padding: 0; }
+.table-card :deep(.el-card__body) { padding: 0; }
+:deep(.el-table) { border-radius: 0; }
+.name { font-weight: 500; color: var(--ink); }
+.mono {
+  font-family: var(--font-mono);
+  font-feature-settings: 'tnum' 1;
+  color: var(--ink-soft);
+}
+.text-muted { color: var(--subtle); }
+.dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: 1px;
+}
+.pagination {
+  padding: 12px 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* 右侧 panel */
+.side-panel {
+  background: var(--bg-warm);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+.side-panel-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.more {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-weight: normal;
+  cursor: pointer;
+  &:hover { color: var(--accent); }
+}
+
+/* todo list */
+.todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--hairline-soft);
+  &:last-child { border-bottom: none; padding-bottom: 0; }
+  &:first-child { padding-top: 0; }
+}
+.todo-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+.todo-content { flex: 1; min-width: 0; }
+.todo-title { font-size: 12.5px; line-height: 1.4; }
+.todo-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+/* stat grid */
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.stat {
+  padding: 10px 12px;
+  background: var(--bg);
+  border-radius: var(--radius);
+}
+.stat-label { font-size: 11.5px; color: var(--muted); margin-bottom: 4px; }
+.stat-value {
+  font-size: 20px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  font-feature-settings: 'tnum' 1;
+  letter-spacing: -0.01em;
+}
+.stat.accent .stat-value { color: var(--accent); }
+.stat.info .stat-value { color: var(--info); }
+.stat.danger .stat-value { color: var(--danger); }
+
+/* quick list */
+.quick-list { display: flex; flex-direction: column; }
+.quick-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 0;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  border-bottom: 1px solid var(--hairline-soft);
+  &:last-child { border-bottom: none; }
+  &:hover { color: var(--accent); }
+  .count {
+    font-size: 11.5px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    font-feature-settings: 'tnum' 1;
+  }
+  &:hover .count { color: var(--accent); }
+}
+
+/* 转客户 banner */
+.convert-banner {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--warn-soft);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  font-size: 12.5px;
+  color: var(--warn);
+  line-height: 1.5;
+  .el-icon { flex-shrink: 0; margin-top: 1px; }
+}
+
+.form-hint {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+</style>
