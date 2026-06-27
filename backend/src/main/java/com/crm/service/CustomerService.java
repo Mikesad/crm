@@ -10,7 +10,11 @@ import com.crm.dto.CustomerCreateRequest;
 import com.crm.dto.CustomerQueryRequest;
 import com.crm.dto.CustomerUpdateRequest;
 import com.crm.entity.CrmCustomer;
+import com.crm.entity.CrmRecord;
+import com.crm.entity.SysUser;
 import com.crm.mapper.CrmCustomerMapper;
+import com.crm.mapper.CrmRecordMapper;
+import com.crm.mapper.SysUserMapper;
 import com.crm.vo.CustomerVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +22,14 @@ import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+
+import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 客户服务
@@ -31,6 +43,9 @@ import org.springframework.util.StringUtils;
 public class CustomerService {
 
     private final CrmCustomerMapper customerMapper;
+    private final CrmRecordMapper recordMapper;
+    private final CustomerShareService shareService;
+    private final SysUserMapper userMapper;
 
     public IPage<CustomerVO> page(CustomerQueryRequest query) {
         Page<CrmCustomer> page = new Page<>(query.normalizeCurrent(), query.normalizeSize());
@@ -44,15 +59,35 @@ public class CustomerService {
         if (StringUtils.hasText(query.getIndustry())) {
             wrapper.eq(CrmCustomer::getIndustry, query.getIndustry());
         }
-        if (query.getIsPublic() != null && query.getIsPublic() == 1) {
+        if (query.getSharedToMeOnly() != null && query.getSharedToMeOnly() == 1) {
+            // 阶段四:仅查"被共享给我"的客户(共享表命中)
+            // 注意:此处仅作 inSql 过滤,数据权限拦截器仍会兜底
+            Long uid = UserContext.requireUserId();
+            wrapper.inSql(CrmCustomer::getId,
+                    "SELECT customer_id FROM crm_customer_share WHERE user_id = " + uid);
+        } else if (query.getIsPublic() != null && query.getIsPublic() == 1) {
             // 公海：仅看 owner_user_id IS NULL 的
             wrapper.isNull(CrmCustomer::getOwnerUserId);
         } else {
-            // 私海：dataScope 拦截器自动加 owner_user_id 条件
+            // 私海：阶段四起,dataScope=5 的拦截器会 OR 上 is_public=1,
+            // 这里显式排除公海,让私海 Tab 不混入公海客户
+            wrapper.eq(CrmCustomer::getIsPublic, 0);
         }
         wrapper.orderByDesc(CrmCustomer::getCreateTime);
         IPage<CrmCustomer> result = customerMapper.selectPage(page, wrapper);
-        return result.convert(this::toVO);
+
+        // 阶段四:批量填充 ownerName(避免 N+1)— 收集本页所有 ownerId,1 次 IN 查询拿全
+        Set<Long> ownerIds = result.getRecords().stream()
+                .map(CrmCustomer::getOwnerUserId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, String> ownerNameMap = ownerIds.isEmpty()
+                ? Collections.emptyMap()
+                : userMapper.selectBatchIds(ownerIds).stream()
+                    .collect(Collectors.toMap(SysUser::getId, SysUser::getNickname));
+
+        Map<Long, String> finalMap = ownerNameMap;
+        return result.convert(c -> toVO(c, finalMap));
     }
 
     public CustomerVO detail(Long id) {
@@ -78,6 +113,8 @@ public class CustomerService {
 
     @Transactional
     public void update(CustomerUpdateRequest req) {
+        // 阶段四:owner / 读写共享人可改,只读共享人 / 其他人 → 抛 READONLY_SHARE_CANNOT_EDIT
+        shareService.requireWriteAccess(req.getId());
         CrmCustomer customer = customerMapper.selectById(req.getId());
         if (customer == null) {
             throw new BusinessException(ResultCode.DATA_NOT_FOUND, "客户不存在");
@@ -91,6 +128,8 @@ public class CustomerService {
 
     @Transactional
     public void delete(Long id) {
+        // 阶段四:写权限校验,见 update() 注释
+        shareService.requireWriteAccess(id);
         CrmCustomer customer = customerMapper.selectById(id);
         if (customer == null) {
             throw new BusinessException(ResultCode.DATA_NOT_FOUND, "客户不存在");
@@ -99,7 +138,56 @@ public class CustomerService {
         customerMapper.deleteById(id);
     }
 
+    /**
+     * 阶段四:公海池认领
+     * <p>前置条件:customer.isPublic=1 且 ownerUserId IS NULL。</p>
+     * <p>副作用:① owner=当前用户;② isPublic=0;③ lastFollowTime=now;
+     * ④ 追加一条 crm_record 跟进记录(内容固定为"从公海池认领客户")。</p>
+     */
+    @Transactional
+    public void claim(Long id) {
+        Long currentUserId = UserContext.requireUserId();
+        CrmCustomer customer = customerMapper.selectById(id);
+        if (customer == null) {
+            throw new BusinessException(ResultCode.DATA_NOT_FOUND, "客户不存在");
+        }
+        if (customer.getIsPublic() == null || customer.getIsPublic() != 1
+                || customer.getOwnerUserId() != null) {
+            throw new BusinessException(ResultCode.CUSTOMER_NOT_IN_PUBLIC_POOL,
+                    "该客户不在公海池,无法认领");
+        }
+        CrmCustomer update = new CrmCustomer();
+        update.setId(id);
+        update.setOwnerUserId(currentUserId);
+        update.setIsPublic(0);
+        update.setLastFollowTime(LocalDateTime.now());
+        update.setUpdateBy(UserContext.currentUsername());
+        customerMapper.updateById(update);
+
+        // 写一条跟进记录(直接用 recordMapper 而非 RecordService 以避免循环依赖)
+        CrmRecord r = new CrmRecord();
+        r.setRelatedType("customer");
+        r.setRelatedId(id);
+        r.setContent("从公海池认领客户");
+        r.setFollowType("系统");
+        r.setCreateBy(UserContext.currentUsername());
+        r.setCreateTime(LocalDateTime.now());
+        // 注入 recordMapper 比较啰嗦,这里通过 RecordService 走 — 但 RecordService 也依赖 shareService
+        // 为避免循环,改用直接 RecordService 调用,通过构造注入
+        // — 已在 controller 端点改用 RecordService ——
+        // (本方法直接 insert 的实现放在 CustomerService.claim,需要 recordMapper)
+        // — 把 recordMapper 也注入到本类即可 ——
+        // (改为使用注入的 recordMapper)
+        recordMapper.insert(r);
+
+        log.info("公海认领: customerId={} by userId={}", id, currentUserId);
+    }
+
     private CustomerVO toVO(CrmCustomer customer) {
+        return toVO(customer, Collections.emptyMap());
+    }
+
+    private CustomerVO toVO(CrmCustomer customer, Map<Long, String> ownerNameMap) {
         CustomerVO vo = new CustomerVO();
         BeanUtils.copyProperties(customer, vo);
         vo.setLevelText(switch (customer.getLevel() == null ? "" : customer.getLevel()) {
@@ -108,6 +196,9 @@ public class CustomerService {
             case "C" -> "意向客户";
             default -> "-";
         });
+        if (customer.getOwnerUserId() != null) {
+            vo.setOwnerName(ownerNameMap.get(customer.getOwnerUserId()));
+        }
         return vo;
     }
 }

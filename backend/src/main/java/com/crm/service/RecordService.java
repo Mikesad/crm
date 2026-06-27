@@ -33,6 +33,7 @@ public class RecordService {
     private static final Set<String> ALLOWED_TYPES = Set.of("lead", "customer", "business");
 
     private final CrmRecordMapper recordMapper;
+    private final CustomerShareService shareService;
 
     public List<RecordVO> timeline(RecordQueryRequest query) {
         if (!ALLOWED_TYPES.contains(query.getRelatedType())) {
@@ -49,6 +50,10 @@ public class RecordService {
     public Long append(RecordCreateRequest req) {
         if (!ALLOWED_TYPES.contains(req.getRelatedType())) {
             throw new BusinessException("relatedType 仅支持 lead / customer / business");
+        }
+        // 阶段四:customer 类型的跟进,要求是 owner 或读写共享人(只读共享人拒绝)
+        if ("customer".equals(req.getRelatedType())) {
+            shareService.requireWriteAccess(req.getRelatedId());
         }
         CrmRecord r = new CrmRecord();
         BeanUtils.copyProperties(req, r);

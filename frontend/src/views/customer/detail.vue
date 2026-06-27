@@ -13,16 +13,30 @@
             <span>{{ customer.industry || '未分类' }}</span>
             <span class="sep">·</span>
             <span>归属 {{ customer.ownerName || '-' }}</span>
+            <span v-if="!isOwner" class="sep">·</span>
+            <span v-if="!isOwner" class="readonly-tag">🔒 只读共享</span>
             <span class="sep">·</span>
             <span>最后跟进 <span class="mono" :class="followClass(customer.lastFollowTime)">{{ followText(customer.lastFollowTime) }}</span></span>
           </div>
         </div>
         <div class="detail-actions">
-          <el-button :icon="EditPen" @click="handleAddRecord">写跟进</el-button>
-          <el-button :icon="Plus" @click="handleAddBusiness">新建商机</el-button>
-          <el-button class="btn-zen-primary" @click="handleEdit">编辑</el-button>
+          <el-button :icon="EditPen" :disabled="isReadOnly" @click="handleAddRecord">写跟进</el-button>
+          <el-button :icon="Plus" :disabled="isReadOnly" @click="handleAddBusiness">新建商机</el-button>
+          <el-button v-if="isOwner" :icon="ShareIcon" @click="openShareDialog">共享</el-button>
+          <el-button class="btn-zen-primary" :disabled="isReadOnly" @click="handleEdit">编辑</el-button>
         </div>
       </div>
+
+      <!-- 阶段四:只读模式顶部警示条 -->
+      <el-alert
+        v-if="isReadOnly"
+        type="warning"
+        show-icon
+        :closable="false"
+        class="readonly-banner"
+        title="你对该客户只有只读权限"
+        description="由主销售共享给你(只读);如需编辑请让主销售改为「读写」权限,或前往公海池认领。"
+      />
 
       <!-- Tabs -->
       <div class="tabs">
@@ -292,6 +306,13 @@
         <el-button class="btn-zen-primary" :loading="savingRecord" @click="handleSaveRecord">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 阶段四:共享对话框 -->
+    <CustomerShareDialog
+      v-model:visible="shareDialogVisible"
+      :customer="customer"
+      @shared="onSharedOk"
+    />
   </div>
 </template>
 
@@ -299,18 +320,21 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { EditPen, Plus } from '@element-plus/icons-vue'
+import { EditPen, Plus, Share as ShareIcon } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
+import { useUserStore } from '@/store/user'
 import { getCustomer, updateCustomer } from '@/api/customer'
 import { listContact, addContact, updateContact, deleteContact } from '@/api/contact'
 import { pageBusiness, addBusiness, updateBusinessStage } from '@/api/business'
 import { addRecord } from '@/api/record'
 import RecordTimeline from '@/components/RecordTimeline.vue'
+import CustomerShareDialog from './components/ShareDialog.vue'
 
 defineOptions({ name: 'CustomerDetail' })
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 
 // ---------- 状态 ----------
 const customer = ref({})
@@ -320,6 +344,27 @@ const loading = ref(false)
 const loadingContact = ref(false)
 const loadingBusiness = ref(false)
 const activeTab = ref('contact')
+
+// ---------- 阶段四:写权限判定 ----------
+const myUserId = computed(() => userStore.userId)
+const isOwner = computed(() => customer.value.ownerUserId === myUserId.value)
+const isPublicCustomer = computed(() => customer.value.isPublic === 1)
+const isReadOnly = computed(() => {
+  if (!customer.value.id) return false
+  if (isPublicCustomer.value) return false  // 公海客户允许编辑
+  if (isOwner.value) return false          // owner 允许编辑
+  return true                              // 共享给我或其他,只读
+})
+
+// 共享对话框
+const shareDialogVisible = ref(false)
+function openShareDialog() {
+  if (!isOwner.value) return
+  shareDialogVisible.value = true
+}
+function onSharedOk() {
+  // 共享操作不影响当前 owner 的可见性,无需 reload
+}
 
 // ---------- 工具函数 ----------
 const followText = (t) => {
@@ -620,6 +665,21 @@ onMounted(loadAll)
   justify-content: space-between;
   padding-bottom: 20px;
   border-bottom: 1px solid var(--hairline);
+}
+.readonly-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 8px;
+  font-size: 11.5px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  border-radius: 3px;
+  font-weight: 500;
+}
+.readonly-banner {
+  margin: 16px 0;
+  border-radius: var(--radius);
 }
 .detail-title { display: flex; flex-direction: column; gap: 8px; }
 .detail-name { font-size: 24px; font-weight: 600; letter-spacing: -0.015em; color: var(--ink); }

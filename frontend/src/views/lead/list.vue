@@ -32,7 +32,7 @@
           </el-select>
           <div class="spacer" />
           <el-button @click="handleSearch" :icon="Search">查询</el-button>
-          <el-button :icon="Upload" @click="handleImport">导入</el-button>
+          <el-button :icon="Upload" @click="openImportDialog">导入</el-button>
           <el-button :icon="Download" @click="handleExport">导出</el-button>
           <el-button class="btn-zen-primary" :icon="Plus" @click="handleCreate">新建线索</el-button>
         </div>
@@ -232,6 +232,51 @@
         <el-button type="primary" :loading="converting_" @click="handleConvertSubmit">确认转客户</el-button>
       </template>
     </el-dialog>
+
+    <!-- 阶段四:Excel 导入对话框 -->
+    <el-dialog
+      v-model="importDialogVisible"
+      title="导入线索"
+      width="520px"
+      :close-on-click-modal="false"
+    >
+      <el-upload
+        drag
+        :auto-upload="false"
+        :show-file-list="true"
+        :limit="1"
+        accept=".xlsx"
+        :on-change="onImportFileChange"
+      >
+        <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+        <div class="el-upload__text">拖拽 xlsx 文件到此或<em>点击上传</em></div>
+        <template #tip>
+          <div class="el-upload__tip">
+            必填列:线索名称、联系人。<br>
+            状态文字:未跟进/跟进中/已转客户/已死线索(留空=未跟进)。<br>
+            负责人:填 username 或昵称,留空=当前用户。
+          </div>
+        </template>
+      </el-upload>
+      <div v-if="importResult" class="import-result">
+        <el-alert
+          :type="importResult.failRows === 0 ? 'success' : 'warning'"
+          :closable="false"
+          show-icon
+        >
+          <div>总计 {{ importResult.totalRows }} 行,成功 {{ importResult.successRows }} 行,失败 {{ importResult.failRows }} 行</div>
+          <div v-if="importResult.failRows > 0" class="import-errors">
+            <div v-for="(msg, line) in importResult.errors" :key="line">
+              第 {{ line }} 行: {{ msg }}
+            </div>
+          </div>
+        </el-alert>
+      </div>
+      <template #footer>
+        <el-button @click="importDialogVisible = false">关闭</el-button>
+        <el-button type="primary" :loading="importLoading" @click="doImport">开始导入</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -239,13 +284,15 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Plus, Upload, Download, WarningFilled } from '@element-plus/icons-vue'
+import { Search, Plus, Upload, Download, WarningFilled, UploadFilled } from '@element-plus/icons-vue'
 import {
   pageLead,
   addLead,
   updateLead,
   deleteLead,
-  convertLead
+  convertLead,
+  exportLeadExcel,
+  importLeadExcel
 } from '@/api/lead'
 
 defineOptions({ name: 'LeadList' })
@@ -402,12 +449,54 @@ function handleRowDblClick(row) {
   handleEdit(row)
 }
 
-// ---------- 导入 / 导出（占位，阶段二交付时实现基础版） ----------
-function handleImport() {
-  ElMessage.info('导入线索 - 阶段二提供模板上传 + 解析，阶段三加字段映射规则')
+// ---------- 导入 / 导出(EasyExcel) ----------
+const importDialogVisible = ref(false)
+const importFile = ref(null)
+const importLoading = ref(false)
+const importResult = ref(null)
+
+function openImportDialog() {
+  importFile.value = null
+  importResult.value = null
+  importDialogVisible.value = true
 }
-function handleExport() {
-  ElMessage.info('导出线索 - 阶段二导出当前筛选结果为 Excel，阶段三加字段选择')
+
+function onImportFileChange(file) {
+  importFile.value = file?.raw || null
+}
+
+async function doImport() {
+  if (!importFile.value) {
+    ElMessage.warning('请先选 xlsx 文件')
+    return
+  }
+  importLoading.value = true
+  try {
+    const { data } = await importLeadExcel(importFile.value)
+    importResult.value = data
+    ElMessage.success(`导入完成: 成功 ${data.successRows} / 失败 ${data.failRows}`)
+    loadList()
+  } finally {
+    importLoading.value = false
+  }
+}
+
+async function handleExport() {
+  ElMessage.info('正在生成 Excel,文件下载即将开始...')
+  try {
+    const blob = await exportLeadExcel()
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `线索列表_${Date.now()}.xlsx`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch (e) {
+    ElMessage.error('导出失败')
+  }
 }
 
 // ---------- 转客户 ----------

@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<!--
+  phase4-customer-list.html
+  阶段四 · 升级版客户列表(私海/公海 Tab + 共享入口 + 共享名单行内展开)
+
+  变化 vs 阶段二版:
+    1. 私海 Tab 行操作多了一个"共享"按钮
+    2. 公海 Tab 复用同一页面,行操作是"认领"
+    3. 共享入口在客户详情页通过顶栏按钮 + 共享名单抽屉呈现(本 HTML 演示列表场景)
+
+  Design Read: 与 phase2-customer-list 同一设计令牌
+  Dials: VARIANCE 3 / MOTION 2 / DENSITY 5
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>客户管理 · ZenCRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:           #fafaf9;
+      --bg-warm:      #ffffff;
+      --ink:          #18181b;
+      --ink-soft:     #3f3f46;
+      --muted:        #71717a;
+      --subtle:       #a1a1aa;
+      --hairline:     #e4e4e7;
+      --hairline-soft:#f4f4f5;
+      --surface:      #ffffff;
+      --accent:       #166534;
+      --accent-soft:  #dcfce7;
+      --accent-pale:  #f0fdf4;
+      --accent-ring:  rgba(22, 101, 52, 0.12);
+      --info:         #1e40af;
+      --info-soft:    #dbeafe;
+      --warn:         #b45309;
+      --warn-soft:    #fef3c7;
+      --danger:       #b91c1c;
+      --font-sans:    'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+      --radius:       6px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: var(--font-sans); font-size: 14px; line-height: 1.5; color: var(--ink); background: var(--bg); margin: 0; -webkit-font-smoothing: antialiased; }
+    .mono { font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
+    .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+
+    .sidebar { background: var(--bg-warm); border-right: 1px solid var(--hairline); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; }
+    .sidebar-top { padding: 20px 20px 16px; }
+    .wordmark { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+    .wordmark-glyph { width: 18px; height: 18px; background: var(--accent); border-radius: 4px; }
+    .nav { padding: 8px 12px; flex: 1; overflow-y: auto; }
+    .nav-group { margin-bottom: 20px; }
+    .nav-label { padding: 8px 8px 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--subtle); font-weight: 500; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: var(--radius); color: var(--ink-soft); cursor: pointer; font-size: 13.5px; }
+    .nav-item:hover { background: var(--bg); color: var(--ink); }
+    .nav-item.active { background: var(--accent-ring); color: var(--accent); font-weight: 500; }
+    .nav-item .badge { margin-left: auto; font-size: 11px; padding: 1px 6px; background: var(--hairline); color: var(--muted); border-radius: 8px; font-feature-settings: 'tnum' 1; }
+    .nav-item.active .badge { background: var(--accent); color: white; }
+    .user-card { margin: 0 12px 16px; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: var(--radius); display: flex; align-items: center; gap: 10px; }
+    .user-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+    .user-info { flex: 1; line-height: 1.3; min-width: 0; }
+    .user-name { font-size: 13px; font-weight: 500; }
+    .user-role { font-size: 11.5px; color: var(--muted); }
+
+    .main { padding: 32px 32px 48px; min-width: 0; }
+    .breadcrumb { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+    .breadcrumb a { color: var(--muted); text-decoration: none; }
+    .breadcrumb a:hover { color: var(--accent); }
+    .breadcrumb .sep { margin: 0 6px; color: var(--subtle); }
+    .page-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; }
+    .page-title { font-size: 24px; font-weight: 600; letter-spacing: -0.015em; }
+    .page-sub { color: var(--muted); font-size: 13.5px; margin-top: 4px; }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--hairline); margin-bottom: 16px; align-items: center; }
+    .tab { padding: 10px 16px; font-size: 14px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.12s; display: flex; align-items: center; gap: 6px; }
+    .tab:hover { color: var(--ink); }
+    .tab.active { color: var(--ink); font-weight: 500; border-bottom-color: var(--accent); }
+    .tab .count { font-size: 11.5px; padding: 1px 7px; background: var(--hairline-soft); color: var(--muted); border-radius: 8px; font-feature-settings: 'tnum' 1; }
+    .tab.active .count { background: var(--accent-soft); color: var(--accent); }
+    .tab-meta { margin-left: auto; font-size: 12px; color: var(--muted); padding: 0 8px; }
+
+    .layout { display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
+    @media (max-width: 1280px) { .layout { grid-template-columns: 1fr; } }
+    .layout-main { min-width: 0; }
+    .layout-side { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 20px; }
+    @media (max-width: 1280px) { .layout-side { position: static; } }
+
+    .toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .search { flex: 1 1 240px; min-width: 200px; position: relative; }
+    .search input { width: 100%; height: 34px; padding: 0 12px 0 32px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); font-size: 13px; color: var(--ink); font-family: inherit; }
+    .search input:focus { outline: none; border-color: var(--accent); }
+    .search::before { content: '⌕'; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--subtle); font-size: 14px; pointer-events: none; }
+    .filter-select { height: 34px; padding: 0 28px 0 12px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); font-size: 13px; color: var(--ink-soft); font-family: inherit; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23a1a1aa' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; cursor: pointer; }
+    .btn { padding: 7px 14px; font-size: 13px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); cursor: pointer; color: var(--ink); font-family: inherit; font-weight: 500; transition: all 0.12s; display: inline-flex; align-items: center; gap: 6px; }
+    .btn:hover { border-color: var(--muted); }
+    .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+    .btn-primary:hover { background: #14532d; border-color: #14532d; }
+    .btn-ghost { background: transparent; border-color: transparent; color: var(--ink-soft); padding: 4px 8px; font-size: 12.5px; }
+    .btn-ghost:hover { background: var(--bg); color: var(--accent); }
+
+    .table-wrap { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); overflow: hidden; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .data-table thead th { text-align: left; font-weight: 500; color: var(--muted); padding: 10px 16px; font-size: 12px; background: var(--bg); border-bottom: 1px solid var(--hairline); white-space: nowrap; }
+    .data-table tbody td { padding: 14px 16px; border-bottom: 1px solid var(--hairline-soft); vertical-align: middle; }
+    .data-table tbody tr:last-child td { border-bottom: none; }
+    .data-table tbody tr:hover { background: var(--accent-pale); }
+    .data-table .name { font-weight: 500; }
+    .name-block { display: flex; flex-direction: column; gap: 2px; }
+    .name-block .sub { font-size: 11.5px; color: var(--muted); font-weight: normal; }
+    .stats { display: flex; gap: 14px; font-size: 12.5px; color: var(--muted); }
+    .stats strong { color: var(--ink); font-weight: 500; }
+    .row-actions { display: flex; gap: 4px; justify-content: flex-end; }
+    .tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; font-size: 11.5px; border-radius: 3px; font-weight: 500; line-height: 1.5; }
+    .tag-muted { background: var(--hairline-soft); color: var(--muted); }
+    .tag-info { background: var(--info-soft); color: var(--info); }
+    .tag-accent { background: var(--accent-soft); color: var(--accent); }
+    .tag-warn { background: var(--warn-soft); color: var(--warn); }
+    .tag-A { background: #fef3c7; color: #b45309; }
+    .tag-B { background: #dbeafe; color: var(--info); }
+    .tag-C { background: var(--hairline-soft); color: var(--muted); }
+    .pagination { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-top: 1px solid var(--hairline); font-size: 12.5px; color: var(--muted); }
+
+    /* Share chip in row */
+    .share-chips { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+    .share-chip { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; font-size: 11px; background: var(--accent-pale); color: var(--accent); border-radius: 3px; font-weight: 500; }
+    .share-chip-rw { background: var(--accent-soft); color: var(--accent); }
+    .share-chip-ro { background: var(--hairline-soft); color: var(--muted); }
+
+    /* Side cards */
+    .card { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); padding: 16px; }
+    .card-title { font-size: 12.5px; font-weight: 600; color: var(--ink); margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+    .card-title .icon { color: var(--accent); font-size: 14px; }
+    .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--hairline-soft); font-size: 13px; }
+    .stat-row:last-child { border-bottom: none; }
+    .stat-row .label { color: var(--muted); }
+    .stat-row .value { font-weight: 600; color: var(--ink); font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
+    .stat-row .value.warn { color: var(--warn); }
+    .rule-list { list-style: none; padding: 0; margin: 0; }
+    .rule-list li { display: flex; gap: 8px; padding: 6px 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-soft); }
+    .rule-list li::before { content: '·'; color: var(--accent); font-weight: 700; flex-shrink: 0; }
+
+    /* Owner badge */
+    .owner-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
+    .owner-badge .dot { width: 5px; height: 5px; background: var(--accent); border-radius: 50%; }
+    .owner-badge.shared .dot { background: var(--info); }
+    .owner-badge.public .dot { background: var(--warn); }
+  </style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <div class="wordmark"><div class="wordmark-glyph"></div> ZenCRM</div>
+    </div>
+    <nav class="nav">
+      <div class="nav-group">
+        <div class="nav-label">工作台</div>
+        <div class="nav-item">仪表盘</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">客户资产</div>
+        <div class="nav-item">线索</div>
+        <div class="nav-item active">客户</div>
+        <div class="nav-item">联系人</div>
+        <div class="nav-item">商机</div>
+        <div class="nav-item">公海池 <span class="badge">23</span></div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">合同回款</div>
+        <div class="nav-item">合同</div>
+        <div class="nav-item">回款计划</div>
+        <div class="nav-item">回款记录</div>
+      </div>
+    </nav>
+    <div class="user-card">
+      <div class="user-avatar">李</div>
+      <div class="user-info">
+        <div class="user-name">李销售</div>
+        <div class="user-role">普通销售</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="breadcrumb">
+      <a>客户资产</a><span class="sep">/</span><span>客户</span>
+    </div>
+
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">客户</h1>
+        <div class="page-sub">管理私海客户、公海池与跨部门协作</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab active">
+        私海
+        <span class="count">47</span>
+      </div>
+      <div class="tab">
+        公海池
+        <span class="count">23</span>
+      </div>
+      <div class="tab">
+        被共享给我的
+        <span class="count">3</span>
+      </div>
+      <div class="tab-meta">数据权限:仅本人 + 共享命中 + 公海</div>
+    </div>
+
+    <div class="layout">
+      <div class="layout-main">
+        <!-- Toolbar -->
+        <div class="toolbar">
+          <div class="search"><input placeholder="搜索客户名、行业..."></div>
+          <select class="filter-select">
+            <option>全部级别</option>
+            <option>A 重要</option>
+            <option>B 普通</option>
+            <option>C 意向</option>
+          </select>
+          <select class="filter-select">
+            <option>全部行业</option>
+            <option>IT/互联网</option>
+            <option>金融</option>
+            <option>制造</option>
+            <option>医疗</option>
+          </select>
+          <button class="btn btn-primary" style="margin-left:auto;">+ 新建客户</button>
+        </div>
+
+        <!-- Table -->
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>客户名</th>
+                <th>级别</th>
+                <th>归属/共享</th>
+                <th>最后跟进</th>
+                <th>商机/联系人</th>
+                <th>更新时间</th>
+                <th style="text-align:right;">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- 行 1:私海(完全自有) -->
+              <tr>
+                <td>
+                  <div class="name-block">
+                    <span class="name">华为集团</span>
+                    <span class="sub">通信 · 深圳市</span>
+                  </div>
+                </td>
+                <td><span class="tag tag-A">A 重要</span></td>
+                <td>
+                  <span class="owner-badge"><span class="dot"></span>李销售 (我)</span>
+                </td>
+                <td class="mono" style="color: var(--muted);">2026-06-26 14:23</td>
+                <td>
+                  <div class="stats">
+                    <span><strong>5</strong> 商机</span>
+                    <span><strong>8</strong> 联系人</span>
+                  </div>
+                </td>
+                <td class="mono" style="color: var(--muted);">2026-06-26</td>
+                <td>
+                  <div class="row-actions">
+                    <button class="btn-ghost">查看</button>
+                    <button class="btn-ghost">编辑</button>
+                    <button class="btn-ghost" style="color: var(--accent);">↗ 共享</button>
+                  </div>
+                </td>
+              </tr>
+              <!-- 行 2:私海(共享给他人) -->
+              <tr>
+                <td>
+                  <div class="name-block">
+                    <span class="name">小米科技</span>
+                    <span class="sub">智能硬件 · 北京市</span>
+                  </div>
+                </td>
+                <td><span class="tag tag-B">B 普通</span></td>
+                <td>
+                  <span class="owner-badge"><span class="dot"></span>李销售 (我)</span>
+                  <div class="share-chips" style="margin-top:4px;">
+                    <span class="share-chip share-chip-rw">↗ 陈销售 读写</span>
+                  </div>
+                </td>
+                <td class="mono" style="color: var(--muted);">2026-06-22 10:00</td>
+                <td>
+                  <div class="stats">
+                    <span><strong>2</strong> 商机</span>
+                    <span><strong>4</strong> 联系人</span>
+                  </div>
+                </td>
+                <td class="mono" style="color: var(--muted);">2026-06-25</td>
+                <td>
+                  <div class="row-actions">
+                    <button class="btn-ghost">查看</button>
+                    <button class="btn-ghost">编辑</button>
+                    <button class="btn-ghost" style="color: var(--accent);">↗ 共享</button>
+                  </div>
+                </td>
+              </tr>
+              <!-- 行 3:被他人共享给我(只读) -->
+              <tr>
+                <td>
+                  <div class="name-block">
+                    <span class="name">招商银行</span>
+                    <span class="sub">金融 · 深圳市</span>
+                  </div>
+                </td>
+                <td><span class="tag tag-A">A 重要</span></td>
+                <td>
+                  <span class="owner-badge shared"><span class="dot"></span>王主管 共享</span>
+                  <div class="share-chips" style="margin-top:4px;">
+                    <span class="share-chip share-chip-ro">⊘ 只读</span>
+                  </div>
+                </td>
+                <td class="mono" style="color: var(--muted);">2026-06-20 16:45</td>
+                <td>
+                  <div class="stats">
+                    <span><strong>3</strong> 商机</span>
+                    <span><strong>5</strong> 联系人</span>
+                  </div>
+                </td>
+                <td class="mono" style="color: var(--muted);">2026-06-21</td>
+                <td>
+                  <div class="row-actions">
+                    <button class="btn-ghost">查看</button>
+                    <button class="btn-ghost" disabled style="color: var(--subtle);">编辑</button>
+                  </div>
+                </td>
+              </tr>
+              <!-- 行 4:被他人共享给我(读写) -->
+              <tr>
+                <td>
+                  <div class="name-block">
+                    <span class="name">比亚迪</span>
+                    <span class="sub">新能源汽车 · 深圳市</span>
+                  </div>
+                </td>
+                <td><span class="tag tag-A">A 重要</span></td>
+                <td>
+                  <span class="owner-badge shared"><span class="dot"></span>陈销售 共享</span>
+                  <div class="share-chips" style="margin-top:4px;">
+                    <span class="share-chip share-chip-rw">↗ 读写</span>
+                  </div>
+                </td>
+                <td class="mono" style="color: var(--muted);">2026-06-25 09:12</td>
+                <td>
+                  <div class="stats">
+                    <span><strong>4</strong> 商机</span>
+                    <span><strong>6</strong> 联系人</span>
+                  </div>
+                </td>
+                <td class="mono" style="color: var(--muted);">2026-06-26</td>
+                <td>
+                  <div class="row-actions">
+                    <button class="btn-ghost">查看</button>
+                    <button class="btn-ghost">编辑</button>
+                  </div>
+                </td>
+              </tr>
+              <!-- 行 5:私海(无共享) -->
+              <tr>
+                <td>
+                  <div class="name-block">
+                    <span class="name">中国电信</span>
+                    <span class="sub">通信 · 北京市</span>
+                  </div>
+                </td>
+                <td><span class="tag tag-C">C 意向</span></td>
+                <td>
+                  <span class="owner-badge"><span class="dot"></span>李销售 (我)</span>
+                </td>
+                <td class="mono" style="color: var(--muted);">2026-06-15 11:30</td>
+                <td>
+                  <div class="stats">
+                    <span><strong>1</strong> 商机</span>
+                    <span><strong>2</strong> 联系人</span>
+                  </div>
+                </td>
+                <td class="mono" style="color: var(--muted);">2026-06-15</td>
+                <td>
+                  <div class="row-actions">
+                    <button class="btn-ghost">查看</button>
+                    <button class="btn-ghost">编辑</button>
+                    <button class="btn-ghost" style="color: var(--accent);">↗ 共享</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="pagination">
+            <span>共 <strong style="color:var(--ink);">50</strong> 条客户</span>
+            <span>1 / 5 · 10条/页</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right side -->
+      <aside class="layout-side">
+        <div class="card">
+          <div class="card-title"><span class="icon">▤</span>客户级别分布</div>
+          <div class="stat-row">
+            <span class="label"><span class="tag tag-A">A 重要</span></span>
+            <span class="value">5</span>
+          </div>
+          <div class="stat-row">
+            <span class="label"><span class="tag tag-B">B 普通</span></span>
+            <span class="value">18</span>
+          </div>
+          <div class="stat-row">
+            <span class="label"><span class="tag tag-C">C 意向</span></span>
+            <span class="value">24</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="icon">↗</span>我的协作</div>
+          <div class="stat-row">
+            <span class="label">已共享给他人</span>
+            <span class="value">3</span>
+          </div>
+          <div class="stat-row">
+            <span class="label">他人共享给我</span>
+            <span class="value">3</span>
+          </div>
+          <div class="stat-row">
+            <span class="label">其中读写</span>
+            <span class="value">1</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="icon">⊙</span>公海池提示</div>
+          <ul class="rule-list">
+            <li>私海客户最后跟进 <strong>15 天</strong> 未跟进将自动回收至公海</li>
+            <li>公海池客户全员可见,可自由认领</li>
+            <li>认领后客户立即归属自己</li>
+          </ul>
+        </div>
+      </aside>
+    </div>
+  </main>
+</div>
+</body>
+</html>

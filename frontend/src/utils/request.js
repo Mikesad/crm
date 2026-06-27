@@ -34,6 +34,10 @@ service.interceptors.request.use(
 service.interceptors.response.use(
   (response) => {
     nprogress.done()
+    // 阶段四:blob 响应(Excel 导出)直接放行,不进业务码解析 — Blob 没有 .code 属性
+    if (response.config?.responseType === 'blob' || response.data instanceof Blob) {
+      return response.data
+    }
     const res = response.data
     if (res.code === 200) {
       return res

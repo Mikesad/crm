@@ -22,3 +22,23 @@ export const deleteLead = (id) => request.delete(`/crm/lead/${id}`)
 
 /** 线索转客户（核心业务：@Transactional 双写 customer + contact + record） */
 export const convertLead = (id, data) => request.post(`/crm/lead/${id}/convert`, data)
+
+// ---------- 阶段四:EasyExcel 导入导出 ----------
+
+/**
+ * 下载线索 Excel（返回 blob 供 a[download] 用）
+ */
+export const exportLeadExcel = () => request.get('/crm/lead/export', { responseType: 'blob' })
+
+/**
+ * 上传线索 Excel
+ * @param {File} file
+ * @returns {Promise<{totalRows, successRows, failRows, errors}>}
+ */
+export const importLeadExcel = (file) => {
+  const form = new FormData()
+  form.append('file', file)
+  return request.post('/crm/lead/import', form, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+}

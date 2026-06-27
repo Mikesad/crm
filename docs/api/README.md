@@ -9,7 +9,8 @@
 | :--- | :--- | :--- | :--- | :--- |
 | 01 登录鉴权 | [auth.md](./auth.md) | 3 | stable | 2026-06-27 |
 | 02 线索管理 | [lead.md](./lead.md) | 6 | stable | 2026-06-27 |
-| 03 客户管理 | [customer.md](./customer.md) | 5 | stable | 2026-06-27 |
+| 03 客户管理 | [customer.md](./customer.md) | 8 | stable | 2026-06-27 |
+| 03b 客户共享 | [customer-share.md](./customer-share.md) | 3 | stable | 2026-06-27 |
 | 04 联系人 | [contact.md](./contact.md) | 4 | stable | 2026-06-27 |
 | 05 商机管理 | [business.md](./business.md) | 6 | stable | 2026-06-27 |
 | 06 跟进记录 | [record.md](./record.md) | 2 | stable | 2026-06-27 |
@@ -18,7 +19,6 @@
 | 09 合同审批 | [approval.md](./approval.md) | 3 | stable | 2026-06-27 |
 | 10 回款计划 | [receivable-plan.md](./receivable-plan.md) | 5 | stable | 2026-06-27 |
 | 11 回款管理 | [receivable.md](./receivable.md) | 3 | stable | 2026-06-27 |
-| 公海池 | pool.md | 待补 | planned | 阶段四 |
 | 数据字典 | dict.md | 待补 | planned | - |
 
 ## 公共约定
@@ -109,6 +109,27 @@ Authorization: <Sa-Token token>
 | `crm:receivable_plan:edit` | admin / director / lead / sales | 回款计划编辑 (销售录入) |
 
 **已初始化数据库的迁移**：见 `sql/migrations/phase3-approval-and-plan-soft-delete.sql`（含 crm_approval 新表 + crm_receivable_plan 补 5 字段 + 5 菜单幂等插入 + 角色权限重绑）。
+
+## 阶段四新增权限码
+
+| 权限码 | 角色绑定 | 说明 |
+|:---|:---|:---|
+| `crm:customer:share` | admin / director / lead / sales | 客户共享（主销售发起/撤销；只读/读写两类） |
+| `crm:customer:public_pool` | admin / director / lead / sales | 公海池（查看/认领；手动回收接口额外校验 admin/director） |
+
+**已初始化数据库的迁移**：见 `sql/migrations/phase4-customer-share-and-public-pool.sql`（2 个菜单幂等插入 + 4 个角色按需清/插；crm_customer_share 表兜底建表）。
+
+### 阶段四重点：数据权限拦截器升级
+
+`CrmDataPermissionHandler` 阶段四起对 `dataScope=5`（仅本人）的 `crm_customer` 表查询生成如下 WHERE：
+
+```sql
+owner_user_id = 当前用户
+   OR id IN (SELECT customer_id FROM crm_customer_share WHERE user_id = 当前用户)
+   OR is_public = 1
+```
+
+即：除"自己拥有的"外，被共享给自己的客户、公海客户也一并放行。`dataScope=1/3/4` 维持阶段三原逻辑不变。详见 `customer-share.md` 业务规则备注。
 
 ## 更新流程
 

@@ -62,4 +62,13 @@ public class CustomerController {
         customerService.delete(id);
         return Result.success();
     }
+
+    @Operation(summary = "公海认领",
+        description = "把公海池里的客户捞到自己名下;需要 customer 当前是 is_public=1 且 owner_user_id IS NULL")
+    @SaCheckPermission("crm:customer:public_pool")
+    @PostMapping("/public-pool/claim/{id}")
+    public Result<Void> claim(@PathVariable Long id) {
+        customerService.claim(id);
+        return Result.success();
+    }
 }

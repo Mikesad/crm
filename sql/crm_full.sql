@@ -154,6 +154,7 @@ CREATE TABLE `crm_customer_share` (
   `customer_id` bigint NOT NULL COMMENT '客户ID（逻辑关联crm_customer.id）',
   `user_id` bigint NOT NULL COMMENT '被共享人ID（逻辑关联sys_user.id）',
   `auth_type` tinyint DEFAULT 1 COMMENT '权限类型（1只读 2读写）',
+  `create_by` varchar(64) DEFAULT '' COMMENT '发起人（主销售username）',
   `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '共享时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_cust_user` (`customer_id`,`user_id`)
@@ -331,6 +332,8 @@ INSERT INTO `sys_role` (`id`, `role_name`, `role_key`, `data_scope`) VALUES
 --             新增 business:edit / contact:list / contact:edit / record:list / record:add
 -- 阶段三新增：crm:contract:approve / crm:receivable:edit / crm:receivable_plan:edit /
 --             crm:product:list / crm:product:edit
+-- 阶段四新增：crm:customer:share          客户共享(主销售发起/撤销)
+--             crm:customer:public_pool    公海池(认领 + 手动回收;回收接口额外校验角色)
 INSERT INTO `sys_menu` (`id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `menu_type`, `perms`, `status`) VALUES
   (1,  '客户列表',     0, 1,  '', NULL, 'F', 'crm:customer:list',      1),
   (2,  '客户编辑',     0, 2,  '', NULL, 'F', 'crm:customer:edit',      1),
@@ -349,7 +352,9 @@ INSERT INTO `sys_menu` (`id`, `menu_name`, `parent_id`, `order_num`, `path`, `co
   (15, '回款编辑',     0, 15, '', NULL, 'F', 'crm:receivable:edit',    1),
   (16, '回款计划编辑', 0, 16, '', NULL, 'F', 'crm:receivable_plan:edit', 1),
   (17, '产品列表',     0, 17, '', NULL, 'F', 'crm:product:list',       1),
-  (18, '产品编辑',     0, 18, '', NULL, 'F', 'crm:product:edit',       1);
+  (18, '产品编辑',     0, 18, '', NULL, 'F', 'crm:product:edit',       1),
+  (19, '客户共享',     0, 19, '', NULL, 'F', 'crm:customer:share',     1),
+  (20, '公海池',       0, 20, '', NULL, 'F', 'crm:customer:public_pool', 1);
 
 -- 用户（6 个，密码统一 123456，BCrypt hash 由 backend-tools/crm-tools 生成）
 -- 当前 hash 是 123456 的一次有效编码；如需更换密码：mvn exec:java -Dexec.args="新密码"
@@ -376,16 +381,20 @@ INSERT INTO `sys_user_role` (`user_id`, `role_id`) VALUES
 -- sales_lead (3)   : 业务+合同(仅列表)+回款(仅列表)+计划编辑+产品(仅列表)
 -- sales       (4)  : 业务+合同(含编辑)+计划编辑+产品全,无回款
 -- finance     (5)  : 合同(仅列表)+回款(含编辑)+产品(仅列表)
+-- 阶段四新增：crm:customer:share / crm:customer:public_pool
+--  - admin / sales_director / sales_lead / sales 全部给共享(19) + 公海池(20)
+--    (公海池的「手动回收」接口在 Service 层额外校验 admin/director 角色)
+--  - finance 不给(财务不参与客户/公海)
 INSERT INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES
-  -- admin (全开 1-18)
-  (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9), (1, 10), (1, 11), (1, 12), (1, 13), (1, 14), (1, 15), (1, 16), (1, 17), (1, 18),
-  -- sales_director (业务 + 合同 + 审批 + 计划 + 产品,无回款)
-  (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7), (2, 8), (2, 9), (2, 10), (2, 11), (2, 12), (2, 14), (2, 16), (2, 17), (2, 18),
-  -- sales_lead (业务 + 合同list + 回款list + 计划edit + 产品list,无edit)
-  (3, 1), (3, 3), (3, 5), (3, 7), (3, 9), (3, 11), (3, 13), (3, 16), (3, 17),
-  -- sales (业务 + 合同全 + 计划edit + 产品全,无回款)
-  (4, 1), (4, 2), (4, 3), (4, 4), (4, 5), (4, 6), (4, 7), (4, 8), (4, 9), (4, 10), (4, 11), (4, 12), (4, 16), (4, 17), (4, 18),
-  -- finance (合同list + 回款全 + 产品list,无业务)
+  -- admin (全开 1-20)
+  (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9), (1, 10), (1, 11), (1, 12), (1, 13), (1, 14), (1, 15), (1, 16), (1, 17), (1, 18), (1, 19), (1, 20),
+  -- sales_director (业务 + 合同 + 审批 + 计划 + 产品 + 共享 + 公海)
+  (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7), (2, 8), (2, 9), (2, 10), (2, 11), (2, 12), (2, 14), (2, 16), (2, 17), (2, 18), (2, 19), (2, 20),
+  -- sales_lead (业务 + 合同list + 回款list + 计划edit + 产品list + 共享 + 公海)
+  (3, 1), (3, 3), (3, 5), (3, 7), (3, 9), (3, 11), (3, 13), (3, 16), (3, 17), (3, 19), (3, 20),
+  -- sales (业务 + 合同全 + 计划edit + 产品全 + 共享 + 公海)
+  (4, 1), (4, 2), (4, 3), (4, 4), (4, 5), (4, 6), (4, 7), (4, 8), (4, 9), (4, 10), (4, 11), (4, 12), (4, 16), (4, 17), (4, 18), (4, 19), (4, 20),
+  -- finance (合同list + 回款全 + 产品list,无业务/无共享/无公海)
   (5, 11), (5, 13), (5, 15), (5, 17);
 
 SET FOREIGN_KEY_CHECKS = 1;

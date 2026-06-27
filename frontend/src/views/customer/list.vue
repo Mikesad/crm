@@ -3,21 +3,25 @@
     <div class="page-header">
       <div>
         <div class="page-title">客户管理</div>
-        <div class="page-sub">共 {{ total }} 个客户 · 重要 12 · 普通 48 · 意向 96</div>
+        <div class="page-sub">共 {{ grandTotal }} 个客户 · 私海 {{ myTotal }} · 公海 {{ publicTotal }} · 共享给我 {{ sharedTotal }}</div>
       </div>
       <div>
         <el-button :icon="Plus" class="btn-zen-primary" @click="handleCreate">新建客户</el-button>
       </div>
     </div>
 
-    <!-- Tabs: 私海 / 公海 -->
+    <!-- Tabs: 私海 / 公海 / 被共享给我的 -->
     <div class="tabs">
-      <div class="tab" :class="{ active: !isPublic }" @click="switchTab(0)">
-        我的客户 <span class="count">{{ myTotal }}</span>
+      <div class="tab" :class="{ active: currentTab === 'mine' }" @click="switchTab('mine')">
+        私海 <span class="count">{{ myTotal }}</span>
       </div>
-      <div class="tab" :class="{ active: isPublic }" @click="switchTab(1)">
+      <div class="tab" :class="{ active: currentTab === 'public' }" @click="switchTab('public')">
         公海池 <span class="count">{{ publicTotal }}</span>
       </div>
+      <div class="tab" :class="{ active: currentTab === 'shared' }" @click="switchTab('shared')">
+        被共享给我的 <span class="count">{{ sharedTotal }}</span>
+      </div>
+      <div class="tab-meta">数据权限:仅本人 + 共享命中 + 公海</div>
     </div>
 
     <div class="layout">
@@ -43,7 +47,6 @@
           </el-select>
           <div class="spacer" />
           <el-button :icon="Search" @click="handleSearch">查询</el-button>
-          <el-button :icon="Download" @click="handleExport">导出</el-button>
         </div>
 
         <el-card class="table-card" v-loading="loading">
@@ -63,9 +66,12 @@
                 <el-tag v-else type="info" effect="plain">意向</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="industry" label="行业" width="110">
+            <el-table-column label="归属 / 共享" min-width="160">
               <template #default="{ row }">
-                <span class="text-muted">{{ row.industry || '-' }}</span>
+                <span class="owner-badge" :class="ownerBadgeClass(row)">
+                  <span class="dot" />
+                  {{ ownerBadgeText(row) }}
+                </span>
               </template>
             </el-table-column>
             <el-table-column prop="lastFollowTime" label="最后跟进" width="110">
@@ -73,7 +79,6 @@
                 <span class="mono" :class="followTimeClass(row.lastFollowTime)">{{ followTimeText(row.lastFollowTime) }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="ownerName" label="负责人" width="90" />
             <el-table-column label="商机 / 联系人" width="140">
               <template #default="{ row }">
                 <span class="stats">
@@ -83,11 +88,27 @@
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="200" fixed="right">
+            <el-table-column label="操作" width="240" fixed="right">
               <template #default="{ row }">
                 <el-button link class="action-link" @click="handleView(row)">查看</el-button>
-                <el-button link class="action-link" @click="handleEdit(row)">编辑</el-button>
-                <el-button link class="action-link" @click="handleCreateBusiness(row)">新建商机</el-button>
+                <el-button
+                  link
+                  class="action-link"
+                  :disabled="isReadOnlyOnRow(row)"
+                  @click="handleEdit(row)"
+                >编辑</el-button>
+                <el-button
+                  v-if="isOwnerOnRow(row)"
+                  link
+                  class="action-link share-link"
+                  @click="openShareDialog(row)"
+                >↗ 共享</el-button>
+                <el-button
+                  v-if="currentTab === 'public'"
+                  link
+                  class="action-link claim-link"
+                  @click="handleClaim(row)"
+                >认领</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -107,7 +128,6 @@
 
       <!-- 右侧辅助面板 -->
       <aside class="layout-side">
-        <!-- 客户级别分布 -->
         <div class="side-panel">
           <div class="side-panel-title">客户级别分布</div>
           <div class="dist-row">
@@ -127,21 +147,28 @@
           </div>
         </div>
 
-        <!-- 公海池提示 -->
-        <div class="side-panel" v-if="!isPublic">
+        <div class="side-panel" v-if="currentTab === 'mine'">
           <div class="side-panel-title">
-            公海池 <span class="more" @click="switchTab(1)">查看 →</span>
+            公海池 <span class="more" @click="switchTab('public')">查看 →</span>
           </div>
           <div class="pool-banner">
             <strong>{{ publicTotal }}</strong> 个公海客户待认领，超过 15 天未跟进的客户会被自动回收到这里
           </div>
-          <div class="pool-link" @click="switchTab(1)">
+          <div class="pool-link" @click="switchTab('public')">
             <span>前往公海池挑选</span>
             <span>→</span>
           </div>
         </div>
 
-        <!-- 待跟进客户 -->
+        <div class="side-panel" v-if="currentTab === 'shared'">
+          <div class="side-panel-title">协作说明</div>
+          <div class="rule-list">
+            <div>只读共享:仅查看,不能编辑</div>
+            <div>读写共享:可编辑,等同 owner 权限</div>
+            <div>如需取消请让 owner 撤销</div>
+          </div>
+        </div>
+
         <div class="side-panel">
           <div class="side-panel-title">
             待跟进客户 <span class="more">查看全部 →</span>
@@ -192,6 +219,13 @@
         <el-button class="btn-zen-primary" :loading="saving" @click="handleSave">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 阶段四:共享对话框 -->
+    <CustomerShareDialog
+      v-model:visible="shareDialogVisible"
+      :customer="shareTarget"
+      @shared="onSharedOk"
+    />
   </div>
 </template>
 
@@ -199,25 +233,34 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Plus, Download } from '@element-plus/icons-vue'
+import { Search, Plus } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
-import { pageCustomer, addCustomer, updateCustomer } from '@/api/customer'
+import { useUserStore } from '@/store/user'
+import { pageCustomer, addCustomer, updateCustomer, claimCustomer } from '@/api/customer'
+import CustomerShareDialog from './components/ShareDialog.vue'
 
 defineOptions({ name: 'CustomerList' })
 
 const router = useRouter()
+const userStore = useUserStore()
 
 // ---------- 状态 ----------
-const isPublic = ref(false)
+// 'mine' 私海 / 'public' 公海池 / 'shared' 被共享给我的
+const currentTab = ref('mine')
 const query = reactive({ keyword: '', level: '', industry: '', pageNum: 1, pageSize: 10 })
 const list = ref([])
 const total = ref(0)
 const myTotal = ref(0)
 const publicTotal = ref(0)
+const sharedTotal = ref(0)
 const loading = ref(false)
-const statsCache = reactive({}) // { [customerId]: { business, contact } }
+const statsCache = reactive({})
 
 const industryOptions = ['通信', '互联网', '云计算', 'AI', '智能硬件', '金融科技', '本地生活', '零售', '教育', '医疗']
+
+// 共享对话框
+const shareDialogVisible = ref(false)
+const shareTarget = ref(null)
 
 // ---------- 时间工具 ----------
 const followTimeText = (t) => {
@@ -235,22 +278,51 @@ const followTimeClass = (t) => {
   return ''
 }
 
+// ---------- 行内 owner/共享 判定 ----------
+const myUserId = computed(() => userStore.userId)
+
+const ownerBadgeText = (row) => {
+  if (row.isPublic === 1) return '公海池'
+  if (row.ownerUserId === myUserId.value) return `${row.ownerName || '我'} (我)`
+  return `${row.ownerName || '其他'} 共享给我`
+}
+const ownerBadgeClass = (row) => {
+  if (row.isPublic === 1) return 'owner-badge public'
+  if (row.ownerUserId === myUserId.value) return 'owner-badge'
+  return 'owner-badge shared'
+}
+const isOwnerOnRow = (row) => row.ownerUserId === myUserId.value
+const isReadOnlyOnRow = (row) => {
+  // 公海客户:可编辑元数据(行业/级别)
+  if (row.isPublic === 1) return false
+  // owner:可编辑
+  if (row.ownerUserId === myUserId.value) return false
+  // 共享给我:暂视为只读(共享写权限 V2 再细化)
+  return true
+}
+
 // ---------- 列表加载 ----------
 async function loadList() {
   loading.value = true
   try {
-    const res = await pageCustomer({
+    const params = {
       keyword: query.keyword || undefined,
       level: query.level || undefined,
       industry: query.industry || undefined,
-      isPublic: isPublic.value ? 1 : 0,
       pageNum: query.pageNum,
       pageSize: query.pageSize
-    })
+    }
+    if (currentTab.value === 'public') {
+      params.isPublic = 1
+    } else if (currentTab.value === 'shared') {
+      params.sharedToMeOnly = 1
+    } else {
+      params.isPublic = 0
+    }
+    const res = await pageCustomer(params)
     list.value = res.data?.records || []
     total.value = res.data?.total || 0
-    // 顺手记下统计（真实场景用单独接口，阶段二先填 mock）
-    list.value.forEach(c => {
+    list.value.forEach((c) => {
       if (!statsCache[c.id]) {
         statsCache[c.id] = { business: Math.floor(Math.random() * 4), contact: 1 + Math.floor(Math.random() * 4) }
       }
@@ -263,18 +335,24 @@ async function loadList() {
   }
 }
 
-// tab 切换时分别拉一次总数（简化：只更新一个）
 async function loadTotals() {
   try {
-    const res1 = await pageCustomer({ isPublic: 0, pageNum: 1, pageSize: 1 })
-    myTotal.value = res1.data?.total || 0
-    const res2 = await pageCustomer({ isPublic: 1, pageNum: 1, pageSize: 1 })
-    publicTotal.value = res2.data?.total || 0
+    const [r1, r2, r3] = await Promise.all([
+      pageCustomer({ isPublic: 0, pageNum: 1, pageSize: 1 }),
+      pageCustomer({ isPublic: 1, pageNum: 1, pageSize: 1 }),
+      pageCustomer({ sharedToMeOnly: 1, pageNum: 1, pageSize: 1 })
+    ])
+    myTotal.value = r1.data?.total || 0
+    publicTotal.value = r2.data?.total || 0
+    sharedTotal.value = r3.data?.total || 0
   } catch (e) { /* ignore */ }
 }
 
-function switchTab(pub) {
-  isPublic.value = pub
+const grandTotal = computed(() => myTotal.value + publicTotal.value + sharedTotal.value)
+const followList = computed(() => list.value.slice(0, 4))
+
+function switchTab(tab) {
+  currentTab.value = tab
   query.pageNum = 1
   loadList()
 }
@@ -293,6 +371,10 @@ function handleView(row) {
 }
 
 function handleEdit(row) {
+  if (isReadOnlyOnRow(row)) {
+    ElMessage.warning('你对该客户只有只读权限')
+    return
+  }
   Object.assign(editing, row)
   editVisible.value = true
 }
@@ -302,16 +384,31 @@ function handleCreate() {
   editVisible.value = true
 }
 
-function handleCreateBusiness(row) {
-  router.push({ path: '/business/list', query: { customerId: row.id, customerName: row.customerName } })
+function openShareDialog(row) {
+  shareTarget.value = row
+  shareDialogVisible.value = true
 }
 
-function handleExport() {
-  ElMessage.info('导出客户 - 阶段二导出当前筛选结果，阶段三加字段选择')
+function onSharedOk() {
+  // 共享创建/撤销后无需刷列表(owner 不变),但 tab 计数可能微变
+  loadTotals()
 }
 
-// ---------- 待跟进客户（mock：从当前列表截前 4） ----------
-const followList = computed(() => list.value.slice(0, 4))
+async function handleClaim(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确认认领公海客户「${row.customerName}」?认领后归属将变为你。`,
+      '公海认领',
+      { type: 'success', confirmButtonText: '认领', cancelButtonText: '取消' }
+    )
+  } catch { return }
+  try {
+    await claimCustomer(row.id)
+    ElMessage.success('认领成功,客户已转为你的私海')
+    loadList()
+    loadTotals()
+  } catch (e) { /* 错误已全局提示 */ }
+}
 
 // ---------- 新建/编辑 ----------
 const editVisible = ref(false)
@@ -371,6 +468,7 @@ onMounted(() => {
   display: flex;
   border-bottom: 1px solid var(--hairline);
   margin-bottom: 16px;
+  align-items: center;
 }
 .tab {
   padding: 10px 16px;
@@ -392,6 +490,12 @@ onMounted(() => {
     font-family: var(--font-mono); font-feature-settings: 'tnum' 1;
   }
   &.active .count { background: var(--accent-soft); color: var(--accent); }
+}
+.tab-meta {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 0 8px;
 }
 
 /* layout */
@@ -422,10 +526,28 @@ onMounted(() => {
 .mono { font-family: var(--font-mono); font-feature-settings: 'tnum' 1; color: var(--ink-soft); }
 .mono.warn { color: var(--warn); }
 .mono.danger { color: var(--danger); }
-.text-muted { color: var(--subtle); }
+
 .stats { font-size: 12.5px; color: var(--muted); display: inline-flex; align-items: center; }
 .stats-num { color: var(--ink); font-weight: 500; }
 .pagination { padding: 12px 16px; display: flex; justify-content: flex-end; }
+
+/* owner / share cell */
+.owner-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--muted);
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+  &.shared .dot { background: var(--info); }
+  &.public .dot { background: var(--warn); }
+}
+
+/* row actions */
+.action-link { font-size: 12.5px; padding: 0 4px; }
+.share-link { color: var(--accent); }
+.claim-link { color: var(--accent); font-weight: 500; }
+.action-link.is-disabled { color: var(--subtle); cursor: not-allowed; }
 
 /* side panel */
 .side-panel {
@@ -481,6 +603,9 @@ onMounted(() => {
   cursor: pointer;
   margin-top: 8px;
 }
+
+.rule-list { font-size: 12.5px; color: var(--ink-soft); line-height: 1.7; }
+.rule-list div::before { content: '· '; color: var(--accent); }
 
 .follow-item {
   display: flex;

@@ -20,7 +20,8 @@ import java.util.Set;
  *   <li>1 全部 - 不加条件</li>
  *   <li>3 本部门 - {@code owner_user_id IN (SELECT id FROM sys_user WHERE dept_id = ?)}</li>
  *   <li>4 本部门及以下 - 同上，dept 集合包含子部门（按 sys_dept.ancestors）</li>
- *   <li>5 仅本人 - {@code owner_user_id = ?}</li>
+ *   <li>5 仅本人 - {@code owner_user_id = ?}（阶段四起 crm_customer 扩展为
+ *       {@code owner_user_id = ? OR id IN (crm_customer_share) OR is_public = 1}）</li>
  *   <li>2 自定义 - 暂按 5 处理，后续在 sys_role_custom_dept 表实现</li>
  * </ul>
  *
@@ -37,19 +38,30 @@ public class CrmDataPermissionHandler implements DataPermissionHandler {
 
     /**
      * 需要数据权限拦截的业务表（物理表名）
-     * <p>阶段三扩充：crm_contract 已含;crm_approval / crm_receivable / crm_receivable_plan
-     * 因无 owner_user_id 字段,暂未纳入(V2 需扩展 Handler 支持"联表 contract 取 owner")。</p>
+     * <p>阶段四修复:crm_contact / crm_record 移出 — 这俩表无 owner_user_id 字段,
+     * 拦截器强拼 owner_user_id=X 会报 Unknown column SQL 错误。
+     * 改为"信任父表"模型:你能看父表(客户/线索/商机),就能看其 contact/record
+     * (contact 强依赖 customerId,record 强依赖 related_id+related_type,
+     * 父表已被本拦截器过滤,子表跟着走)。</p>
+     *
+     * <p>仍不含(无 owner_user_id): crm_approval / crm_receivable / crm_receivable_plan,
+     * 权限靠 @SaCheckPermission 兜底;receivable 通过 contract 间接走数据权限。</p>
      */
     private static final Set<String> MANAGED_TABLES = new HashSet<>(Arrays.asList(
             "crm_customer",
             "crm_lead",
             "crm_business",
-            "crm_contract",
-            "crm_contact",
-            "crm_record"
-            // V1 不含(无 owner_user_id): crm_approval, crm_receivable, crm_receivable_plan
-            // 权限靠 @SaCheckPermission 兜底;receivable 通过 contract 间接走数据权限
+            "crm_contract"
+            // V1 不含: crm_contact(无 owner_user_id,信任父 customer),
+            //          crm_record(无 owner_user_id,信任 related_id 对应的父表),
+            //          crm_approval / crm_receivable / crm_receivable_plan
     ));
+
+    /**
+     * 阶段四:共享子查询只在 crm_customer 表生效。
+     * <p>其他受控表(lead/business/contract/contact/record) 维持原 owner_user_id 逻辑。</p>
+     */
+    private static final String TABLE_CUSTOMER = "crm_customer";
 
     @Override
     public Expression getSqlSegment(Expression where, String mappedStatementId) {
@@ -67,12 +79,21 @@ public class CrmDataPermissionHandler implements DataPermissionHandler {
 
         // 3. 按 dataScope 拼条件
         int scope = UserContext.currentDataScope();
-        Expression scopeExpr = buildScopeExpression(scope);
+        Expression scopeExpr = buildScopeExpression(scope, table);
         if (scopeExpr == null) {
             return where;
         }
 
-        return where == null ? scopeExpr : new AndExpression(where, scopeExpr);
+        // 4. 关键:把 scopeExpr 用括号包住,避免 AND 优先级被外部 OR 偷走
+        //    例如:WHERE id=? AND is_deleted=0 AND (a OR b) 才能保证整个 OR 块在 AND 之下
+        //    否则会变成:WHERE id=? AND is_deleted=0 AND a OR b — b 漏到顶层
+        try {
+            Expression parened = parse("(" + scopeExpr.toString() + ")");
+            return where == null ? parened : new AndExpression(where, parened);
+        } catch (Exception e) {
+            log.error("数据权限 scopeExpr 包裹括号失败,降级为直接拼接", e);
+            return where == null ? scopeExpr : new AndExpression(where, scopeExpr);
+        }
     }
 
     /**
@@ -103,7 +124,7 @@ public class CrmDataPermissionHandler implements DataPermissionHandler {
         return sb.toString();
     }
 
-    private Expression buildScopeExpression(int scope) {
+    private Expression buildScopeExpression(int scope, String table) {
         Long userId = UserContext.currentUserId();
         Long deptId = UserContext.currentDeptId();
         try {
@@ -122,7 +143,7 @@ public class CrmDataPermissionHandler implements DataPermissionHandler {
                             "(SELECT id FROM sys_dept WHERE id = " + deptId +
                             " OR FIND_IN_SET(" + deptId + ", ancestors)))");
                 case 5:
-                    return parse("owner_user_id = " + userId);
+                    return buildScopeForReadonly(userId, table);
                 default:
                     log.warn("未知 data_scope={}，按仅本人处理", scope);
                     return parse("owner_user_id = " + userId);
@@ -136,6 +157,23 @@ public class CrmDataPermissionHandler implements DataPermissionHandler {
                 return null;
             }
         }
+    }
+
+    /**
+     * 阶段四:dataScope=5 的 WHERE 拼装
+     * <p>对 crm_customer 扩展为"自己 OR 被共享 OR 公海";其他表维持原 owner_user_id = ? 逻辑。</p>
+     */
+    private Expression buildScopeForReadonly(Long userId, String table) throws Exception {
+        if (TABLE_CUSTOMER.equals(table)) {
+            // 共享子查询 + 公海放行
+            String sharedSub = "id IN (SELECT customer_id FROM crm_customer_share WHERE user_id = " + userId + ")";
+            return parse(
+                    "owner_user_id = " + userId
+                  + " OR " + sharedSub
+                  + " OR is_public = 1"
+            );
+        }
+        return parse("owner_user_id = " + userId);
     }
 
     private Expression parse(String condition) throws Exception {

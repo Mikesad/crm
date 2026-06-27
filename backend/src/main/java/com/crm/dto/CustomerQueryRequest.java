@@ -26,4 +26,10 @@ public class CustomerQueryRequest extends PageQuery {
      * <p>私海仅返回当前用户作为 owner 的客户；公海返回 ownerUserId IS NULL 的客户。</p>
      */
     private Integer isPublic;
+
+    /**
+     * 是否仅查询"被共享给我"的客户(阶段四新增):1 = 只返回 crm_customer_share.user_id = 当前用户
+     * <p>与 isPublic 互斥:若 sharedToMeOnly=1,无论 isPublic 是什么,只返回共享表命中的客户。</p>
+     */
+    private Integer sharedToMeOnly;
 }

@@ -32,7 +32,13 @@ public enum ResultCode {
     CONTRACT_NOT_IN_EXECUTION(3004, "合同非执行中,不能录入"),
     PLAN_ALREADY_PAID(3005, "已回款的计划不能操作"),
     APPROVAL_NOT_PENDING(3006, "该审批单已处理,不能重复操作"),
-    CONTRACT_CANNOT_UPDATE(3007, "已结束/已作废的合同不能修改");
+    CONTRACT_CANNOT_UPDATE(3007, "已结束/已作废的合同不能修改"),
+
+    // ---- 阶段四客户共享/公海池专用业务码 (1004-1008) ----
+    CUSTOMER_NOT_IN_PUBLIC_POOL(1004, "客户不在公海池,无法认领"),
+    NOT_CUSTOMER_OWNER(1005, "当前用户不是该客户的 owner,无权操作"),
+    PUBLIC_CUSTOMER_CANNOT_SHARE(1006, "公海客户不能被共享,请先认领"),
+    READONLY_SHARE_CANNOT_EDIT(1008, "只读共享身份不能编辑,需 owner 或读写共享人");
 
     private final Integer code;
     private final String message;

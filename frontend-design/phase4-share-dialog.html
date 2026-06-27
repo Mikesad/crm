@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<!--
+  phase4-share-dialog.html
+  阶段四 · 客户共享对话框(Modal)
+
+  内容布局(自上而下):
+    1. 标题:共享客户「{客户名}」
+    2. 客户信息卡(级别/owner/创建时间)
+    3. 新增共享表单:人员下拉 + 权限类型(单选:只读/读写)
+    4. 已有共享名单列表:头像 + 姓名 + 部门 + 权限类型 + 撤销
+    5. 底部:取消 / 保存
+
+  Design Read: 与现有对话框风格一致(居中 modal,500-560px 宽,圆角 8px,背景模糊)
+  Dials: VARIANCE 3 / MOTION 2 / DENSITY 4
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>共享客户 · ZenCRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:           #fafaf9;
+      --bg-warm:      #ffffff;
+      --ink:          #18181b;
+      --ink-soft:     #3f3f46;
+      --muted:        #71717a;
+      --subtle:       #a1a1aa;
+      --hairline:     #e4e4e7;
+      --hairline-soft:#f4f4f5;
+      --surface:      #ffffff;
+      --accent:       #166534;
+      --accent-soft:  #dcfce7;
+      --accent-pale:  #f0fdf4;
+      --accent-ring:  rgba(22, 101, 52, 0.12);
+      --info:         #1e40af;
+      --info-soft:    #dbeafe;
+      --warn:         #b45309;
+      --warn-soft:    #fef3c7;
+      --danger:       #b91c1c;
+      --danger-soft:  #fee2e2;
+      --font-sans:    'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+      --radius:       6px;
+      --modal-radius: 8px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: var(--font-sans); font-size: 14px; line-height: 1.5; color: var(--ink); background: var(--bg); margin: 0; -webkit-font-smoothing: antialiased; }
+    .mono { font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
+    .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+
+    /* Sidebar (复用) */
+    .sidebar { background: var(--bg-warm); border-right: 1px solid var(--hairline); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; }
+    .sidebar-top { padding: 20px 20px 16px; }
+    .wordmark { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+    .wordmark-glyph { width: 18px; height: 18px; background: var(--accent); border-radius: 4px; }
+    .nav { padding: 8px 12px; flex: 1; overflow-y: auto; }
+    .nav-group { margin-bottom: 20px; }
+    .nav-label { padding: 8px 8px 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--subtle); font-weight: 500; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: var(--radius); color: var(--ink-soft); cursor: pointer; font-size: 13.5px; }
+    .nav-item:hover { background: var(--bg); color: var(--ink); }
+    .nav-item.active { background: var(--accent-ring); color: var(--accent); font-weight: 500; }
+    .user-card { margin: 0 12px 16px; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: var(--radius); display: flex; align-items: center; gap: 10px; }
+    .user-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+    .user-info { flex: 1; line-height: 1.3; min-width: 0; }
+    .user-name { font-size: 13px; font-weight: 500; }
+    .user-role { font-size: 11.5px; color: var(--muted); }
+
+    /* Main + backdrop dim */
+    .main { padding: 32px 32px 48px; min-width: 0; opacity: 0.32; pointer-events: none; }
+    .page-title { font-size: 24px; font-weight: 600; letter-spacing: -0.015em; margin-bottom: 16px; }
+    .ph-table { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); padding: 40px; color: var(--muted); text-align: center; font-size: 13px; }
+
+    /* Modal overlay */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(24, 24, 27, 0.45); backdrop-filter: blur(2px); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .modal { background: var(--surface); border-radius: var(--modal-radius); width: 560px; max-width: 100%; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.04); overflow: hidden; }
+    .modal-header { padding: 18px 24px 14px; border-bottom: 1px solid var(--hairline); display: flex; align-items: center; justify-content: space-between; }
+    .modal-title { font-size: 16px; font-weight: 600; }
+    .modal-close { width: 28px; height: 28px; border-radius: var(--radius); background: transparent; border: none; color: var(--muted); cursor: pointer; font-size: 18px; line-height: 1; }
+    .modal-close:hover { background: var(--hairline-soft); color: var(--ink); }
+    .modal-body { padding: 20px 24px; overflow-y: auto; }
+    .modal-footer { padding: 14px 24px; border-top: 1px solid var(--hairline); display: flex; justify-content: flex-end; gap: 8px; background: var(--bg); }
+
+    /* Customer info card */
+    .info-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; background: var(--bg); border: 1px solid var(--hairline); border-radius: var(--radius); margin-bottom: 18px; }
+    .info-icon { width: 36px; height: 36px; background: var(--accent-soft); color: var(--accent); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 600; flex-shrink: 0; }
+    .info-body { flex: 1; line-height: 1.4; min-width: 0; }
+    .info-name { font-size: 14px; font-weight: 600; }
+    .info-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .info-meta .sep { margin: 0 6px; color: var(--subtle); }
+
+    /* Form */
+    .form-section + .form-section { margin-top: 16px; }
+    .form-label { display: block; font-size: 12.5px; font-weight: 500; color: var(--ink-soft); margin-bottom: 6px; }
+    .form-label .req { color: var(--danger); margin-left: 2px; }
+    .form-label .hint { font-weight: normal; color: var(--muted); margin-left: 6px; }
+
+    .form-select { width: 100%; height: 36px; padding: 0 32px 0 12px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); font-size: 13px; color: var(--ink); font-family: inherit; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%23a1a1aa' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; cursor: pointer; }
+    .form-select:focus { outline: none; border-color: var(--accent); }
+
+    /* Radio cards */
+    .radio-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .radio-card { position: relative; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: var(--radius); cursor: pointer; transition: all 0.12s; background: var(--surface); }
+    .radio-card:hover { border-color: var(--muted); }
+    .radio-card input { position: absolute; opacity: 0; pointer-events: none; }
+    .radio-card.selected { border-color: var(--accent); background: var(--accent-pale); box-shadow: 0 0 0 1px var(--accent); }
+    .radio-card-head { display: flex; align-items: center; gap: 6px; margin-bottom: 2px; }
+    .radio-card-dot { width: 14px; height: 14px; border-radius: 50%; border: 4px solid var(--hairline); background: var(--surface); flex-shrink: 0; transition: all 0.12s; }
+    .radio-card.selected .radio-card-dot { border-color: var(--accent); }
+    .radio-card-title { font-size: 13px; font-weight: 600; }
+    .radio-card-desc { font-size: 11.5px; color: var(--muted); line-height: 1.45; padding-left: 20px; }
+
+    /* Existing share list */
+    .share-section { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--hairline); }
+    .share-section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .share-section-title { font-size: 12.5px; font-weight: 600; color: var(--ink); }
+    .share-section-count { font-size: 11.5px; color: var(--muted); }
+    .share-list { display: flex; flex-direction: column; gap: 6px; }
+    .share-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--bg); border: 1px solid var(--hairline-soft); border-radius: var(--radius); }
+    .share-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; }
+    .share-info { flex: 1; line-height: 1.3; min-width: 0; }
+    .share-name { font-size: 13px; font-weight: 500; }
+    .share-dept { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+    .share-perm { font-size: 11.5px; padding: 2px 8px; border-radius: 3px; font-weight: 500; }
+    .share-perm-rw { background: var(--accent-soft); color: var(--accent); }
+    .share-perm-ro { background: var(--hairline-soft); color: var(--muted); }
+    .share-revoke { font-size: 12px; color: var(--danger); background: transparent; border: 1px solid var(--danger-soft); padding: 3px 8px; border-radius: var(--radius); cursor: pointer; font-family: inherit; }
+    .share-revoke:hover { background: var(--danger-soft); }
+
+    /* Buttons */
+    .btn { padding: 8px 16px; font-size: 13px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); cursor: pointer; color: var(--ink); font-family: inherit; font-weight: 500; transition: all 0.12s; }
+    .btn:hover { border-color: var(--muted); }
+    .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+    .btn-primary:hover { background: #14532d; border-color: #14532d; }
+
+    .tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; font-size: 11.5px; border-radius: 3px; font-weight: 500; line-height: 1.5; }
+    .tag-A { background: #fef3c7; color: #b45309; }
+  </style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <div class="wordmark"><div class="wordmark-glyph"></div> ZenCRM</div>
+    </div>
+    <nav class="nav">
+      <div class="nav-group">
+        <div class="nav-label">工作台</div>
+        <div class="nav-item">仪表盘</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">客户资产</div>
+        <div class="nav-item active">客户</div>
+        <div class="nav-item">联系人</div>
+        <div class="nav-item">商机</div>
+        <div class="nav-item">公海池 <span class="badge" style="margin-left:auto;font-size:11px;padding:1px 6px;background:var(--hairline);color:var(--muted);border-radius:8px;">23</span></div>
+      </div>
+    </nav>
+    <div class="user-card">
+      <div class="user-avatar">李</div>
+      <div class="user-info">
+        <div class="user-name">李销售</div>
+        <div class="user-role">普通销售</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main (dimmed) -->
+  <main class="main">
+    <div class="page-title">客户</div>
+    <div class="ph-table">[ 客户列表页(已暗化) ]</div>
+  </main>
+</div>
+
+<!-- Modal Overlay -->
+<div class="modal-overlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">共享客户「小米科技」</div>
+      <button class="modal-close">×</button>
+    </div>
+    <div class="modal-body">
+      <!-- Customer info -->
+      <div class="info-card">
+        <div class="info-icon">小</div>
+        <div class="info-body">
+          <div class="info-name">小米科技 <span class="tag tag-A" style="margin-left:6px;">A 重要</span></div>
+          <div class="info-meta">
+            智能硬件<span class="sep">·</span>owner: 李销售 (我)<span class="sep">·</span>创建于 2026-03-15
+          </div>
+        </div>
+      </div>
+
+      <!-- New share form -->
+      <div class="form-section">
+        <label class="form-label">被共享人<span class="req">*</span><span class="hint">只支持同部门以外的同事</span></label>
+        <select class="form-select">
+          <option>— 请选择被共享人 —</option>
+          <option>陈销售 (华南销售部)</option>
+          <option>王主管 (华东销售部)</option>
+          <option>张总监 (总公司)</option>
+        </select>
+      </div>
+
+      <div class="form-section">
+        <label class="form-label">权限类型<span class="req">*</span></label>
+        <div class="radio-group">
+          <label class="radio-card">
+            <input type="radio" name="perm">
+            <div class="radio-card-head">
+              <div class="radio-card-dot"></div>
+              <div class="radio-card-title">只读</div>
+            </div>
+            <div class="radio-card-desc">可查看客户资料、联系人、跟进记录,不能编辑</div>
+          </label>
+          <label class="radio-card selected">
+            <input type="radio" name="perm" checked>
+            <div class="radio-card-head">
+              <div class="radio-card-dot"></div>
+              <div class="radio-card-title">读写</div>
+            </div>
+            <div class="radio-card-desc">可编辑客户、改联系人、加跟进,等同协作 owner</div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Existing share list -->
+      <div class="share-section">
+        <div class="share-section-head">
+          <div class="share-section-title">已有共享</div>
+          <div class="share-section-count">2 人</div>
+        </div>
+        <div class="share-list">
+          <div class="share-item">
+            <div class="share-avatar">陈</div>
+            <div class="share-info">
+              <div class="share-name">陈销售</div>
+              <div class="share-dept">华南销售部</div>
+            </div>
+            <span class="share-perm share-perm-rw">↗ 读写</span>
+            <button class="share-revoke">撤销</button>
+          </div>
+          <div class="share-item">
+            <div class="share-avatar">王</div>
+            <div class="share-info">
+              <div class="share-name">王主管</div>
+              <div class="share-dept">华东销售部</div>
+            </div>
+            <span class="share-perm share-perm-ro">⊘ 只读</span>
+            <button class="share-revoke">撤销</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn">取消</button>
+      <button class="btn btn-primary">保存共享</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

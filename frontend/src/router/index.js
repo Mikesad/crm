@@ -62,9 +62,9 @@ const routes = [
       },
       {
         path: 'public',
-        name: 'CustomerPublic',
-        component: () => import('@/views/customer/public.vue'),
-        meta: { title: '公海池', permissions: ['crm:customer:list'] }
+        name: 'CustomerPublicPool',
+        component: () => import('@/views/customer/public-pool.vue'),
+        meta: { title: '公海池', permissions: ['crm:customer:public_pool'] }
       }
     ]
   },
