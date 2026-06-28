@@ -19,6 +19,7 @@
 | 09 合同审批 | [approval.md](./approval.md) | 3 | stable | 2026-06-27 |
 | 10 回款计划 | [receivable-plan.md](./receivable-plan.md) | 5 | stable | 2026-06-27 |
 | 11 回款管理 | [receivable.md](./receivable.md) | 3 | stable | 2026-06-27 |
+| 12 报表中心 | [report.md](./report.md) | 13 | stable | 2026-06-28 |
 | 数据字典 | dict.md | 待补 | planned | - |
 
 ## 公共约定
@@ -140,6 +141,16 @@ Authorization: <Sa-Token token>
 * **跟进时间轴升级 `RecordTimeline.vue`**：组件视觉对齐原型（垂直 rail + dot + 五色编码：电话-蓝 / 微信-绿 / 上门-橙 / 邮件-紫 / 阶段变更-森绿 / 系统-灰）；自动识别 `followType=系统` + `content` 含"阶段从…推进到…"渲染为阶段变更胶囊卡片；下次跟进时间高亮 + 逾期打标。客户 / 线索 / 商机 / 合同详情统一使用本组件（`relatedType` 切换）。
 * **Tab 命名统一**：客户详情原"跟进时间轴" Tab 在阶段五 v2 改名为"跟进记录"，与线索 / 商机对齐。
 * **本批前端改动无新增后端 HTTP 接口**：`BusinessController`、`RecordController` 端点不变，仅 UI 升级。Knife4j `@Operation` 已对齐 `business.md` / `record.md` 既有描述。
+
+### 阶段五 commit 2 重点：报表中心
+
+* **入口** `/report`（侧边栏"可视化"分组下，菜单类型 C），4 Tab 切换：销售漏斗+业绩 / 客户分布 / 跟进与转化率 / 回款/财务。
+* **13 个接口** 全部走 `crm:report:view` 权限码，5 角色均绑定。详见 `report.md`。
+* **不叠加数据权限拦截**（决策 B）：所有角色看全量；部门/人员筛选由 query 参数 `deptId` / `userId` 控制，Mapper `@InterceptorIgnore(dataPermission="true")` 接管。
+* **5 分钟内存缓存**：`ReportCacheService`（TTL-based `ConcurrentHashMap`），不依赖 Caffeine/Spring Cache，hit/miss 日志在 `[ReportCache]` 前缀。
+* **8 个聚合二级索引**：`crm_contract.idx_sign_date` / `crm_receivable.idx_actual_time` / `crm_business.idx_stage` + `idx_expected` / `crm_record.idx_create_time` + `idx_related` / `crm_customer.idx_industry` + `idx_last_follow`，全部走 `phase5_add_idx_if_missing` 存储过程幂等。
+* **前端 UI** 走"侧边栏 + Cockpit 驾驶舱密度"混合版（参考 `frontend-design/phase5-report-variant-b-cockpit.html` v2），不用顶栏横向导航（与 Dashboard / 跟进中心保持一致）。
+* **V1 简化**：KPI 同比字符串走 mock、地区分布用 industry 替代、团队 vs 全公司同值、应收 TopN 不分 series — 全部列入阶段六 TODO。
 
 ### 阶段四重点：数据权限拦截器升级
 

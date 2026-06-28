@@ -262,6 +262,8 @@ const last7Days = ref([])
 const selectedType = ref('all')
 // 合同实体跟进接入较晚,过滤栏暂不展示(后端保留 contract 枚举)
 // 用 Element Plus Icons 与侧边栏导航保持视觉一致
+// 合同实体跟进接入较晚,过滤栏暂不展示(后端保留 contract 枚举)
+// 用 Element Plus Icons 与侧边栏导航保持视觉一致
 const entityTypes = [
   { value: 'lead', icon: Aim, name: '线索' },
   { value: 'customer', icon: User, name: '客户' },

@@ -29,7 +29,6 @@
           <el-table
             :data="list"
             stripe
-            @row-dblclick="handleRowDblClick"
             @sort-change="handleSortChange"
           >
             <el-table-column prop="businessName" label="商机名称" min-width="180" sortable="custom">
@@ -204,7 +203,6 @@ async function loadList() {
 
 function handleSearch() { query.pageNum = 1; loadList() }
 function handleExport() { ElMessage.info('导出商机 - 阶段二导出当前筛选结果') }
-function handleRowDblClick(row) { handleStage(row) }
 
 function handleSortChange({ prop, order }) {
   // el-table 排序事件:order = ascending | descending | null

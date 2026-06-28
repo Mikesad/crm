@@ -47,6 +47,16 @@ public class LeadController {
         return Result.success(leadService.page(query));
     }
 
+    @Operation(summary = "线索本月统计(侧边栏用)",
+        description = "全部按'本月新增'算,按 status 分 4 组:" +
+            "created=本月新增总数 / converted=status=3 已转客户 / following=status=2 跟进中 / dead=status=4 已死")
+    @SaCheckPermission("crm:lead:list")
+    @GetMapping("/stats")
+    public Result<java.util.Map<String, Long>> stats(
+            @RequestParam(defaultValue = "month") String range) {
+        return Result.success(leadService.statsByRange(range));
+    }
+
     @Operation(summary = "线索详情")
     @SaCheckPermission("crm:lead:list")
     @GetMapping("/{id}")

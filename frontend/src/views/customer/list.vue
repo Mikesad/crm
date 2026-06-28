@@ -50,11 +50,11 @@
         </div>
 
         <el-card class="table-card" v-loading="loading">
-          <el-table :data="list" stripe @row-dblclick="handleRowDblClick">
+          <el-table :data="list" stripe>
             <el-table-column prop="customerName" label="客户名称" min-width="180">
               <template #default="{ row }">
                 <div class="name-block">
-                  <a class="name customer-link" @click.stop="handleView(row)">{{ row.customerName }}</a>
+                  <span class="name customer-link">{{ row.customerName }}</span>
                   <span class="sub">客户 ID #{{ row.id }}</span>
                 </div>
               </template>
@@ -360,10 +360,6 @@ function switchTab(tab) {
 function handleSearch() {
   query.pageNum = 1
   loadList()
-}
-
-function handleRowDblClick(row) {
-  handleView(row)
 }
 
 function handleView(row) {

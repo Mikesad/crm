@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<!--
+  phase5-report-variant-a-editorial.html
+  变体 A · 编辑式报表 (Editorial Report) — 阅读优先 / 汇报场景
+  Dials: VARIANCE 2 / MOTION 1 / DENSITY 2
+
+  设计要点:
+  - 顶栏 + 4 Tab 切换 + 顶部时间范围 + 部门筛选条
+  - 页面像一份"销售月报"开篇:大标题 + 副标题摘要 + 关键数据 lead
+  - 大数字(48px tabular-nums) + 段落式解读,图表嵌入文中
+  - 第一 Tab "销售漏斗+业绩" 详细实现,其余 3 Tab 缩略示意
+  - 颜色: 森林绿 #166534 单一强调,警示橙/红仅在异常指标
+  - 圆角: 6px 全局统一
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>报表中心 · 变体 A 编辑式 — ZenCRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <style>
+    :root {
+      --bg:           #fafaf9;
+      --surface:      #ffffff;
+      --ink:          #18181b;
+      --ink-soft:     #3f3f46;
+      --muted:        #71717a;
+      --subtle:       #a1a1aa;
+      --hairline:     #e4e4e7;
+      --hairline-soft:#f4f4f5;
+      --accent:       #166534;
+      --accent-soft:  #dcfce7;
+      --accent-pale:  #f0fdf4;
+      --accent-deep:  #14532d;
+      --accent-ring:  rgba(22, 101, 52, 0.12);
+      --warn:         #b45309;
+      --warn-soft:    #fef3c7;
+      --danger:       #b91c1c;
+      --danger-soft:  #fee2e2;
+      --info:         #1e40af;
+      --info-soft:    #dbeafe;
+      --font-sans:    'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+      --radius:       6px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.55;
+      color: var(--ink);
+      background: var(--bg);
+      margin: 0;
+      -webkit-font-smoothing: antialiased;
+    }
+    .mono { font-family: var(--font-mono); font-feature-settings: 'tnum' 1, 'cv11' 1; }
+    .hairline { background: var(--hairline); height: 1px; border: 0; margin: 0; }
+
+    /* === Sidebar (stage4 standard) === */
+    .layout { display: grid; grid-template-columns: 224px 1fr; min-height: 100vh; }
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--hairline);
+      padding: 20px 14px;
+    }
+    .brand { display: flex; align-items: center; gap: 8px; padding: 0 8px 18px; }
+    .brand-glyph { width: 20px; height: 20px; background: var(--accent); border-radius: 4px; }
+    .brand-name { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+    .group-label { font-size: 10.5px; font-weight: 600; color: var(--subtle); letter-spacing: 0.08em; text-transform: uppercase; padding: 12px 10px 6px; }
+    .menu-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 10px; border-radius: var(--radius);
+      font-size: 13px; color: var(--ink-soft); cursor: pointer;
+    }
+    .menu-item:hover { background: var(--bg); color: var(--ink); }
+    .menu-item.active { background: var(--accent-pale); color: var(--accent); font-weight: 500; }
+    .menu-item svg { width: 15px; height: 15px; }
+    .menu-badge { margin-left: auto; font-size: 10.5px; color: var(--subtle); background: var(--bg); padding: 1px 6px; border-radius: 8px; }
+
+    /* === Main === */
+    .main { padding: 0 32px 60px; max-width: 1180px; }
+    .page-head {
+      padding: 32px 0 22px;
+      border-bottom: 1px solid var(--hairline);
+      margin-bottom: 28px;
+    }
+    .crumbs { font-size: 12px; color: var(--subtle); margin-bottom: 8px; letter-spacing: 0.02em; }
+    .crumbs span { margin: 0 6px; }
+    .page-title { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 6px; }
+    .page-lead { font-size: 14.5px; color: var(--muted); margin: 0; max-width: 720px; line-height: 1.7; }
+    .page-lead strong { color: var(--ink); font-weight: 600; }
+
+    /* === Filter bar === */
+    .filterbar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 0; flex-wrap: wrap;
+    }
+    .range-tabs { display: flex; gap: 0; }
+    .range-tab {
+      padding: 6px 13px; font-size: 12.5px;
+      border: 1px solid var(--hairline); background: var(--surface);
+      cursor: pointer; color: var(--muted); font-family: inherit;
+      transition: all 0.12s;
+    }
+    .range-tab:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+    .range-tab:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+    .range-tab + .range-tab { border-left: none; }
+    .range-tab:hover:not(.active) { color: var(--ink); }
+    .range-tab.active { background: var(--ink); color: white; border-color: var(--ink); }
+    .filter-select {
+      height: 30px; padding: 0 10px;
+      background: var(--surface); border: 1px solid var(--hairline);
+      border-radius: var(--radius); font-size: 12.5px;
+      color: var(--ink-soft); font-family: inherit; cursor: pointer;
+    }
+    .filter-spacer { flex: 1; }
+    .meta-info { font-size: 12px; color: var(--muted); }
+    .meta-info .mono { color: var(--ink-soft); }
+
+    /* === Report Tabs (主导航) === */
+    .report-tabs {
+      display: flex; gap: 28px;
+      border-bottom: 1px solid var(--hairline);
+      margin-bottom: 28px;
+    }
+    .report-tab {
+      padding: 10px 0 12px; font-size: 13.5px; font-weight: 500;
+      color: var(--muted); cursor: pointer; position: relative;
+      border-bottom: 2px solid transparent; margin-bottom: -1px;
+    }
+    .report-tab:hover { color: var(--ink); }
+    .report-tab.active { color: var(--ink); border-bottom-color: var(--accent); }
+    .report-tab .count { font-size: 11px; color: var(--subtle); margin-left: 4px; }
+
+    /* === Section (each section is a "chapter") === */
+    .section { margin-bottom: 56px; }
+    .section-eyebrow {
+      font-size: 11px; font-weight: 600; color: var(--accent);
+      letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px;
+    }
+    .section-title { font-size: 20px; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.015em; }
+    .section-desc { font-size: 13.5px; color: var(--muted); margin: 0 0 22px; max-width: 720px; line-height: 1.7; }
+    .section-desc strong { color: var(--ink); font-weight: 600; }
+
+    /* === Big numbers === */
+    .big-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; margin-bottom: 24px; }
+    .big-kpi-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+    .big-kpi-value { font-size: 36px; font-weight: 600; letter-spacing: -0.025em; line-height: 1; }
+    .big-kpi-value.mono { font-feature-settings: 'tnum' 1, 'cv11' 1; }
+    .big-kpi-unit { font-size: 14px; color: var(--muted); font-weight: 500; margin-left: 4px; }
+    .big-kpi-delta { font-size: 11.5px; margin-top: 6px; color: var(--muted); }
+    .big-kpi-delta.up { color: var(--accent); }
+    .big-kpi-delta.down { color: var(--danger); }
+    .big-kpi-delta .mono { font-weight: 500; }
+
+    /* === Chart card === */
+    .chart-card {
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius);
+      padding: 22px 24px;
+    }
+    .chart-card-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 18px; }
+    .chart-card-title { font-size: 14px; font-weight: 600; }
+    .chart-card-meta { font-size: 11.5px; color: var(--muted); }
+    .chart { width: 100%; height: 320px; }
+
+    /* === Two column layout === */
+    .two-col { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; }
+    .three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+
+    /* === Data table (editorial style) === */
+    .data-table {
+      width: 100%; border-collapse: collapse; font-size: 13px;
+    }
+    .data-table th {
+      text-align: left; font-weight: 500; color: var(--muted);
+      padding: 10px 0; border-bottom: 1px solid var(--hairline);
+      font-size: 11.5px; letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    .data-table td {
+      padding: 12px 0; border-bottom: 1px solid var(--hairline-soft);
+      color: var(--ink-soft);
+    }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table .rank {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 20px; height: 20px; border-radius: 50%;
+      background: var(--bg); color: var(--muted); font-size: 11px; font-weight: 600;
+      margin-right: 8px;
+    }
+    .data-table .rank.gold { background: #fef3c7; color: #92400e; }
+    .data-table .rank.silver { background: #f1f5f9; color: #475569; }
+    .data-table .rank.bronze { background: #fce7f3; color: #9d174d; }
+    .data-table .name { color: var(--ink); font-weight: 500; }
+    .data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+    /* === Mini sparkline === */
+    .spark { display: inline-block; vertical-align: middle; width: 80px; height: 24px; }
+
+    /* === Other tabs placeholder === */
+    .other-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+    .tab-preview {
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .tab-preview:hover { border-color: var(--accent); transform: translateY(-1px); }
+    .tab-preview-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+    .tab-preview-desc { font-size: 12px; color: var(--muted); line-height: 1.6; }
+    .tab-preview-stats { display: flex; gap: 16px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--hairline-soft); }
+    .tab-preview-stat-label { font-size: 10.5px; color: var(--subtle); }
+    .tab-preview-stat-value { font-size: 15px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-glyph"></div><div class="brand-name">ZenCRM</div></div>
+
+      <div class="group-label">工作台</div>
+      <div class="menu-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l9-9 9 9M5 10v10h14V10"/></svg>仪表盘</div>
+      <div class="menu-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M14 21a2 2 0 0 1-4 0"/></svg>跟进中心</div>
+
+      <div class="group-label">业务</div>
+      <div class="menu-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>线索 <span class="menu-badge">42</span></div>
+      <div class="menu-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>客户 <span class="menu-badge">86</span></div>
+      <div class="menu-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>商机 <span class="menu-badge">23</span></div>
+
+      <div class="group-label">交易</div>
+      <div class="menu-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>合同</div>
+      <div class="menu-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>回款</div>
+
+      <div class="group-label">可视化</div>
+      <div class="menu-item active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>报表</div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <!-- Page header -->
+      <header class="page-head">
+        <div class="crumbs">可视化 <span>›</span> 报表中心</div>
+        <h1 class="page-title">2026 年 6 月销售报表</h1>
+        <p class="page-lead">
+          本月共产生 <strong>23 条新商机</strong>,成交 <strong>11 单</strong>,销售总额 <strong>¥ 2,468,000</strong>。
+          整体业绩较上月提升 <strong>18.6%</strong>,其中销售一部贡献占比 47% ,为主要增长引擎。
+        </p>
+      </header>
+
+      <!-- Filter bar -->
+      <div class="filterbar">
+        <div class="range-tabs">
+          <button class="range-tab">今日</button>
+          <button class="range-tab">本周</button>
+          <button class="range-tab active">本月</button>
+          <button class="range-tab">本季</button>
+          <button class="range-tab">本年</button>
+          <button class="range-tab">自定义</button>
+        </div>
+        <select class="filter-select"><option>全部部门</option><option>销售一部</option><option>销售二部</option></select>
+        <select class="filter-select"><option>全部销售</option><option>李销售</option><option>陈销售</option></select>
+        <div class="filter-spacer"></div>
+        <div class="meta-info">数据更新于 <span class="mono">2026-06-28 18:24</span></div>
+      </div>
+
+      <!-- Report tabs -->
+      <div class="report-tabs">
+        <div class="report-tab active">销售漏斗 + 业绩 <span class="count">/ Sales Funnel</span></div>
+        <div class="report-tab">客户分布 <span class="count">/ Customers</span></div>
+        <div class="report-tab">跟进与转化率 <span class="count">/ Conversion</span></div>
+        <div class="report-tab">回款 / 财务 <span class="count">/ Finance</span></div>
+      </div>
+
+      <!-- Section 1: Big numbers -->
+      <section class="section">
+        <div class="section-eyebrow">一、整体业绩</div>
+        <h2 class="section-title">关键指标一览</h2>
+        <p class="section-desc">
+          本月销售总额 <strong>¥ 2,468,000</strong> ,较 5 月份 (¥ 2,081,000) 增长 <strong>18.6%</strong>。
+          线索转化率从 14.2% 提升至 <strong>17.8%</strong>,赢单率稳定在 47.8%。
+        </p>
+        <div class="big-kpis">
+          <div>
+            <div class="big-kpi-label">销售总额</div>
+            <div class="big-kpi-value mono">¥ 2,468,000</div>
+            <div class="big-kpi-delta up mono">↑ 18.6% vs 上月</div>
+          </div>
+          <div>
+            <div class="big-kpi-label">新签合同</div>
+            <div class="big-kpi-value mono">11 <span class="big-kpi-unit">单</span></div>
+            <div class="big-kpi-delta up mono">↑ 2 单</div>
+          </div>
+          <div>
+            <div class="big-kpi-label">客单价</div>
+            <div class="big-kpi-value mono">¥ 224,364</div>
+            <div class="big-kpi-delta down mono">↓ 3.2%</div>
+          </div>
+          <div>
+            <div class="big-kpi-label">赢单率</div>
+            <div class="big-kpi-value mono">47.8 <span class="big-kpi-unit">%</span></div>
+            <div class="big-kpi-delta up mono">↑ 2.1 pp</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 2: Funnel + Trend -->
+      <section class="section">
+        <div class="section-eyebrow">二、销售漏斗</div>
+        <h2 class="section-title">从线索到赢单的转化路径</h2>
+        <p class="section-desc">
+          本月新增线索 62 条,经需求分析 → 方案报价 → 商务谈判后最终成交 11 单。
+          漏斗整体健康度良好,<strong>需求分析 → 方案报价</strong>环节流失率最高(38%),建议加强客户痛点挖掘。
+        </p>
+        <div class="two-col">
+          <div class="chart-card">
+            <div class="chart-card-head">
+              <div class="chart-card-title">销售漏斗 (按阶段)</div>
+              <div class="chart-card-meta">单位: 商机数 / 平均金额</div>
+            </div>
+            <div id="funnel" class="chart"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-card-head">
+              <div class="chart-card-title">近 6 个月销售趋势</div>
+              <div class="chart-card-meta">2026-01 ~ 06</div>
+            </div>
+            <div id="trend" class="chart"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 3: Performer + Departments -->
+      <section class="section">
+        <div class="section-eyebrow">三、销售个人榜</div>
+        <h2 class="section-title">本月 TOP 5 销售</h2>
+        <p class="section-desc">
+          <strong>李销售</strong>以 4 单 / ¥ 982,000 业绩领跑,连续 3 个月稳居第一;
+          <strong>王主管</strong>团队的客单价最高(¥ 348,000),反映其聚焦大客户战略。
+        </p>
+        <div class="two-col">
+          <div class="chart-card">
+            <div class="chart-card-head">
+              <div class="chart-card-title">部门业绩对比</div>
+              <div class="chart-card-meta">按销售总额</div>
+            </div>
+            <div id="dept" class="chart"></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-card-head">
+              <div class="chart-card-title">销售个人排行榜</div>
+              <div class="chart-card-meta">TOP 5 / 按销售总额</div>
+            </div>
+            <table class="data-table">
+              <thead><tr><th style="width:50%">销售</th><th class="num">单数</th><th class="num">销售总额</th></tr></thead>
+              <tbody>
+                <tr><td><span class="rank gold">1</span><span class="name">李销售</span></td><td class="num mono">4</td><td class="num mono">¥ 982,000</td></tr>
+                <tr><td><span class="rank silver">2</span><span class="name">陈销售</span></td><td class="num mono">3</td><td class="num mono">¥ 738,000</td></tr>
+                <tr><td><span class="rank bronze">3</span><span class="name">王主管</span></td><td class="num mono">2</td><td class="num mono">¥ 696,000</td></tr>
+                <tr><td><span class="rank">4</span><span class="name">张销售</span></td><td class="num mono">1</td><td class="num mono">¥ 32,000</td></tr>
+                <tr><td><span class="rank">5</span><span class="name">赵销售</span></td><td class="num mono">1</td><td class="num mono">¥ 20,000</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 4: Other tabs (缩略) -->
+      <section class="section">
+        <div class="section-eyebrow">其他报表</div>
+        <h2 class="section-title">切换查看其他维度</h2>
+        <p class="section-desc">点击下方卡片切换到对应报表,所有指标都遵循相同的时间范围 + 部门筛选条件,数据实时联动重算。</p>
+        <div class="other-tabs">
+          <div class="tab-preview">
+            <div class="tab-preview-title">客户分布</div>
+            <div class="tab-preview-desc">按行业 / 地区 / 客户等级 / 公海占比,帮助销售主管识别目标市场结构。</div>
+            <div class="tab-preview-stats">
+              <div><div class="tab-preview-stat-label">客户总数</div><div class="tab-preview-stat-value">386</div></div>
+              <div><div class="tab-preview-stat-label">行业数</div><div class="tab-preview-stat-value">12</div></div>
+              <div><div class="tab-preview-stat-label">公海占比</div><div class="tab-preview-stat-value">14%</div></div>
+            </div>
+          </div>
+          <div class="tab-preview">
+            <div class="tab-preview-title">跟进与转化率</div>
+            <div class="tab-preview-desc">跟进频次 / 时长 / 转化漏斗,识别高效跟进模式,辅助销售培训。</div>
+            <div class="tab-preview-stats">
+              <div><div class="tab-preview-stat-label">跟进总数</div><div class="tab-preview-stat-value">428</div></div>
+              <div><div class="tab-preview-stat-label">平均转化</div><div class="tab-preview-stat-value">17.8%</div></div>
+              <div><div class="tab-preview-stat-label">日均跟进</div><div class="tab-preview-stat-value">3.2</div></div>
+            </div>
+          </div>
+          <div class="tab-preview">
+            <div class="tab-preview-title">回款 / 财务</div>
+            <div class="tab-preview-desc">合同金额 / 已回款 / 逾期率,辅助财务与销售主管掌握资金健康度。</div>
+            <div class="tab-preview-stats">
+              <div><div class="tab-preview-stat-label">合同总额</div><div class="tab-preview-stat-value">¥ 8.2M</div></div>
+              <div><div class="tab-preview-stat-label">已回款</div><div class="tab-preview-stat-value">¥ 5.6M</div></div>
+              <div><div class="tab-preview-stat-label">逾期率</div><div class="tab-preview-stat-value">4.3%</div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // === Tokens (与全局一致) ===
+    const ACCENT = '#166534';
+    const ACCENT_SOFT = '#dcfce7';
+    const ACCENT_PALE = '#f0fdf4';
+    const INK = '#18181b';
+    const MUTED = '#71717a';
+    const HAIRLINE = '#e4e4e7';
+    const WARN = '#b45309';
+    const DANGER = '#b91c1c';
+    const INFO = '#1e40af';
+
+    const baseGrid = { left: 8, right: 8, top: 24, bottom: 8, containLabel: true };
+    const baseAxisLine = { lineStyle: { color: HAIRLINE } };
+    const baseAxisLabel = { color: MUTED, fontSize: 11, fontFamily: 'Inter' };
+
+    // === Funnel chart ===
+    const funnelEl = document.getElementById('funnel');
+    const funnel = echarts.init(funnelEl);
+    funnel.setOption({
+      tooltip: { trigger: 'item', formatter: '{b}: {c} 单<br/>占比 {d}%' },
+      series: [{
+        type: 'funnel',
+        left: '10%', right: '10%', top: 10, bottom: 10,
+        sort: 'descending', gap: 4,
+        label: { show: true, position: 'inside', color: '#fff', fontWeight: 500, fontSize: 12 },
+        labelLine: { show: false },
+        itemStyle: { borderColor: '#fff', borderWidth: 2 },
+        data: [
+          { value: 62, name: '① 新建线索', itemStyle: { color: ACCENT_PALE, borderColor: ACCENT } },
+          { value: 48, name: '② 需求分析', itemStyle: { color: '#86efac' } },
+          { value: 30, name: '③ 方案报价', itemStyle: { color: '#4ade80' } },
+          { value: 23, name: '④ 商务谈判', itemStyle: { color: '#22c55e' } },
+          { value: 11, name: '⑤ 赢单', itemStyle: { color: ACCENT } },
+        ]
+      }]
+    });
+
+    // === Trend chart ===
+    const trendEl = document.getElementById('trend');
+    const trend = echarts.init(trendEl);
+    trend.setOption({
+      tooltip: { trigger: 'axis' },
+      grid: { ...baseGrid, top: 16, bottom: 24 },
+      xAxis: {
+        type: 'category', data: ['1月', '2月', '3月', '4月', '5月', '6月'],
+        axisLine: baseAxisLine, axisLabel: baseAxisLabel, axisTick: { show: false },
+      },
+      yAxis: {
+        type: 'value',
+        axisLine: { show: false }, axisTick: { show: false },
+        axisLabel: { ...baseAxisLabel, formatter: v => '¥' + (v/1000) + 'K' },
+        splitLine: { lineStyle: { color: HAIRLINE, type: 'dashed' } },
+      },
+      series: [{
+        type: 'line', smooth: true, symbol: 'circle', symbolSize: 6,
+        lineStyle: { width: 2, color: ACCENT },
+        itemStyle: { color: ACCENT, borderColor: '#fff', borderWidth: 2 },
+        areaStyle: {
+          color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [
+            { offset: 0, color: 'rgba(22,101,52,0.18)' },
+            { offset: 1, color: 'rgba(22,101,52,0)' },
+          ]}
+        },
+        data: [1420000, 1680000, 1820000, 1750000, 2081000, 2468000],
+      }]
+    });
+
+    // === Department bar ===
+    const deptEl = document.getElementById('dept');
+    const dept = echarts.init(deptEl);
+    dept.setOption({
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      grid: { ...baseGrid, top: 16, bottom: 24 },
+      xAxis: { type: 'category', data: ['销售一部', '销售二部', '销售三部', '销售四部'], axisLine: baseAxisLine, axisLabel: baseAxisLabel, axisTick: { show: false } },
+      yAxis: { type: 'value', axisLine: { show: false }, axisTick: { show: false }, axisLabel: { ...baseAxisLabel, formatter: v => '¥' + (v/1000) + 'K' }, splitLine: { lineStyle: { color: HAIRLINE, type: 'dashed' } } },
+      series: [{
+        type: 'bar', barWidth: 28,
+        itemStyle: { color: ACCENT, borderRadius: [3, 3, 0, 0] },
+        data: [
+          { value: 1160000, itemStyle: { color: ACCENT } },
+          { value: 720000, itemStyle: { color: '#4ade80' } },
+          { value: 408000, itemStyle: { color: '#86efac' } },
+          { value: 180000, itemStyle: { color: '#bbf7d0' } },
+        ],
+        label: { show: true, position: 'top', color: INK, fontSize: 11, fontWeight: 500, formatter: p => '¥' + (p.value/1000) + 'K' }
+      }]
+    });
+
+    // Resize
+    window.addEventListener('resize', () => { funnel.resize(); trend.resize(); dept.resize(); });
+  </script>
+</body>
+</html>

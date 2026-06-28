@@ -131,10 +131,15 @@ public class RecordService {
                 new LambdaQueryWrapper<CrmRecord>()
                         .isNotNull(CrmRecord::getNextFollowTime)
                         .between(CrmRecord::getNextFollowTime, weekStart, weekEnd)));
+        // overdue 范围:本周内过期 (next_follow_time < now 且 >= weekStart)
+        // 原因:today list 用 weekStart~todayEnd,只有本周内的过期才能在 list 看到,
+        //      KPI 数字必须 ≈ list 数字,否则用户割裂("KPI 28 但 list 1")
+        // 注:任意过去的逾期(V1 不展示,需阶段六加"全部逾期" Tab)
         result.put("overdue", recordMapper.selectCount(
                 new LambdaQueryWrapper<CrmRecord>()
                         .isNotNull(CrmRecord::getNextFollowTime)
-                        .lt(CrmRecord::getNextFollowTime, now)));
+                        .lt(CrmRecord::getNextFollowTime, now)
+                        .ge(CrmRecord::getNextFollowTime, weekStart)));
         result.put("total", recordMapper.selectCount(
                 new LambdaQueryWrapper<CrmRecord>()
                         .isNotNull(CrmRecord::getNextFollowTime)));

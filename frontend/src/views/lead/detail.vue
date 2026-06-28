@@ -355,14 +355,16 @@ async function loadLead() {
 }
 
 async function loadRecords() {
-  if (!lead.value?.id) {
+  // 从 route 直接拿 id,不依赖 lead.value(loadLead 失败时 recordCount 也能正确)
+  const id = route.params.id
+  if (!id) {
     records.value = []
     recordCount.value = 0
     hasAnyRecord.value = false
     return
   }
   try {
-    const { data } = await getTimeline({ relatedType: 'lead', relatedId: lead.value.id })
+    const { data } = await getTimeline({ relatedType: 'lead', relatedId: id })
     records.value = data || []
     recordCount.value = records.value.length
     hasAnyRecord.value = recordCount.value > 0
@@ -373,9 +375,9 @@ async function loadRecords() {
   }
 }
 
-function loadAll() {
-  loadLead()
-  loadRecords()
+async function loadAll() {
+  await loadLead()
+  await loadRecords()
 }
 
 // ---------- 弹窗 ----------

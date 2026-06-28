@@ -73,18 +73,52 @@ public class LeadService {
         if (query.getStatus() != null) {
             wrapper.eq(CrmLead::getStatus, query.getStatus());
         }
-        if (StringUtils.hasText(query.getSource())) {
+        if (query.getSource() != null) {
             wrapper.eq(CrmLead::getSource, query.getSource());
         }
-        // dataScope 拦截器自动加 owner_user_id 条件（仅本部门 / 仅本人）
+        // dataScope 由 DataPermissionHandler 自动注入(仅本部门/仅本人)
         wrapper.orderByDesc(CrmLead::getCreateTime);
         IPage<CrmLead> result = leadMapper.selectPage(page, wrapper);
-
-        Map<Long, String> ownerNameMap = buildOwnerNameMap(result.getRecords());
-        Map<Long, String> finalMap = ownerNameMap;
-        return result.convert(c -> toVO(c, finalMap));
+        return result.convert(l -> toVO(l, buildOwnerNameMap(result.getRecords())));
     }
 
+    /**
+     * 侧边栏"本月统计":4 个数字全部按"本月新增"算,按 status 分 4 组
+     *
+     * @param range month(本阶段仅 month,其他 range 返回全量)
+     * @return { created, converted, following, dead } 4 个 Long
+     */
+    public java.util.Map<String, Long> statsByRange(String range) {
+        java.util.Map<String, Long> result = new java.util.HashMap<>();
+        // 本月起止(支持扩展:quarter / year / custom)
+        java.time.LocalDate today = java.time.LocalDate.now();
+        java.time.LocalDateTime start = today.withDayOfMonth(1).atStartOfDay();
+        java.time.LocalDateTime end = today.atTime(23, 59, 59);
+        // V1 简化为只看 month,其他 range 退化为全量
+        if (!"month".equalsIgnoreCase(range)) {
+            start = java.time.LocalDateTime.of(2000, 1, 1, 0, 0);
+            end = java.time.LocalDateTime.of(2099, 12, 31, 23, 59);
+        }
+
+        // 一次 selectList 拉本月所有 lead,内存按 status 分组(简单可靠,N 不大)
+        List<CrmLead> monthLeads = leadMapper.selectList(
+                new LambdaQueryWrapper<CrmLead>()
+                        .between(CrmLead::getCreateTime, start, end)
+                        .eq(CrmLead::getIsDeleted, 0));
+        long created = monthLeads.size();
+        long converted = monthLeads.stream().filter(l -> Integer.valueOf(3).equals(l.getStatus())).count();
+        long following = monthLeads.stream().filter(l -> Integer.valueOf(2).equals(l.getStatus())).count();
+        long dead = monthLeads.stream().filter(l -> Integer.valueOf(4).equals(l.getStatus())).count();
+        result.put("created", created);
+        result.put("converted", converted);
+        result.put("following", following);
+        result.put("dead", dead);
+        return result;
+    }
+
+    /**
+     * 阶段五修复:从记录集合中提取 ownerUserId,批量查 user 表拿 nickname,避免单条详情 ownerName 为空
+     */
     /**
      * 阶段五修复:从记录集合中提取 ownerUserId,批量查 user 表拿 nickname,避免单条详情 ownerName 为空
      */

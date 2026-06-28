@@ -39,11 +39,10 @@
 
         <!-- 表格 -->
         <el-card class="table-card" v-loading="loading">
-          <el-table :data="list" stripe @row-click="handleRowClick">
-            <el-table-column type="selection" width="40" />
+          <el-table :data="list" stripe>
             <el-table-column prop="leadName" label="线索名称" min-width="160">
               <template #default="{ row }">
-                <a class="name-link" @click.stop="goDetail(row)">{{ row.leadName }}</a>
+                <span class="name-link">{{ row.leadName }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="contactName" label="联系人" width="100" />
@@ -102,25 +101,29 @@
         <div class="side-panel">
           <div class="side-panel-title">
             今日待办
-            <span class="more" @click="$router.push('/dashboard')">查看全部 →</span>
           </div>
           <div
             v-for="t in todos"
-            :key="t.id"
+            :key="t.relatedId || t.id"
             class="todo-item"
+            @click="goTodoDetail(t)"
+            style="cursor: pointer;"
           >
-            <div class="todo-dot" :style="{ background: t.color }" />
+            <div class="todo-dot" :style="{ background: t.overdue ? '#b91c1c' : '#166534' }" />
             <div class="todo-content">
-              <div class="todo-title" v-html="t.title" />
-              <div class="todo-sub">{{ t.sub }}</div>
+              <div class="todo-title">{{ t.subjectName || '跟进任务' }}</div>
+              <div class="todo-sub">
+                {{ t.overdue ? '已逾期 · ' : '今天 · ' }}{{ formatNextTime(t.nextFollowTime) }}
+              </div>
             </div>
           </div>
+          <div v-if="!todos || todos.length === 0" class="empty">今天没有待办 🎉</div>
         </div>
 
         <div class="side-panel">
           <div class="side-panel-title">
             本月统计
-            <span class="more">6 月</span>
+            <span class="more">{{ currentMonthLabel }}</span>
           </div>
           <div class="stat-grid">
             <div class="stat accent">
@@ -142,15 +145,6 @@
           </div>
         </div>
 
-        <div class="side-panel">
-          <div class="side-panel-title">快速查看</div>
-          <div class="quick-list">
-            <a v-for="q in quickLinks" :key="q.label" class="quick-link" @click="quickFilter(q)">
-              <span>{{ q.label }}</span>
-              <span class="count">{{ q.count }}</span>
-            </a>
-          </div>
-        </div>
       </aside>
     </div>
 
@@ -292,8 +286,10 @@ import {
   deleteLead,
   convertLead,
   exportLeadExcel,
-  importLeadExcel
+  importLeadExcel,
+  getLeadStats
 } from '@/api/lead'
+import { todoList } from '@/api/record'
 
 defineOptions({ name: 'LeadList' })
 
@@ -348,29 +344,40 @@ function handleSearch() {
   loadList()
 }
 
-function quickFilter(q) {
-  if (q.status !== undefined) query.status = q.status
-  if (q.keyword !== undefined) query.keyword = q.keyword
-  handleSearch()
+// ---------- 右侧辅助面板(真实数据) ----------
+// 今日待办:走跟进中心今日 Tab 同款接口,过滤 relatedType='lead',取 5 条
+const todos = ref([])
+// 本月统计:走 /crm/lead/stats?range=month
+const stats = reactive({ created: 0, converted: 0, following: 0, dead: 0 })
+const currentMonthLabel = computed(() => {
+  const d = new Date()
+  return `${d.getMonth() + 1} 月`
+})
+
+function formatNextTime(t) {
+  if (!t) return ''
+  const d = new Date(t)
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-// ---------- 右侧辅助面板（mock 数据；阶段三接入业务规则） ----------
-const todos = ref([
-  { id: 1, color: '#b91c1c', title: '跟进入度 · <strong>华为集团</strong>', sub: '已逾期 5 天' },
-  { id: 2, color: '#b45309', title: '提交报价 · <strong>腾讯云</strong>', sub: '17:00 前' },
-  { id: 3, color: '#166534', title: '转化线索 · <strong>北京星辰</strong>', sub: '已确认意向' },
-  { id: 4, color: '#166534', title: '回访 · <strong>字节跳动</strong>', sub: '等待方案反馈' }
-])
+function goTodoDetail(t) {
+  if (!t?.relatedId) return
+  router.push(`/lead/${t.relatedId}`)
+}
 
-const stats = reactive({ created: 12, converted: 4, following: 12, dead: 2 })
-
-const quickLinks = ref([
-  { label: '我负责的线索', count: 28 },
-  { label: '我创建的', count: 14 },
-  { label: '本周新增', count: 12 },
-  { label: '已转客户', count: 4, status: 3 },
-  { label: '已死线索', count: 2, status: 4 }
-])
+async function loadSidePanel() {
+  // 今日待办
+  try {
+    const { data } = await todoList({ range: 'today', pageNum: 1, pageSize: 5 })
+    const records = (data && data.records) || []
+    todos.value = records.filter(r => r.relatedType === 'lead')
+  } catch (e) { todos.value = [] }
+  // 本月统计
+  try {
+    const { data } = await getLeadStats({ range: 'month' })
+    Object.assign(stats, data || { created: 0, converted: 0, following: 0, dead: 0 })
+  } catch (e) { /* 保持 0 */ }
+}
 
 // ---------- 新建 / 编辑 ----------
 const editVisible = ref(false)
@@ -445,10 +452,6 @@ async function handleDelete(row) {
 function goDetail(row) {
   if (!row?.id) return
   router.push(`/lead/${row.id}`)
-}
-
-function handleRowClick(row) {
-  goDetail(row)
 }
 
 // ---------- 导入 / 导出(EasyExcel) ----------
@@ -545,7 +548,10 @@ async function handleConvertSubmit() {
   }
 }
 
-onMounted(loadList)
+onMounted(() => {
+  loadList()
+  loadSidePanel()
+})
 </script>
 
 <style lang="scss" scoped>

@@ -1,5 +1,7 @@
 package com.crm.service;
 
+import java.util.List;
+import java.util.stream.Collectors;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -88,15 +90,9 @@ public class BusinessService {
                 wrapper.orderByDesc(CrmBusiness::getUpdateTime);
         }
         IPage<CrmBusiness> result = businessMapper.selectPage(page, wrapper);
-        return result.convert(b -> {
-            BusinessVO vo = toVO(b);
-            // 关联客户名（简单 N+1 接受，列表用 inner join 可优化）
-            if (b.getCustomerId() != null) {
-                CrmCustomer c = customerMapper.selectById(b.getCustomerId());
-                if (c != null) vo.setCustomerName(c.getCustomerName());
-            }
-            return vo;
-        });
+        // 批量查 customerName + ownerName(避免 N+1)
+        java.util.Map<Long, String> nameMap = buildNameMap(result.getRecords());
+        return result.convert(b -> toVO(b, nameMap));
     }
 
     public BusinessVO detail(Long id) {
@@ -104,12 +100,32 @@ public class BusinessService {
         if (b == null) {
             throw new BusinessException(ResultCode.DATA_NOT_FOUND, "商机不存在");
         }
-        BusinessVO vo = toVO(b);
-        if (b.getCustomerId() != null) {
-            CrmCustomer c = customerMapper.selectById(b.getCustomerId());
-            if (c != null) vo.setCustomerName(c.getCustomerName());
+        java.util.Map<Long, String> nameMap = buildNameMap(java.util.List.of(b));
+        return toVO(b, nameMap);
+    }
+
+    /**
+     * 批量查 customerName + ownerName(避免每行单独查询,N+1)
+     * <p>用 [cust]/[owner] 前缀区分,避免 customer_id 和 owner_user_id 撞 id</p>
+     */
+    private java.util.Map<Long, String> buildNameMap(List<CrmBusiness> businesses) {
+        java.util.Map<Long, String> nameMap = new java.util.HashMap<>();
+        if (businesses == null || businesses.isEmpty()) return nameMap;
+        java.util.Set<Long> customerIds = businesses.stream()
+                .map(CrmBusiness::getCustomerId).filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (!customerIds.isEmpty()) {
+            customerMapper.selectBatchIds(customerIds).forEach(c ->
+                    nameMap.put(c.getId(), "[cust]" + c.getCustomerName()));
         }
-        return vo;
+        java.util.Set<Long> ownerIds = businesses.stream()
+                .map(CrmBusiness::getOwnerUserId).filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (!ownerIds.isEmpty()) {
+            userMapper.selectBatchIds(ownerIds).forEach(u ->
+                    nameMap.put(u.getId(), "[owner]" + u.getNickname()));
+        }
+        return nameMap;
     }
 
     @Transactional
@@ -216,12 +232,18 @@ public class BusinessService {
                 b.getId(), currentStage, targetStage, UserContext.currentUsername());
     }
 
-    private BusinessVO toVO(CrmBusiness b) {
+    private BusinessVO toVO(CrmBusiness b, java.util.Map<Long, String> nameMap) {
         BusinessVO vo = new BusinessVO();
         BeanUtils.copyProperties(b, vo);
-        if (b.getOwnerUserId() != null) {
-            com.crm.entity.SysUser u = userMapper.selectById(b.getOwnerUserId());
-            if (u != null) vo.setOwnerName(u.getNickname());
+        if (nameMap != null) {
+            if (b.getCustomerId() != null) {
+                String n = nameMap.get(b.getCustomerId());
+                if (n != null && n.startsWith("[cust]")) vo.setCustomerName(n.substring(6));
+            }
+            if (b.getOwnerUserId() != null) {
+                String n = nameMap.get(b.getOwnerUserId());
+                if (n != null && n.startsWith("[owner]")) vo.setOwnerName(n.substring(7));
+            }
         }
         return vo;
     }

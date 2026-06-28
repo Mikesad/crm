@@ -456,11 +456,9 @@ async function loadBusinesses() {
   }
 }
 
-function loadAll() {
-  loadCustomer()
-  loadContacts()
-  loadBusinesses()
-  loadRecordCount()
+async function loadAll() {
+  await loadCustomer()
+  await Promise.all([loadContacts(), loadBusinesses(), loadRecordCount()])
 }
 
 // ---------- 客户编辑 ----------
@@ -654,12 +652,14 @@ async function onRecordSaved() {
 
 // ---------- 跟进记录数(用于 timeline 卡片头部计数) ----------
 async function loadRecordCount() {
-  if (!customer.value.id) {
+  // 从 route 直接拿 id,不依赖 customer.value(loadCustomer 失败时也能正确)
+  const id = route.params.id
+  if (!id) {
     recordCount.value = 0
     return
   }
   try {
-    const { data } = await getTimeline({ relatedType: 'customer', relatedId: customer.value.id })
+    const { data } = await getTimeline({ relatedType: 'customer', relatedId: id })
     recordCount.value = (data || []).length
   } catch (e) {
     recordCount.value = 0

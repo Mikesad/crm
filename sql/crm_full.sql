@@ -406,16 +406,49 @@ INSERT INTO `sys_user_role` (`user_id`, `role_id`) VALUES
 --    (公海池的「手动回收」接口在 Service 层额外校验 admin/director 角色)
 --  - finance 不给(财务不参与客户/公海)
 INSERT INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES
-  -- admin (全开 1-20)
-  (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9), (1, 10), (1, 11), (1, 12), (1, 13), (1, 14), (1, 15), (1, 16), (1, 17), (1, 18), (1, 19), (1, 20),
-  -- sales_director (业务 + 合同 + 审批 + 计划 + 产品 + 共享 + 公海)
-  (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7), (2, 8), (2, 9), (2, 10), (2, 11), (2, 12), (2, 14), (2, 16), (2, 17), (2, 18), (2, 19), (2, 20),
-  -- sales_lead (业务 + 合同list + 回款list + 计划edit + 产品list + 共享 + 公海)
-  (3, 1), (3, 3), (3, 5), (3, 7), (3, 9), (3, 11), (3, 13), (3, 16), (3, 17), (3, 19), (3, 20),
-  -- sales (业务 + 合同全 + 计划edit + 产品全 + 共享 + 公海)
-  (4, 1), (4, 2), (4, 3), (4, 4), (4, 5), (4, 6), (4, 7), (4, 8), (4, 9), (4, 10), (4, 11), (4, 12), (4, 16), (4, 17), (4, 18), (4, 19), (4, 20),
-  -- finance (合同list + 回款全 + 产品list,无业务/无共享/无公海)
-  (5, 11), (5, 13), (5, 15), (5, 17);
+  -- admin (全开 1-23)
+  (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9), (1, 10), (1, 11), (1, 12), (1, 13), (1, 14), (1, 15), (1, 16), (1, 17), (1, 18), (1, 19), (1, 20), (1, 21), (1, 22), (1, 23),
+  -- sales_director (业务 + 合同 + 审批 + 计划 + 产品 + 共享 + 公海 + 跟进中心 + 标死线索 + 报表中心)
+  (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7), (2, 8), (2, 9), (2, 10), (2, 11), (2, 12), (2, 14), (2, 16), (2, 17), (2, 18), (2, 19), (2, 20), (2, 21), (2, 22), (2, 23),
+  -- sales_lead (业务 + 合同list + 回款list + 计划edit + 产品list + 共享 + 公海 + 跟进中心 + 标死线索;无报表中心也可以,V1 简化为都给)
+  (3, 1), (3, 3), (3, 5), (3, 7), (3, 9), (3, 11), (3, 13), (3, 16), (3, 17), (3, 19), (3, 20), (3, 21), (3, 22), (3, 23),
+  -- sales (业务 + 合同全 + 计划edit + 产品全 + 共享 + 公海 + 跟进中心 + 标死线索 + 报表中心)
+  (4, 1), (4, 2), (4, 3), (4, 4), (4, 5), (4, 6), (4, 7), (4, 8), (4, 9), (4, 10), (4, 11), (4, 12), (4, 16), (4, 17), (4, 18), (4, 19), (4, 20), (4, 21), (4, 22), (4, 23),
+  -- finance (合同list + 回款全 + 产品list + 报表中心;无业务/无共享/无公海/无跟进)
+  (5, 11), (5, 13), (5, 15), (5, 17), (5, 23);
+
+-- =====================================================================
+--  阶段五(commit 1) · 跟进中心 + commit 2 · 报表中心
+--  Schema 增量(全新安装路径同步在此):
+--    A. 8 个聚合二级索引(优化报表 SQL):
+--         crm_contract   idx_start_date
+--         crm_receivable idx_return_date
+--         crm_business   idx_stage / idx_expected_deal
+--         crm_record     idx_create_time / idx_related
+--         crm_customer   idx_industry / idx_last_follow
+--    B. 3 个新菜单(id 显式 21/22/23,避免与 phase5-record/phase5-report
+--       迁移脚本的 AUTO_INCREMENT 冲突 — 老环境用 24/25/26 起)
+--    C. sys_role_menu 5 角色已在上方绑定(本块仅注释说明)
+-- =====================================================================
+
+-- 8 个聚合二级索引(直接 CREATE INDEX,新装路径无需存储过程)
+-- 注:idx_related(crm_record) 已在建表时定义,此处不重复
+CREATE INDEX idx_start_date   ON crm_contract   (start_date);
+CREATE INDEX idx_return_date  ON crm_receivable (return_date);
+CREATE INDEX idx_stage        ON crm_business   (stage);
+CREATE INDEX idx_expected_deal ON crm_business  (expected_deal_date);
+CREATE INDEX idx_create_time  ON crm_record     (create_time);
+CREATE INDEX idx_industry     ON crm_customer   (industry);
+CREATE INDEX idx_last_follow  ON crm_customer   (last_follow_time, is_deleted);
+
+-- 3 个新菜单(阶段五 commit 1 + commit 2)
+-- 21: 跟进中心(侧边栏菜单,菜单类型 C)
+-- 22: 标为死线索(按钮级权限,菜单类型 F,无 path/component,不显示)
+-- 23: 报表中心(侧边栏菜单,菜单类型 C)
+INSERT INTO `sys_menu` (`id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `menu_type`, `perms`, `status`) VALUES
+  (21, '跟进中心',   0, 25, 'record/center', 'record/center', 'C', 'crm:record:center', 1),
+  (22, '标为死线索', 0, 26, '',              NULL,            'F', 'crm:lead:markDead', 1),
+  (23, '报表中心',   0, 30, 'report',        'report/index',  'C', 'crm:report:view',   1);
 
 SET FOREIGN_KEY_CHECKS = 1;
 

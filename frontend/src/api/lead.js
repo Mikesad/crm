@@ -11,6 +11,9 @@ export const pageLead = (params) => request.get('/crm/lead/page', { params })
 /** 线索详情 */
 export const getLead = (id) => request.get(`/crm/lead/${id}`)
 
+/** 线索本月统计(侧边栏"本月统计"用) */
+export const getLeadStats = (params) => request.get('/crm/lead/stats', { params })
+
 /** 新增线索 */
 export const addLead = (data) => request.post('/crm/lead', data)
 

@@ -56,6 +56,8 @@ public class ContractService {
     private final CrmContractProductMapper contractProductMapper;
     private final CrmProductMapper productMapper;
     private final CrmApprovalMapper approvalMapper;
+    private final CrmCustomerMapper customerMapper;
+    private final SysUserMapper sysUserMapper;
 
     public IPage<ContractVO> page(ContractQueryRequest query) {
         Page<CrmContract> page = new Page<>(query.normalizeCurrent(), query.normalizeSize());
@@ -73,7 +75,9 @@ public class ContractService {
         wrapper.orderByDesc(CrmContract::getCreateTime);
         // DataPermissionHandler 自动追加 owner_user_id 条件
         IPage<CrmContract> result = contractMapper.selectPage(page, wrapper);
-        return result.convert(this::toVO);
+        // 批量查 customerName + ownerName(避免每行单独查询,N+1)
+        java.util.Map<Long, String> nameMap = buildNameMap(result.getRecords());
+        return result.convert(c -> toVO(c, nameMap));
     }
 
     public ContractVO detail(Long id) {
@@ -81,12 +85,39 @@ public class ContractService {
         if (contract == null) {
             throw new BusinessException(ResultCode.DATA_NOT_FOUND, "合同不存在");
         }
-        ContractVO vo = toVO(contract);
+        // 查 customer + owner 单条
+        java.util.Map<Long, String> nameMap = buildNameMap(java.util.List.of(contract));
+        ContractVO vo = toVO(contract, nameMap);
         // 加载明细
         List<CrmContractProduct> items = contractProductMapper.selectList(
                 new LambdaQueryWrapper<CrmContractProduct>().eq(CrmContractProduct::getContractId, id));
         vo.setItems(toItemVOs(items));
         return vo;
+    }
+
+    /**
+     * 批量查 customerName + ownerName,组成 id → 展示名 map(避免 N+1)
+     */
+    private java.util.Map<Long, String> buildNameMap(List<CrmContract> contracts) {
+        java.util.Map<Long, String> nameMap = new java.util.HashMap<>();
+        if (contracts == null || contracts.isEmpty()) return nameMap;
+        // 收集 customerIds
+        java.util.Set<Long> customerIds = contracts.stream()
+                .map(CrmContract::getCustomerId).filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (!customerIds.isEmpty()) {
+            customerMapper.selectBatchIds(customerIds).forEach(c ->
+                    nameMap.put(c.getId(), "[cust]" + c.getCustomerName()));
+        }
+        // 收集 ownerUserIds
+        java.util.Set<Long> ownerIds = contracts.stream()
+                .map(CrmContract::getOwnerUserId).filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (!ownerIds.isEmpty()) {
+            sysUserMapper.selectBatchIds(ownerIds).forEach(u ->
+                    nameMap.put(u.getId(), "[owner]" + u.getNickname()));
+        }
+        return nameMap;
     }
 
     @Transactional
@@ -212,10 +243,20 @@ public class ContractService {
         return String.format("HT-%s-%06d", date, System.currentTimeMillis() % 1000000);
     }
 
-    private ContractVO toVO(CrmContract c) {
+    private ContractVO toVO(CrmContract c, java.util.Map<Long, String> nameMap) {
         ContractVO vo = new ContractVO();
         BeanUtils.copyProperties(c, vo);
         vo.setStatusText(statusText(c.getStatus()));
+        if (nameMap != null) {
+            if (c.getCustomerId() != null) {
+                String n = nameMap.get(c.getCustomerId());
+                if (n != null && n.startsWith("[cust]")) vo.setCustomerName(n.substring(6));
+            }
+            if (c.getOwnerUserId() != null) {
+                String n = nameMap.get(c.getOwnerUserId());
+                if (n != null && n.startsWith("[owner]")) vo.setOwnerName(n.substring(7));
+            }
+        }
         return vo;
     }
 

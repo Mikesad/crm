@@ -64,6 +64,19 @@ const routes = [
     ]
   },
   {
+    path: '/report',
+    component: () => import('@/layout/index.vue'),
+    meta: { title: '报表中心', icon: 'DataLine' },
+    children: [
+      {
+        path: '',
+        name: 'ReportCenter',
+        component: () => import('@/views/report/ReportCenter.vue'),
+        meta: { title: '报表中心', permissions: ['crm:report:view'] }
+      }
+    ]
+  },
+  {
     path: '/customer',
     component: () => import('@/layout/index.vue'),
     meta: { title: '客户管理', icon: 'User' },
