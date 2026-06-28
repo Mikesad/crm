@@ -8,12 +8,12 @@
 | 模块 | 文件 | 接口数 | 状态 | 最近更新 |
 | :--- | :--- | :--- | :--- | :--- |
 | 01 登录鉴权 | [auth.md](./auth.md) | 3 | stable | 2026-06-27 |
-| 02 线索管理 | [lead.md](./lead.md) | 6 | stable | 2026-06-27 |
-| 03 客户管理 | [customer.md](./customer.md) | 8 | stable | 2026-06-27 |
+| 02 线索管理 | [lead.md](./lead.md) | 7 | stable | 2026-06-28 |
+| 03 客户管理 | [customer.md](./customer.md) | 8 | stable | 2026-06-28 |
 | 03b 客户共享 | [customer-share.md](./customer-share.md) | 3 | stable | 2026-06-27 |
 | 04 联系人 | [contact.md](./contact.md) | 4 | stable | 2026-06-27 |
-| 05 商机管理 | [business.md](./business.md) | 6 | stable | 2026-06-27 |
-| 06 跟进记录 | [record.md](./record.md) | 2 | stable | 2026-06-27 |
+| 05 商机管理 | [business.md](./business.md) | 6 | stable | 2026-06-28 |
+| 06 跟进记录 | [record.md](./record.md) | 5 | stable | 2026-06-28 |
 | 07 产品管理 | [product.md](./product.md) | 5 | stable | 2026-06-27 |
 | 08 合同管理 | [contract.md](./contract.md) | 5 | stable | 2026-06-27 |
 | 09 合同审批 | [approval.md](./approval.md) | 3 | stable | 2026-06-27 |
@@ -118,6 +118,28 @@ Authorization: <Sa-Token token>
 | `crm:customer:public_pool` | admin / director / lead / sales | 公海池（查看/认领；手动回收接口额外校验 admin/director） |
 
 **已初始化数据库的迁移**：见 `sql/migrations/phase4-customer-share-and-public-pool.sql`（2 个菜单幂等插入 + 4 个角色按需清/插；crm_customer_share 表兜底建表）。
+
+## 阶段五 commit 1 新增权限码
+
+| 权限码 | 角色绑定 | 说明 |
+|:---|:---|:---|
+| `crm:record:center` | admin / director / lead / sales | 跟进中心（顶部铃铛 + `/record/center` 三 Tab：今日 / 本周 / 我的历史） |
+| `crm:lead:markDead` | admin / director / lead / sales | 标为死线索（仅线索 owner 可调，独立权限码便于不可逆业务审计） |
+
+**已初始化数据库的迁移**：见 `sql/migrations/phase5-record.sql`（crm_record_migration_log 兜底建表 + crm_lead 兜底加 2 列 + crm_record 加 2 索引 + 2 菜单幂等插入 + 4 角色按需清/插）。
+
+### 阶段五 commit 1 重点：跟进迁移模式 A + 死线索规则
+
+* **跟进迁移**：线索转客户后，原线索下全部 `crm_record` 按模式 A（物理迁移）改为 `related_type='customer', related_id=新客户ID`，迁移日志写入 `crm_record_migration_log`。前端客户详情时间轴一气呵成看到从首次接触到当前的全部记录。
+* **死线索规则**：`crm_lead.status=4` 后，详情页顶部红色 el-alert 警示 + 写跟进按钮灰化 + 后端 `RecordService.append()` 校验拒绝新增。死因字段 `dead_reason` 可选。
+* **转客户软提示**：转客户接口不强制要求已有跟进记录；前端线索详情"转客户"按钮旁显示"⚠ 你还未跟进过，建议先写一条跟进"警示。
+
+### 阶段五 commit 2 重点：商机详情页 + 跟进时间轴组件升级
+
+* **商机详情页** `/business/:id`（阶段五 v2 上线）：参照 `frontend-design/phase5-business-detail.html` 原型，落地顶部 meta + 阶段流水线 + Tab + 跟进时间轴 + 跟进摘要侧栏。`GET /api/crm/business/{id}` 返回 `BusinessVO`，前端按 stage 启发式推赢率（需求分析 30 / 方案报价 50 / 商务谈判 70 / 赢单 100 / 输单 0）。
+* **跟进时间轴升级 `RecordTimeline.vue`**：组件视觉对齐原型（垂直 rail + dot + 五色编码：电话-蓝 / 微信-绿 / 上门-橙 / 邮件-紫 / 阶段变更-森绿 / 系统-灰）；自动识别 `followType=系统` + `content` 含"阶段从…推进到…"渲染为阶段变更胶囊卡片；下次跟进时间高亮 + 逾期打标。客户 / 线索 / 商机 / 合同详情统一使用本组件（`relatedType` 切换）。
+* **Tab 命名统一**：客户详情原"跟进时间轴" Tab 在阶段五 v2 改名为"跟进记录"，与线索 / 商机对齐。
+* **本批前端改动无新增后端 HTTP 接口**：`BusinessController`、`RecordController` 端点不变，仅 UI 升级。Knife4j `@Operation` 已对齐 `business.md` / `record.md` 既有描述。
 
 ### 阶段四重点：数据权限拦截器升级
 

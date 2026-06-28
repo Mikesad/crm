@@ -11,6 +11,7 @@ import com.crm.dto.LeadConvertRequest;
 import com.crm.dto.LeadCreateRequest;
 import com.crm.dto.LeadExcelVO;
 import com.crm.dto.LeadImportResultVO;
+import com.crm.dto.LeadMarkDeadRequest;
 import com.crm.dto.LeadQueryRequest;
 import com.crm.dto.LeadUpdateRequest;
 import com.crm.entity.CrmContact;
@@ -59,6 +60,7 @@ public class LeadService {
     private final CrmContactMapper contactMapper;
     private final CrmRecordMapper recordMapper;
     private final SysUserMapper userMapper;
+    private final RecordMigrationService migrateService;
 
     public IPage<LeadVO> page(LeadQueryRequest query) {
         Page<CrmLead> page = new Page<>(query.normalizeCurrent(), query.normalizeSize());
@@ -78,17 +80,22 @@ public class LeadService {
         wrapper.orderByDesc(CrmLead::getCreateTime);
         IPage<CrmLead> result = leadMapper.selectPage(page, wrapper);
 
-        // 阶段四:批量填充 ownerName(避免 N+1)
-        Set<Long> ownerIds = result.getRecords().stream()
+        Map<Long, String> ownerNameMap = buildOwnerNameMap(result.getRecords());
+        Map<Long, String> finalMap = ownerNameMap;
+        return result.convert(c -> toVO(c, finalMap));
+    }
+
+    /**
+     * 阶段五修复:从记录集合中提取 ownerUserId,批量查 user 表拿 nickname,避免单条详情 ownerName 为空
+     */
+    private Map<Long, String> buildOwnerNameMap(java.util.List<CrmLead> leads) {
+        Set<Long> ownerIds = leads.stream()
                 .map(CrmLead::getOwnerUserId)
                 .filter(java.util.Objects::nonNull)
                 .collect(Collectors.toSet());
-        Map<Long, String> ownerNameMap = ownerIds.isEmpty()
-                ? Collections.emptyMap()
-                : userMapper.selectBatchIds(ownerIds).stream()
-                    .collect(Collectors.toMap(SysUser::getId, SysUser::getNickname));
-        Map<Long, String> finalMap = ownerNameMap;
-        return result.convert(c -> toVO(c, finalMap));
+        if (ownerIds.isEmpty()) return Collections.emptyMap();
+        return userMapper.selectBatchIds(ownerIds).stream()
+                .collect(Collectors.toMap(SysUser::getId, SysUser::getNickname));
     }
 
     public LeadVO detail(Long id) {
@@ -96,7 +103,8 @@ public class LeadService {
         if (lead == null) {
             throw new BusinessException(ResultCode.DATA_NOT_FOUND, "线索不存在");
         }
-        return toVO(lead);
+        // 单条详情复用批量查 ownerName 的 helper(只有 1 个 id,1 次 IN 查)
+        return toVO(lead, buildOwnerNameMap(java.util.List.of(lead)));
     }
 
     @Transactional
@@ -203,13 +211,67 @@ public class LeadService {
         record.setRelatedId(lead.getId());
         record.setContent("线索已转化为客户「" + customer.getCustomerName() + "」");
         record.setFollowType("系统");
-        record.setCreateBy(currentUser);
+        record.setCreateBy(UserContext.currentAuthor());
         record.setCreateTime(LocalDateTime.now());
         recordMapper.insert(record);
 
-        log.info("线索转客户成功: leadId={}, customerId={}, contactId={}, operator={}",
-                lead.getId(), customer.getId(), contact.getId(), currentUser);
+        // 5) 阶段五:把该线索下全部跟进记录 related_type 从 lead 改为 customer
+        //    (模式 A 物理迁移 + 迁移日志,事务内执行,与上述双写同回滚边界)
+        int migrated = migrateService.migrate(lead.getId(), customer.getId(), currentUser);
+
+        log.info("线索转客户成功: leadId={}, customerId={}, contactId={}, operator={}, 迁移跟进 {} 条",
+                lead.getId(), customer.getId(), contact.getId(), currentUser, migrated);
         return customer.getId();
+    }
+
+    /**
+     * 标记线索为死线索（阶段五新增）
+     *
+     * <p>校验：</p>
+     * <ul>
+     *   <li>必须 owner = 当前用户（防越权）</li>
+     *   <li>状态必须 ∈ {1, 2}（已转客户/已死 不可重复标）</li>
+     * </ul>
+     *
+     * <p>动作：UPDATE crm_lead + 写 crm_record 系统跟进（事务内）。</p>
+     */
+    @Transactional
+    public void markDead(Long leadId, LeadMarkDeadRequest req) {
+        CrmLead lead = leadMapper.selectById(leadId);
+        if (lead == null) {
+            throw new BusinessException(ResultCode.DATA_NOT_FOUND, "线索不存在");
+        }
+        // 校验 owner
+        Long me = UserContext.requireUserId();
+        if (!java.util.Objects.equals(lead.getOwnerUserId(), me)) {
+            throw new BusinessException("仅线索负责人可标记为死线索");
+        }
+        // 校验状态机:仅 1-未跟进 / 2-跟进中 可标记死
+        Integer s = lead.getStatus();
+        if (s == null || s == 3 || s == 4) {
+            throw new BusinessException("仅 1-未跟进 / 2-跟进中 可标记为死线索");
+        }
+        String currentUser = UserContext.currentUsername();
+        lead.setStatus(4);
+        lead.setDeadReason(req.getDeadReason()); // 可空
+        lead.setDeadTime(LocalDateTime.now());
+        lead.setUpdateBy(currentUser);
+        leadMapper.updateById(lead);
+
+        // 同步写一条系统跟进
+        CrmRecord record = new CrmRecord();
+        record.setRelatedType("lead");
+        record.setRelatedId(lead.getId());
+        String reasonSuffix = (req.getDeadReason() != null && !req.getDeadReason().isBlank())
+                ? "，原因：" + req.getDeadReason() : "";
+        record.setContent("线索已标记为死线索" + reasonSuffix);
+        record.setFollowType("系统");
+        record.setCreateBy(UserContext.currentAuthor());
+        record.setCreateTime(LocalDateTime.now());
+        recordMapper.insert(record);
+
+        log.info("线索 {} 已标记为死线索, operator={}, deadReason={}",
+                leadId, currentUser, req.getDeadReason());
     }
 
     private LeadVO toVO(CrmLead lead) {

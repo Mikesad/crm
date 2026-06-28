@@ -45,3 +45,6 @@ HELP.md
 .claude/
 skills-lock.json
 .claude.json
+
+# ====== Playwright MCP 调试产物(user-local) =====
+.playwright-mcp/

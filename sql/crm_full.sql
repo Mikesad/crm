@@ -102,6 +102,8 @@ CREATE TABLE `crm_lead` (
   `status` tinyint DEFAULT 1 COMMENT '状态（1未跟进 2跟进中 3已转客户 4已死线索）',
   `owner_user_id` bigint DEFAULT NULL COMMENT '负责人ID（逻辑关联sys_user.id）',
   `remark` varchar(500) DEFAULT NULL COMMENT '备注描述',
+  `dead_reason` varchar(500) DEFAULT NULL COMMENT '死线索原因(可选,阶段五新增)',
+  `dead_time` datetime DEFAULT NULL COMMENT '死线索标记时间(阶段五新增)',
   `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
@@ -181,16 +183,34 @@ CREATE TABLE `crm_business` (
 -- 12. 跟进记录表
 CREATE TABLE `crm_record` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '跟进记录ID',
-  `related_type` varchar(20) NOT NULL COMMENT '关联类型(lead-线索 customer-客户 business-商机)',
+  `related_type` varchar(20) NOT NULL COMMENT '关联类型(lead-线索 customer-客户 business-商机 contract-合同,阶段五扩展)',
   `related_id` bigint NOT NULL COMMENT '对应的关联主体ID',
   `content` text NOT NULL COMMENT '跟进内容/沟通纪要',
-  `follow_type` varchar(20) DEFAULT '电话' COMMENT '跟进方式(电话/微信/上门拜访/邮件)',
+  `follow_type` varchar(20) DEFAULT '电话' COMMENT '跟进方式(电话/微信/上门拜访/邮件/系统)',
   `next_follow_time` datetime DEFAULT NULL COMMENT '下次跟进时间',
   `create_by` varchar(64) DEFAULT '' COMMENT '跟进人（销售昵称/账号）',
   `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '跟进时间',
   PRIMARY KEY (`id`),
-  KEY `idx_related` (`related_type`,`related_id`)
+  KEY `idx_related` (`related_type`,`related_id`),
+  KEY `idx_next_follow` (`next_follow_time`),
+  KEY `idx_create_by` (`create_by`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='跟进记录表';
+
+-- 12.1 跟进记录迁移日志表（阶段五新增）
+CREATE TABLE `crm_record_migration_log` (
+  `id`           BIGINT       NOT NULL AUTO_INCREMENT                COMMENT '主键',
+  `record_id`    BIGINT       NOT NULL                               COMMENT '关联跟进记录ID(crm_record.id)',
+  `from_type`    VARCHAR(20)  NOT NULL                               COMMENT '原主体类型(lead)',
+  `from_id`      BIGINT       NOT NULL                               COMMENT '原主体ID',
+  `to_type`      VARCHAR(20)  NOT NULL                               COMMENT '新主体类型(customer)',
+  `to_id`        BIGINT       NOT NULL                               COMMENT '新主体ID',
+  `operator`     VARCHAR(64)  DEFAULT ''                             COMMENT '操作人(username,不用 user_id 便于用户删除后追溯)',
+  `migrate_time` DATETIME     DEFAULT CURRENT_TIMESTAMP               COMMENT '迁移时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_record` (`record_id`),
+  KEY `idx_from` (`from_type`, `from_id`),
+  KEY `idx_to` (`to_type`, `to_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='跟进记录主体迁移日志(阶段五新增)';
 
 -- 13. 产品分类表
 CREATE TABLE `crm_product_category` (

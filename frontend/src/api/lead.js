@@ -20,8 +20,16 @@ export const updateLead = (data) => request.put('/crm/lead', data)
 /** 删除线索（逻辑删除） */
 export const deleteLead = (id) => request.delete(`/crm/lead/${id}`)
 
-/** 线索转客户（核心业务：@Transactional 双写 customer + contact + record） */
+/** 线索转客户（核心业务：@Transactional 双写 customer + contact + record + 物理迁移跟进） */
 export const convertLead = (id, data) => request.post(`/crm/lead/${id}/convert`, data)
+
+// ---------- 阶段五:标记死线索 ----------
+/**
+ * 标记线索为死线索（仅 owner 可调;死因可选）
+ * @param {number} id 线索 ID
+ * @param {{deadReason?: string}} data
+ */
+export const markDead = (id, data) => request.post(`/crm/lead/${id}/markDead`, data || {})
 
 // ---------- 阶段四:EasyExcel 导入导出 ----------
 

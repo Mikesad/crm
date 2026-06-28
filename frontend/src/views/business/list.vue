@@ -26,15 +26,20 @@
         </div>
 
         <el-card class="table-card" v-loading="loading">
-          <el-table :data="list" stripe @row-dblclick="handleRowDblClick">
-            <el-table-column prop="businessName" label="商机名称" min-width="180">
+          <el-table
+            :data="list"
+            stripe
+            @row-dblclick="handleRowDblClick"
+            @sort-change="handleSortChange"
+          >
+            <el-table-column prop="businessName" label="商机名称" min-width="180" sortable="custom">
               <template #default="{ row }">
                 <span class="name">{{ row.businessName }}</span>
               </template>
             </el-table-column>
             <el-table-column label="所属客户" min-width="140">
               <template #default="{ row }">
-                <a class="customer-link" @click="goCustomer(row.customerId)">{{ row.customerName || '#' + row.customerId }}</a>
+                <a class="customer-link" @click.stop="goCustomer(row.customerId)">{{ row.customerName || '#' + row.customerId }}</a>
               </template>
             </el-table-column>
             <el-table-column label="阶段" width="130">
@@ -42,22 +47,23 @@
                 <el-tag :type="stageTagType(row.stage)" effect="light" size="small">{{ row.stage }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="预计金额" width="140" align="right">
+            <el-table-column label="预计金额" width="140" align="right" sortable="custom" prop="expectedAmount">
               <template #default="{ row }">
                 <span class="amount">¥ {{ formatAmount(row.expectedAmount) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="预计结单" width="110">
+            <el-table-column label="预计结单" width="130" sortable="custom" prop="expectedDealDate">
               <template #default="{ row }">
                 <span class="mono">{{ row.expectedDealDate || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column prop="ownerName" label="负责人" width="90" />
-            <el-table-column label="操作" width="200" fixed="right">
+            <el-table-column label="操作" width="240" fixed="right">
               <template #default="{ row }">
-                <el-button link class="action-link" @click="handleStage(row)" :disabled="isTerminalStage(row.stage)">推进阶段</el-button>
-                <el-button link class="action-link" @click="handleEdit(row)">编辑</el-button>
-                <el-button link class="action-link danger" @click="handleDelete(row)">删除</el-button>
+                <el-button link class="action-link" @click.stop="goDetail(row)">详情</el-button>
+                <el-button link class="action-link" @click.stop="handleStage(row)" :disabled="isTerminalStage(row.stage)">推进阶段</el-button>
+                <el-button link class="action-link" @click.stop="handleEdit(row)">编辑</el-button>
+                <el-button link class="action-link danger" @click.stop="handleDelete(row)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -161,7 +167,7 @@ const formatAmount = (a) => {
   return Number(a).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 }
 
-const query = reactive({ keyword: '', customerId: null, stage: '', pageNum: 1, pageSize: 10 })
+const query = reactive({ keyword: '', customerId: null, stage: '', pageNum: 1, pageSize: 10, sortBy: '', order: '' })
 const list = ref([])
 const total = ref(0)
 const loading = ref(false)
@@ -182,7 +188,9 @@ async function loadList() {
       customerId: query.customerId || undefined,
       stage: query.stage || undefined,
       pageNum: query.pageNum,
-      pageSize: query.pageSize
+      pageSize: query.pageSize,
+      sortBy: query.sortBy || undefined,
+      order: query.order || undefined
     })
     list.value = res.data?.records || []
     total.value = res.data?.total || 0
@@ -198,7 +206,27 @@ function handleSearch() { query.pageNum = 1; loadList() }
 function handleExport() { ElMessage.info('导出商机 - 阶段二导出当前筛选结果') }
 function handleRowDblClick(row) { handleStage(row) }
 
+function handleSortChange({ prop, order }) {
+  // el-table 排序事件:order = ascending | descending | null
+  // 不支持 prop 的列不传 sortable,不进 switch
+  if (order === null) {
+    query.sortBy = ''
+    query.order = ''
+  } else {
+    query.sortBy = prop
+    query.order = order === 'ascending' ? 'asc' : 'desc'
+  }
+  query.pageNum = 1
+  loadList()
+}
+
 function goCustomer(id) { router.push(`/customer/${id}`) }
+function goDetail(row) {
+  // 客户链接/阶段按钮/编辑按钮 已 @click.stop,这里只接管行空白区点击
+  if (!row) return
+  // 仅在没有展开具体动作时跳转(简单策略:行任意点击都跳详情,链接已 stop)
+  router.push(`/business/${row.id}`)
+}
 
 // ---------- 新建/编辑 ----------
 const editVisible = ref(false)

@@ -11,7 +11,7 @@
       <SidebarMenu class="sidebar-menu" />
       <div class="user-card">
         <div class="user-info">
-          <div class="user-name">{{ userStore.userInfo?.nickname || '' }}</div>
+          <div class="user-name">{{ userStore.nickname || userStore.username || '' }}</div>
           <div class="user-role">{{ roleLabel }}</div>
         </div>
       </div>
@@ -40,7 +40,7 @@ import { useUserStore } from '@/store/user'
 const userStore = useUserStore()
 
 const roleLabel = computed(() => {
-  const keys = userStore.userInfo?.roleKeys || []
+  const keys = userStore.roleKeys || []
   if (keys.length === 0) return ''
   // 简化映射：取第一个 role key 翻译成中文
   const map = {

@@ -9,13 +9,7 @@
       </el-breadcrumb>
     </div>
     <div class="right">
-      <el-input
-        v-model="searchText"
-        placeholder="搜索客户、线索、商机..."
-        class="search"
-        :prefix-icon="Search"
-        clearable
-      />
+      <NotificationBell />
       <el-dropdown @command="handleCommand" trigger="click">
         <span class="user-info">
           <span class="nickname">{{ userStore.nickname || userStore.username || '' }}</span>
@@ -38,16 +32,16 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, ArrowDown } from '@element-plus/icons-vue'
+import { ArrowDown } from '@element-plus/icons-vue'
 import { useUserStore } from '@/store/user'
+import NotificationBell from '@/components/NotificationBell.vue'
 
 const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
-const searchText = ref('')
 
 const userInitial = computed(() => {
   const n = userStore.nickname || userStore.username || 'U'
@@ -135,22 +129,6 @@ const handleCommand = async (cmd) => {
   display: flex;
   align-items: center;
   gap: 14px;
-}
-
-.search {
-  width: 240px;
-  :deep(.el-input__wrapper) {
-    background: var(--bg);
-    border-radius: var(--radius);
-    box-shadow: none;
-    border: 1px solid var(--hairline);
-  }
-  :deep(.el-input__wrapper:hover) {
-    border-color: var(--muted);
-  }
-  :deep(.el-input__wrapper.is-focus) {
-    border-color: var(--accent);
-  }
 }
 
 .user-info {

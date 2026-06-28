@@ -41,6 +41,17 @@ public final class UserContext {
         return (String) StpUtil.getTokenSession().get(SessionKeys.NICKNAME);
     }
 
+    /**
+     * 当前用户在 crm_record / 业务表审计字段中的"作者键"——nickname 优先,回退 username。
+     *
+     * <p>与 {@code RecordService.append()} 写入 create_by 的策略对齐,凡写 crm_record 必走此方法,
+     * 与后续按 create_by 统计/过滤的查询(RecordService.todoCount / mine 等)保持一致。</p>
+     */
+    public static String currentAuthor() {
+        String nickname = currentNickname();
+        return (nickname != null && !nickname.isEmpty()) ? nickname : currentUsername();
+    }
+
     /** 当前用户的有效数据范围（1/3/4/5） */
     public static int currentDataScope() {
         Integer scope = StpUtil.getTokenSession().getInt(SessionKeys.DATA_SCOPE);

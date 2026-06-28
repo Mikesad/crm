@@ -47,6 +47,12 @@ public class CrmLead implements Serializable {
     /** 备注描述 */
     private String remark;
 
+    /** 死线索原因(可选,阶段五新增) */
+    private String deadReason;
+
+    /** 死线索标记时间(阶段五新增) */
+    private LocalDateTime deadTime;
+
     private String createBy;
 
     private LocalDateTime createTime;

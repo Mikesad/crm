@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<!--
+  phase5-record-center.html
+  阶段五 · 跟进中心(个人工作台)
+    - 顶部铃铛 + 红点(逾期 N 条)
+    - 4 KPI 卡片(今日/本周/逾期/本月已写)
+    - 3 Tab:今日待跟进 / 本周待跟进(含逾期红标) / 我的历史
+    - 主区域:跟进卡片网格(每卡含实体类型 chip + 关联名 + 上次跟进 + 下次跟进时间)
+    - 右侧 300px 辅助:本周跟进方式分布 + 跟进频次 + 小贴士
+
+  Design Read: 与 phase4-customer-list 同一令牌,延续「主内容 + 300px 辅助」双栏布局
+  Dials: VARIANCE 4 / MOTION 2 / DENSITY 4(本页面节奏比列表页略松)
+  与阶段五决策对应: crm-phase5-design-decisions §A
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>跟进中心 · ZenCRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:           #fafaf9;
+      --bg-warm:      #ffffff;
+      --ink:          #18181b;
+      --ink-soft:     #3f3f46;
+      --muted:        #71717a;
+      --subtle:       #a1a1aa;
+      --hairline:     #e4e4e7;
+      --hairline-soft:#f4f4f5;
+      --surface:      #ffffff;
+      --accent:       #166534;
+      --accent-soft:  #dcfce7;
+      --accent-pale:  #f0fdf4;
+      --accent-ring:  rgba(22, 101, 52, 0.12);
+      --info:         #1e40af;
+      --info-soft:    #dbeafe;
+      --warn:         #b45309;
+      --warn-soft:    #fef3c7;
+      --danger:       #b91c1c;
+      --danger-soft:  #fee2e2;
+      --font-sans:    'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+      --radius:       6px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: var(--font-sans); font-size: 14px; line-height: 1.5; color: var(--ink); background: var(--bg); margin: 0; -webkit-font-smoothing: antialiased; }
+    .mono { font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
+
+    /* ===== Sidebar (与 phase4 共享) ===== */
+    .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    .sidebar { background: var(--bg-warm); border-right: 1px solid var(--hairline); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; }
+    .sidebar-top { padding: 20px 20px 16px; }
+    .wordmark { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+    .wordmark-glyph { width: 18px; height: 18px; background: var(--accent); border-radius: 4px; }
+    .nav { padding: 8px 12px; flex: 1; overflow-y: auto; }
+    .nav-group { margin-bottom: 20px; }
+    .nav-label { padding: 8px 8px 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--subtle); font-weight: 500; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: var(--radius); color: var(--ink-soft); cursor: pointer; font-size: 13.5px; }
+    .nav-item:hover { background: var(--bg); color: var(--ink); }
+    .nav-item.active { background: var(--accent-ring); color: var(--accent); font-weight: 500; }
+    .nav-item .badge { margin-left: auto; font-size: 11px; padding: 1px 6px; background: var(--hairline); color: var(--muted); border-radius: 8px; font-feature-settings: 'tnum' 1; }
+    .nav-item.active .badge { background: var(--danger); color: white; }
+    .user-card { margin: 0 12px 16px; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: var(--radius); display: flex; align-items: center; gap: 10px; }
+    .user-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+    .user-info { flex: 1; line-height: 1.3; min-width: 0; }
+    .user-name { font-size: 13px; font-weight: 500; }
+    .user-role { font-size: 11.5px; color: var(--muted); }
+
+    /* ===== Main ===== */
+    .main { padding: 0; min-width: 0; display: flex; flex-direction: column; }
+
+    /* Top bar with bell */
+    .topbar { height: 56px; padding: 0 32px; background: var(--bg-warm); border-bottom: 1px solid var(--hairline); display: flex; align-items: center; justify-content: flex-end; gap: 12px; position: sticky; top: 0; z-index: 10; }
+    .search-global { width: 280px; height: 34px; padding: 0 12px 0 32px; background: var(--bg); border: 1px solid var(--hairline); border-radius: var(--radius); font-size: 13px; color: var(--ink); font-family: inherit; position: relative; }
+    .search-global::placeholder { color: var(--subtle); }
+    .search-global-wrap { position: relative; }
+    .search-global-wrap::before { content: '⌕'; position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--subtle); font-size: 14px; pointer-events: none; }
+    .icon-btn { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: 1px solid transparent; border-radius: var(--radius); cursor: pointer; color: var(--ink-soft); position: relative; font-size: 16px; }
+    .icon-btn:hover { background: var(--bg); color: var(--accent); }
+    .icon-btn .dot { position: absolute; top: 4px; right: 4px; min-width: 16px; height: 16px; padding: 0 4px; background: var(--danger); color: white; font-size: 10px; font-weight: 600; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-feature-settings: 'tnum' 1; border: 2px solid var(--bg-warm); }
+
+    .content { padding: 32px 32px 48px; }
+
+    /* Breadcrumb + page header */
+    .breadcrumb { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+    .breadcrumb a { color: var(--muted); text-decoration: none; }
+    .breadcrumb a:hover { color: var(--accent); }
+    .breadcrumb .sep { margin: 0 6px; color: var(--subtle); }
+    .page-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 20px; }
+    .page-title { font-size: 24px; font-weight: 600; letter-spacing: -0.015em; }
+    .page-sub { color: var(--muted); font-size: 13.5px; margin-top: 4px; }
+    .page-actions { display: flex; gap: 8px; }
+
+    /* Buttons */
+    .btn { padding: 7px 14px; font-size: 13px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); cursor: pointer; color: var(--ink); font-family: inherit; font-weight: 500; transition: all 0.12s; display: inline-flex; align-items: center; gap: 6px; }
+    .btn:hover { border-color: var(--muted); }
+    .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+    .btn-primary:hover { background: #14532d; border-color: #14532d; }
+    .btn-ghost { background: transparent; border-color: transparent; color: var(--ink-soft); padding: 4px 8px; font-size: 12.5px; }
+    .btn-ghost:hover { background: var(--bg); color: var(--accent); }
+
+    /* KPI Cards */
+    .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+    .kpi { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); padding: 16px 18px; position: relative; overflow: hidden; }
+    .kpi-label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+    .kpi-value { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; font-feature-settings: 'tnum' 1; }
+    .kpi-value .unit { font-size: 14px; color: var(--muted); font-weight: 400; margin-left: 4px; }
+    .kpi-foot { font-size: 12px; color: var(--muted); margin-top: 6px; display: flex; align-items: center; gap: 4px; }
+    .kpi-foot .delta-up { color: var(--accent); }
+    .kpi-foot .delta-down { color: var(--danger); }
+    .kpi.is-warn { border-color: var(--warn); background: linear-gradient(180deg, #fffbeb 0%, var(--surface) 60%); }
+    .kpi.is-warn .kpi-value { color: var(--warn); }
+    .kpi.is-danger { border-color: var(--danger); background: linear-gradient(180deg, var(--danger-soft) 0%, var(--surface) 60%); }
+    .kpi.is-danger .kpi-value { color: var(--danger); }
+
+    /* Tabs */
+    .tabs-row { display: flex; align-items: center; border-bottom: 1px solid var(--hairline); margin-bottom: 16px; }
+    .tab { padding: 10px 16px; font-size: 14px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.12s; display: flex; align-items: center; gap: 6px; }
+    .tab:hover { color: var(--ink); }
+    .tab.active { color: var(--ink); font-weight: 500; border-bottom-color: var(--accent); }
+    .tab .count { font-size: 11.5px; padding: 1px 7px; background: var(--hairline-soft); color: var(--muted); border-radius: 8px; font-feature-settings: 'tnum' 1; }
+    .tab.active .count { background: var(--accent-soft); color: var(--accent); }
+    .tab .count.danger { background: var(--danger-soft); color: var(--danger); }
+
+    /* Layout */
+    .layout { display: grid; grid-template-columns: 1fr 300px; gap: 20px; align-items: start; }
+    @media (max-width: 1280px) { .layout { grid-template-columns: 1fr; } }
+    .layout-side { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 76px; }
+    @media (max-width: 1280px) { .layout-side { position: static; } }
+
+    /* Record cards grid */
+    .record-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    @media (max-width: 1100px) { .record-grid { grid-template-columns: 1fr; } }
+
+    .record-card { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); padding: 14px 16px; transition: all 0.12s; position: relative; }
+    .record-card:hover { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+    .record-card.is-overdue { border-left: 3px solid var(--danger); }
+    .record-card.is-overdue::before { content: '逾期'; position: absolute; top: 14px; right: 16px; background: var(--danger-soft); color: var(--danger); font-size: 10.5px; font-weight: 600; padding: 1px 6px; border-radius: 3px; }
+    .record-card.is-soon { border-left: 3px solid var(--warn); }
+    .record-card-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+    .entity-chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; font-size: 10.5px; font-weight: 500; border-radius: 3px; line-height: 1.6; background: var(--hairline-soft); color: var(--muted); }
+    .entity-chip.chip-lead { background: #ede9fe; color: #6d28d9; }
+    .entity-chip.chip-customer { background: var(--accent-soft); color: var(--accent); }
+    .entity-chip.chip-business { background: var(--info-soft); color: var(--info); }
+    .entity-chip.chip-contract { background: var(--warn-soft); color: var(--warn); }
+    .card-amount { margin-left: auto; font-size: 13px; color: var(--ink); font-weight: 600; font-feature-settings: 'tnum' 1; }
+    .card-amount .currency { color: var(--muted); font-size: 11.5px; font-weight: 400; margin-right: 2px; }
+    .card-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 4px; }
+    .card-sub { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+    .last-follow { padding: 8px 10px; background: var(--bg); border-radius: var(--radius); margin-bottom: 12px; font-size: 12.5px; line-height: 1.5; }
+    .last-follow-head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+    .follow-type { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; color: var(--ink-soft); }
+    .follow-type::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+    .follow-type.t-phone::before { background: var(--info); }
+    .follow-type.t-wechat::before { background: #16a34a; }
+    .follow-type.t-visit::before { background: var(--warn); }
+    .follow-type.t-email::before { background: #6d28d9; }
+    .last-follow-meta { color: var(--subtle); font-size: 11px; margin-left: auto; }
+    .last-follow-body { color: var(--ink-soft); }
+    .card-foot { display: flex; align-items: center; justify-content: space-between; padding-top: 10px; border-top: 1px solid var(--hairline-soft); }
+    .next-time { font-size: 12.5px; }
+    .next-time-label { color: var(--muted); font-size: 11px; }
+    .next-time-val { font-weight: 600; color: var(--ink); font-feature-settings: 'tnum' 1; }
+    .next-time-val.danger { color: var(--danger); }
+    .next-time-val.warn { color: var(--warn); }
+    .card-actions { display: flex; gap: 4px; }
+
+    /* Side widgets */
+    .side-card { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); padding: 14px 16px; }
+    .side-card-title { font-size: 13px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+    .side-card-title .more { margin-left: auto; font-size: 11.5px; color: var(--muted); font-weight: 400; cursor: pointer; }
+    .side-card-title .more:hover { color: var(--accent); }
+
+    /* Mini bar (跟进方式分布) */
+    .bar-row { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12.5px; }
+    .bar-row .label { width: 64px; color: var(--ink-soft); }
+    .bar-row .track { flex: 1; height: 6px; background: var(--hairline-soft); border-radius: 3px; overflow: hidden; }
+    .bar-row .fill { height: 100%; background: var(--accent); border-radius: 3px; }
+    .bar-row .fill.b-phone { background: var(--info); }
+    .bar-row .fill.b-wechat { background: #16a34a; }
+    .bar-row .fill.b-visit { background: var(--warn); }
+    .bar-row .fill.b-email { background: #6d28d9; }
+    .bar-row .val { font-size: 12px; color: var(--muted); font-feature-settings: 'tnum' 1; min-width: 24px; text-align: right; }
+
+    /* Sparkline (跟进频次) */
+    .sparkline { display: flex; align-items: flex-end; gap: 4px; height: 60px; padding: 4px 0; }
+    .spark-bar { flex: 1; background: var(--accent-soft); border-radius: 2px 2px 0 0; position: relative; }
+    .spark-bar.is-peak { background: var(--accent); }
+    .spark-bar:hover::after { content: attr(data-tip); position: absolute; bottom: 100%; left: 50%; transform: translate(-50%, -4px); background: var(--ink); color: white; font-size: 10.5px; padding: 2px 6px; border-radius: 3px; white-space: nowrap; }
+    .spark-labels { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--subtle); margin-top: 4px; font-feature-settings: 'tnum' 1; }
+
+    /* Tip */
+    .tip { padding: 10px 12px; background: var(--accent-pale); border-radius: var(--radius); font-size: 12.5px; color: var(--ink-soft); line-height: 1.55; display: flex; gap: 8px; }
+    .tip .ico { flex-shrink: 0; color: var(--accent); font-size: 14px; line-height: 1.4; }
+
+    /* Empty state placeholder */
+    .empty { padding: 48px 24px; text-align: center; color: var(--muted); border: 1px dashed var(--hairline); border-radius: var(--radius); background: var(--surface); }
+    .empty .ico { font-size: 32px; margin-bottom: 8px; opacity: 0.4; }
+    .empty .text { font-size: 13px; }
+
+    /* Tag pills */
+    .pill { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; font-size: 11px; font-weight: 500; border-radius: 10px; background: var(--hairline-soft); color: var(--muted); }
+    .pill.is-soft-accent { background: var(--accent-soft); color: var(--accent); }
+
+    /* Section meta */
+    .section-meta { font-size: 12px; color: var(--muted); margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+    .section-meta .legend { display: inline-flex; align-items: center; gap: 4px; }
+    .section-meta .dot { width: 6px; height: 6px; border-radius: 50%; }
+    .section-meta .dot.d-danger { background: var(--danger); }
+    .section-meta .dot.d-warn { background: var(--warn); }
+    .section-meta .dot.d-accent { background: var(--accent); }
+  </style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <div class="wordmark"><span class="wordmark-glyph"></span> ZenCRM</div>
+    </div>
+    <nav class="nav">
+      <div class="nav-group">
+        <div class="nav-label">工作台</div>
+        <div class="nav-item">⌂ Dashboard</div>
+        <div class="nav-item active">
+          🔔 跟进记录 <span class="badge">6</span>
+        </div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">业务</div>
+        <div class="nav-item">📥 线索</div>
+        <div class="nav-item">👥 客户</div>
+        <div class="nav-item">📈 商机</div>
+        <div class="nav-item">📄 合同</div>
+        <div class="nav-item">💰 回款</div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">管理</div>
+        <div class="nav-item">📊 报表中心</div>
+      </div>
+    </nav>
+    <div class="user-card">
+      <div class="user-avatar">李</div>
+      <div class="user-info">
+        <div class="user-name">sales_li · 李雪</div>
+        <div class="user-role">普通销售</div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <!-- Top bar with bell -->
+    <div class="topbar">
+      <div class="search-global-wrap">
+        <input class="search-global" placeholder="搜索客户、线索、合同…" />
+      </div>
+      <button class="icon-btn" title="通知">
+        🔔
+        <span class="dot">6</span>
+      </button>
+      <button class="icon-btn" title="帮助">?</button>
+    </div>
+
+    <div class="content">
+      <!-- Breadcrumb -->
+      <div class="breadcrumb"><a>工作台</a><span class="sep">›</span><span>跟进记录</span></div>
+
+      <!-- Page header -->
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">跟进中心</h1>
+          <div class="page-sub">个人工作台 · 查看今日 / 本周待跟进与历史记录</div>
+        </div>
+        <div class="page-actions">
+          <button class="btn">📅 导出日历</button>
+          <button class="btn btn-primary">✚ 快速新建跟进</button>
+        </div>
+      </div>
+
+      <!-- KPI -->
+      <div class="kpi-row">
+        <div class="kpi">
+          <div class="kpi-label">📌 今日待跟进</div>
+          <div class="kpi-value mono">12<span class="unit">条</span></div>
+          <div class="kpi-foot">较昨日 <span class="delta-up">+3</span></div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">📅 本周待跟进</div>
+          <div class="kpi-value mono">35<span class="unit">条</span></div>
+          <div class="kpi-foot">本周剩余 <strong>3</strong> 个工作日</div>
+        </div>
+        <div class="kpi is-danger">
+          <div class="kpi-label">⚠ 逾期未跟进</div>
+          <div class="kpi-value mono">6<span class="unit">条</span></div>
+          <div class="kpi-foot">需尽快处理,避免进入公海</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">✓ 本月已写跟进</div>
+          <div class="kpi-value mono">28<span class="unit">条</span></div>
+          <div class="kpi-foot">较上月 <span class="delta-up">+12</span></div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs-row">
+        <div class="tab">今日待跟进 <span class="count">12</span></div>
+        <div class="tab active">本周待跟进 <span class="count">35</span> <span class="count danger">逾期 6</span></div>
+        <div class="tab">我的历史 <span class="count">128</span></div>
+        <div class="tab-meta" style="margin-left:auto; font-size:12px; color:var(--muted); padding: 0 8px;">
+          排序: 逾期优先,再按下次跟进时间 ↑
+        </div>
+      </div>
+
+      <!-- Layout -->
+      <div class="layout">
+        <div>
+          <div class="section-meta">
+            <span>展示 <strong style="color:var(--ink)">35</strong> 条</span>
+            <span style="color:var(--hairline)">·</span>
+            <span class="legend"><span class="dot d-danger"></span> 逾期 (6)</span>
+            <span class="legend"><span class="dot d-warn"></span> 今日到期 (12)</span>
+            <span class="legend"><span class="dot d-accent"></span> 本周 (17)</span>
+          </div>
+
+          <div class="record-grid">
+
+            <!-- Card 1: 逾期 - 商机 -->
+            <div class="record-card is-overdue">
+              <div class="record-card-head">
+                <span class="entity-chip chip-business">📈 商机</span>
+                <span class="pill is-soft-accent">方案报价</span>
+                <div class="card-amount"><span class="currency">¥</span>328,000</div>
+              </div>
+              <div class="card-title">蓝海科技 · 智能仓储 SaaS 采购</div>
+              <div class="card-sub">客户:蓝海科技(北京)有限公司 · 联系人:王经理</div>
+              <div class="last-follow">
+                <div class="last-follow-head">
+                  <span class="follow-type t-phone">📞 电话</span>
+                  <span class="last-follow-meta">3 天前 · sales_li</span>
+                </div>
+                <div class="last-follow-body">王经理要求周五前提交最终报价单,需协调产品部确认折扣区间。</div>
+              </div>
+              <div class="card-foot">
+                <div class="next-time">
+                  <div class="next-time-label">下次跟进(逾期 2 天)</div>
+                  <div class="next-time-val danger">2026-06-26 10:00</div>
+                </div>
+                <div class="card-actions">
+                  <button class="btn btn-ghost">查看详情</button>
+                  <button class="btn btn-primary">立即跟进</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 2: 逾期 - 客户 -->
+            <div class="record-card is-overdue">
+              <div class="record-card-head">
+                <span class="entity-chip chip-customer">👥 客户</span>
+                <span class="pill">A 级</span>
+                <div class="card-amount"><span class="currency">¥</span>—</div>
+              </div>
+              <div class="card-title">顺达物流股份有限公司</div>
+              <div class="card-sub">主营:第三方物流 · 联系人:陈总监</div>
+              <div class="last-follow">
+                <div class="last-follow-head">
+                  <span class="follow-type t-visit">🚗 上门拜访</span>
+                  <span class="last-follow-meta">12 天前 · sales_li</span>
+                </div>
+                <div class="last-follow-body">客户提到年底有 ERP 升级预算,需本月内再次上门做需求调研。</div>
+              </div>
+              <div class="card-foot">
+                <div class="next-time">
+                  <div class="next-time-label">下次跟进(逾期 5 天)</div>
+                  <div class="next-time-val danger">2026-06-23 14:00</div>
+                </div>
+                <div class="card-actions">
+                  <button class="btn btn-ghost">查看详情</button>
+                  <button class="btn btn-primary">立即跟进</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 3: 今日到期 - 商机 -->
+            <div class="record-card is-soon">
+              <div class="record-card-head">
+                <span class="entity-chip chip-business">📈 商机</span>
+                <span class="pill is-soft-accent">需求分析</span>
+                <div class="card-amount"><span class="currency">¥</span>85,000</div>
+              </div>
+              <div class="card-title">明远教育 · 在线培训平台搭建</div>
+              <div class="card-sub">客户:明远教育科技 · 联系人:张老师</div>
+              <div class="last-follow">
+                <div class="last-follow-head">
+                  <span class="follow-type t-wechat">💬 微信</span>
+                  <span class="last-follow-meta">昨天 16:22 · sales_li</span>
+                </div>
+                <div class="last-follow-body">客户确认周三上午 10 点视频会议,需提前准备需求调研问卷。</div>
+              </div>
+              <div class="card-foot">
+                <div class="next-time">
+                  <div class="next-time-label">下次跟进(今日)</div>
+                  <div class="next-time-val warn">今天 10:00</div>
+                </div>
+                <div class="card-actions">
+                  <button class="btn btn-ghost">查看详情</button>
+                  <button class="btn btn-primary">立即跟进</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 4: 今日到期 - 线索 -->
+            <div class="record-card is-soon">
+              <div class="record-card-head">
+                <span class="entity-chip chip-lead">📥 线索</span>
+                <span class="pill">新线索</span>
+                <div class="card-amount"><span class="currency">¥</span>—</div>
+              </div>
+              <div class="card-title">星河餐饮连锁</div>
+              <div class="card-sub">来源:官网咨询 · 线索评分 78</div>
+              <div class="last-follow">
+                <div class="last-follow-head">
+                  <span class="follow-type t-phone">📞 电话</span>
+                  <span class="last-follow-meta">2 天前 · sales_li</span>
+                </div>
+                <div class="last-follow-body">线索人想了解连锁门店收银系统,今天回电确认详细需求。</div>
+              </div>
+              <div class="card-foot">
+                <div class="next-time">
+                  <div class="next-time-label">下次跟进(今日)</div>
+                  <div class="next-time-val warn">今天 15:30</div>
+                </div>
+                <div class="card-actions">
+                  <button class="btn btn-ghost">查看详情</button>
+                  <button class="btn btn-primary">立即跟进</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 5: 本周 - 合同 -->
+            <div class="record-card">
+              <div class="record-card-head">
+                <span class="entity-chip chip-contract">📄 合同</span>
+                <span class="pill">执行中</span>
+                <div class="card-amount"><span class="currency">¥</span>560,000</div>
+              </div>
+              <div class="card-title">万象制造 · MES 系统二期</div>
+              <div class="card-sub">签约日 2026-04-12 · 回款进度 40%</div>
+              <div class="last-follow">
+                <div class="last-follow-head">
+                  <span class="follow-type t-email">📧 邮件</span>
+                  <span class="last-follow-meta">5 天前 · sales_li</span>
+                </div>
+                <div class="last-follow-body">客户技术团队反馈二期部署问题清单 23 项,本周内安排电话会议同步进度。</div>
+              </div>
+              <div class="card-foot">
+                <div class="next-time">
+                  <div class="next-time-label">下次跟进</div>
+                  <div class="next-time-val">2026-06-30 09:30</div>
+                </div>
+                <div class="card-actions">
+                  <button class="btn btn-ghost">查看详情</button>
+                  <button class="btn btn-primary">立即跟进</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 6: 本周 - 商机 -->
+            <div class="record-card">
+              <div class="record-card-head">
+                <span class="entity-chip chip-business">📈 商机</span>
+                <span class="pill is-soft-accent">商务谈判</span>
+                <div class="card-amount"><span class="currency">¥</span>1,280,000</div>
+              </div>
+              <div class="card-title">正通能源 · 智慧园区平台</div>
+              <div class="card-sub">客户:正通能源集团 · 联系人:刘总</div>
+              <div class="last-follow">
+                <div class="last-follow-head">
+                  <span class="follow-type t-visit">🚗 上门拜访</span>
+                  <span class="last-follow-meta">7 天前 · sales_li</span>
+                </div>
+                <div class="last-follow-body">刘总认可方案,卡点在商务条款(账期 90 天→60 天),需协调财务走特批。</div>
+              </div>
+              <div class="card-foot">
+                <div class="next-time">
+                  <div class="next-time-label">下次跟进</div>
+                  <div class="next-time-val">2026-07-02 14:00</div>
+                </div>
+                <div class="card-actions">
+                  <button class="btn btn-ghost">查看详情</button>
+                  <button class="btn btn-primary">立即跟进</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 7: 本周 - 客户 -->
+            <div class="record-card">
+              <div class="record-card-head">
+                <span class="entity-chip chip-customer">👥 客户</span>
+                <span class="pill">B 级</span>
+                <div class="card-amount"><span class="currency">¥</span>—</div>
+              </div>
+              <div class="card-title">嘉信律师事务所</div>
+              <div class="card-sub">主营:法律服务 · 联系人:潘律师</div>
+              <div class="last-follow">
+                <div class="last-follow-head">
+                  <span class="follow-type t-wechat">💬 微信</span>
+                  <span class="last-follow-meta">4 天前 · sales_li</span>
+                </div>
+                <div class="last-follow-body">潘律师询问私有化部署方案,周五前发送技术方案 PDF。</div>
+              </div>
+              <div class="card-foot">
+                <div class="next-time">
+                  <div class="next-time-label">下次跟进</div>
+                  <div class="next-time-val">2026-07-03 11:00</div>
+                </div>
+                <div class="card-actions">
+                  <button class="btn btn-ghost">查看详情</button>
+                  <button class="btn btn-primary">立即跟进</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Card 8: 本周 - 商机 -->
+            <div class="record-card">
+              <div class="record-card-head">
+                <span class="entity-chip chip-business">📈 商机</span>
+                <span class="pill is-soft-accent">方案报价</span>
+                <div class="card-amount"><span class="currency">¥</span>198,000</div>
+              </div>
+              <div class="card-title">云轩文化 · 内容审核 SaaS</div>
+              <div class="card-sub">客户:云轩文化传媒 · 联系人:赵主编</div>
+              <div class="last-follow">
+                <div class="last-follow-head">
+                  <span class="follow-type t-phone">📞 电话</span>
+                  <span class="last-follow-meta">6 天前 · sales_li</span>
+                </div>
+                <div class="last-follow-body">赵主编确认走 API 集成方案,下周提交测试账号和报价单。</div>
+              </div>
+              <div class="card-foot">
+                <div class="next-time">
+                  <div class="next-time-label">下次跟进</div>
+                  <div class="next-time-val">2026-07-04 10:00</div>
+                </div>
+                <div class="card-actions">
+                  <button class="btn btn-ghost">查看详情</button>
+                  <button class="btn btn-primary">立即跟进</button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Side -->
+        <aside class="layout-side">
+
+          <div class="side-card">
+            <div class="side-card-title">
+              📊 本周跟进方式分布
+              <span class="more">查看明细</span>
+            </div>
+            <div class="bar-row">
+              <span class="label">📞 电话</span>
+              <div class="track"><div class="fill b-phone" style="width:42%"></div></div>
+              <span class="val">12</span>
+            </div>
+            <div class="bar-row">
+              <span class="label">🚗 上门</span>
+              <div class="track"><div class="fill b-visit" style="width:32%"></div></div>
+              <span class="val">9</span>
+            </div>
+            <div class="bar-row">
+              <span class="label">💬 微信</span>
+              <div class="track"><div class="fill b-wechat" style="width:18%"></div></div>
+              <span class="val">5</span>
+            </div>
+            <div class="bar-row">
+              <span class="label">📧 邮件</span>
+              <div class="track"><div class="fill b-email" style="width:8%"></div></div>
+              <span class="val">2</span>
+            </div>
+          </div>
+
+          <div class="side-card">
+            <div class="side-card-title">📈 近 7 日跟进频次<span class="more">查看趋势</span></div>
+            <div class="sparkline">
+              <div class="spark-bar" style="height:30%" data-tip="6/22 周一 · 5 条"></div>
+              <div class="spark-bar" style="height:55%" data-tip="6/23 周二 · 9 条"></div>
+              <div class="spark-bar is-peak" style="height:90%" data-tip="6/24 周三 · 14 条"></div>
+              <div class="spark-bar" style="height:65%" data-tip="6/25 周四 · 10 条"></div>
+              <div class="spark-bar" style="height:80%" data-tip="6/26 周五 · 12 条"></div>
+              <div class="spark-bar" style="height:35%" data-tip="6/27 周六 · 5 条"></div>
+              <div class="spark-bar" style="height:25%" data-tip="6/28 周日 · 3 条"></div>
+            </div>
+            <div class="spark-labels"><span>周一</span><span>周日</span></div>
+          </div>
+
+          <div class="tip">
+            <span class="ico">💡</span>
+            <span>连续 <strong>3 天</strong> 未跟进任何客户,系统会推送提醒。建议每天至少跟进 3-5 个客户,保持销售节奏。</span>
+          </div>
+
+          <div class="side-card">
+            <div class="side-card-title">⚙ 个性化设置</div>
+            <div style="font-size:12.5px; color:var(--ink-soft); line-height:1.7;">
+              • 铃铛提醒:每 5 分钟轮询<br>
+              • 提前提醒:提前 30 分钟<br>
+              • 仅显示我的客户
+            </div>
+          </div>
+
+        </aside>
+      </div>
+
+    </div>
+  </main>
+</div>
+</body>
+</html>

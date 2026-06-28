@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<!--
+  phase5-record-dialog.html
+  阶段五 · 写跟进 Dialog(快建于跟进中心 + 详情页时间轴"+"通用)
+
+    演示两种状态:
+      A) 默认空表单
+      B) 已选中"商机" + 已选"蓝海科技" + 展开下次跟进时间字段
+
+    关键交互:
+      - 实体类型 4 chip 单选(客户/线索/商机/合同), 选中后联动下方关联实体选择器
+      - 关联实体:el-select remote 搜索 + 显示实体编号/金额
+      - 跟进方式 4 个 icon-radio(电话/上门/微信/邮件)
+      - 跟进内容:必填 textarea
+      - 下次跟进时间:可开关(展开日期时间选择器)
+      - 附件:单文件上传
+
+  Design Read: 与 phase5-record-center / business-detail 同一令牌
+  Dials: VARIANCE 2 / MOTION 2 / DENSITY 5
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>写跟进 · ZenCRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:           #fafaf9;
+      --bg-warm:      #ffffff;
+      --ink:          #18181b;
+      --ink-soft:     #3f3f46;
+      --muted:        #71717a;
+      --subtle:       #a1a1aa;
+      --hairline:     #e4e4e7;
+      --hairline-soft:#f4f4f5;
+      --surface:      #ffffff;
+      --accent:       #166534;
+      --accent-soft:  #dcfce7;
+      --accent-pale:  #f0fdf4;
+      --accent-ring:  rgba(22, 101, 52, 0.12);
+      --info:         #1e40af;
+      --info-soft:    #dbeafe;
+      --warn:         #b45309;
+      --warn-soft:    #fef3c7;
+      --danger:       #b91c1c;
+      --danger-soft:  #fee2e2;
+      --font-sans:    'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+      --radius:       6px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: var(--font-sans); font-size: 14px; line-height: 1.5; color: var(--ink); background: var(--bg); margin: 0; -webkit-font-smoothing: antialiased; }
+    .mono { font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
+
+    /* 背景遮罩 */
+    .overlay { position: fixed; inset: 0; background: rgba(24, 24, 27, 0.45); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; padding: 40px 20px; z-index: 100; }
+
+    /* Dialog 容器 */
+    .dialog { width: 720px; max-width: 100%; max-height: 100%; background: var(--surface); border-radius: 8px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18), 0 4px 12px rgba(0, 0, 0, 0.08); display: flex; flex-direction: column; overflow: hidden; }
+    .dialog-head { padding: 18px 24px; border-bottom: 1px solid var(--hairline); display: flex; align-items: center; justify-content: space-between; }
+    .dialog-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; display: flex; align-items: center; gap: 8px; }
+    .dialog-title .badge { font-size: 11px; padding: 2px 8px; background: var(--accent-soft); color: var(--accent); border-radius: 10px; font-weight: 500; }
+    .dialog-close { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; background: transparent; border: none; cursor: pointer; color: var(--muted); border-radius: var(--radius); font-size: 18px; }
+    .dialog-close:hover { background: var(--bg); color: var(--ink); }
+    .dialog-body { padding: 20px 24px; overflow-y: auto; flex: 1; }
+    .dialog-foot { padding: 14px 24px; border-top: 1px solid var(--hairline); display: flex; align-items: center; justify-content: space-between; background: var(--bg); }
+
+    /* Form */
+    .form-row { margin-bottom: 18px; }
+    .form-row.is-inline { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 18px; }
+    .form-label { display: flex; align-items: center; gap: 4px; font-size: 12.5px; font-weight: 500; color: var(--ink-soft); margin-bottom: 6px; }
+    .form-label .req { color: var(--danger); font-weight: 600; }
+    .form-hint { font-size: 11.5px; color: var(--subtle); margin-top: 4px; }
+
+    /* Entity type chip selector */
+    .type-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .type-chip { padding: 12px 8px; background: var(--surface); border: 1.5px solid var(--hairline); border-radius: var(--radius); cursor: pointer; text-align: center; transition: all 0.12s; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .type-chip:hover { border-color: var(--muted); }
+    .type-chip .ico { font-size: 20px; }
+    .type-chip .name { font-size: 12.5px; font-weight: 500; color: var(--ink-soft); }
+    .type-chip .desc { font-size: 10.5px; color: var(--subtle); }
+    .type-chip.active { background: var(--accent-pale); border-color: var(--accent); }
+    .type-chip.active .name { color: var(--accent); font-weight: 600; }
+
+    /* Follow way (radio with icon) */
+    .way-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .way-chip { padding: 10px 8px; background: var(--surface); border: 1.5px solid var(--hairline); border-radius: var(--radius); cursor: pointer; text-align: center; transition: all 0.12s; display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .way-chip:hover { border-color: var(--muted); }
+    .way-chip .ico { font-size: 16px; }
+    .way-chip .name { font-size: 12.5px; font-weight: 500; color: var(--ink-soft); }
+    .way-chip.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+    .way-chip.active .name { color: var(--accent); }
+
+    /* Inputs */
+    .input, .textarea, .select { width: 100%; padding: 8px 12px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); font-size: 13px; color: var(--ink); font-family: inherit; transition: all 0.12s; }
+    .input:focus, .textarea:focus, .select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+    .input::placeholder, .textarea::placeholder { color: var(--subtle); }
+    .textarea { min-height: 88px; resize: vertical; line-height: 1.55; }
+
+    /* Select with displayed option */
+    .select-display { padding: 8px 12px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .select-display:hover { border-color: var(--muted); }
+    .select-display .arrow { color: var(--subtle); font-size: 10px; }
+    .select-display .selected-info { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+    .select-display .selected-info .main { font-weight: 500; color: var(--ink); }
+    .select-display .selected-info .sub { font-size: 11.5px; color: var(--muted); }
+
+    /* Datetime input with quick toggle */
+    .datetime-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; }
+    .toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-soft); cursor: pointer; user-select: none; }
+    .toggle input { appearance: none; width: 28px; height: 16px; background: var(--hairline); border-radius: 8px; position: relative; cursor: pointer; transition: all 0.15s; }
+    .toggle input::before { content: ''; position: absolute; left: 2px; top: 2px; width: 12px; height: 12px; background: white; border-radius: 50%; transition: all 0.15s; }
+    .toggle input:checked { background: var(--accent); }
+    .toggle input:checked::before { left: 14px; }
+
+    /* Buttons */
+    .btn { padding: 7px 14px; font-size: 13px; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); cursor: pointer; color: var(--ink); font-family: inherit; font-weight: 500; transition: all 0.12s; display: inline-flex; align-items: center; gap: 6px; }
+    .btn:hover { border-color: var(--muted); }
+    .btn-primary { background: var(--accent); color: white; border-color: var(--accent); padding: 8px 16px; font-size: 13px; }
+    .btn-primary:hover { background: #14532d; border-color: #14532d; }
+    .btn-ghost { background: transparent; border-color: transparent; color: var(--ink-soft); }
+    .btn-ghost:hover { background: var(--bg); color: var(--accent); }
+
+    /* Upload area */
+    .upload-area { padding: 14px; border: 1.5px dashed var(--hairline); border-radius: var(--radius); text-align: center; cursor: pointer; transition: all 0.12s; background: var(--bg); }
+    .upload-area:hover { border-color: var(--accent); background: var(--accent-pale); }
+    .upload-area .ico { font-size: 22px; color: var(--muted); margin-bottom: 4px; }
+    .upload-area .text { font-size: 12.5px; color: var(--ink-soft); }
+    .upload-area .sub { font-size: 11px; color: var(--subtle); margin-top: 2px; }
+
+    /* Info note */
+    .note { padding: 10px 12px; background: var(--accent-pale); border: 1px solid var(--accent-soft); border-radius: var(--radius); font-size: 12.5px; color: var(--ink-soft); display: flex; gap: 8px; line-height: 1.55; }
+    .note .ico { color: var(--accent); flex-shrink: 0; }
+
+    /* Switch row */
+    .switch-row { padding: 10px 12px; background: var(--bg); border-radius: var(--radius); display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .switch-row .label-text { font-size: 12.5px; color: var(--ink-soft); }
+    .switch-row .label-text strong { color: var(--ink); }
+
+    /* Preview chip for selected entity */
+    .entity-preview { padding: 10px 12px; background: var(--bg); border: 1px solid var(--hairline-soft); border-radius: var(--radius); display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+    .entity-preview .ico { width: 32px; height: 32px; border-radius: var(--radius); background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+    .entity-preview.is-business .ico { background: var(--info-soft); color: var(--info); }
+    .entity-preview.is-lead .ico { background: #ede9fe; color: #6d28d9; }
+    .entity-preview.is-contract .ico { background: var(--warn-soft); color: var(--warn); }
+    .entity-preview .body { flex: 1; min-width: 0; }
+    .entity-preview .name { font-size: 13px; font-weight: 500; }
+    .entity-preview .meta { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+    .entity-preview .link { font-size: 11.5px; color: var(--accent); cursor: pointer; }
+    .entity-preview .link:hover { text-decoration: underline; }
+
+    /* Char counter */
+    .char-counter { font-size: 11px; color: var(--subtle); text-align: right; margin-top: 4px; font-feature-settings: 'tnum' 1; }
+    .char-counter.warn { color: var(--warn); }
+    .char-counter.danger { color: var(--danger); }
+
+    /* Foot meta */
+    .foot-meta { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+    .foot-actions { display: flex; gap: 8px; }
+
+    /* Quick tip at top */
+    .quick-tip { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--accent-pale); border-radius: var(--radius); margin-bottom: 16px; font-size: 12.5px; color: var(--accent); }
+    .quick-tip kbd { background: var(--surface); border: 1px solid var(--hairline); padding: 1px 5px; border-radius: 3px; font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft); }
+  </style>
+</head>
+<body>
+<div class="overlay">
+  <div class="dialog" role="dialog" aria-labelledby="dialog-title">
+
+    <!-- Head -->
+    <div class="dialog-head">
+      <div class="dialog-title">
+        ✎ 写新跟进 <span class="badge">商机</span>
+      </div>
+      <button class="dialog-close" aria-label="关闭">×</button>
+    </div>
+
+    <!-- Body -->
+    <div class="dialog-body">
+
+      <div class="quick-tip">
+        ⚡ <kbd>⌘</kbd>+<kbd>S</kbd> 快速保存 · <kbd>Esc</kbd> 关闭弹窗
+      </div>
+
+      <!-- 实体类型选择 -->
+      <div class="form-row">
+        <label class="form-label">关联实体类型 <span class="req">*</span></label>
+        <div class="type-row">
+          <div class="type-chip">
+            <div class="ico">📥</div>
+            <div class="name">线索</div>
+            <div class="desc">初步接触</div>
+          </div>
+          <div class="type-chip">
+            <div class="ico">👥</div>
+            <div class="name">客户</div>
+            <div class="desc">已转化</div>
+          </div>
+          <div class="type-chip active">
+            <div class="ico">📈</div>
+            <div class="name">商机</div>
+            <div class="desc">销售过程</div>
+          </div>
+          <div class="type-chip">
+            <div class="ico">📄</div>
+            <div class="name">合同</div>
+            <div class="desc">已签约</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 关联实体选择 -->
+      <div class="form-row">
+        <label class="form-label">选择 <span style="color:var(--accent); font-weight:600;">商机</span> <span class="req">*</span></label>
+        <div class="select-display">
+          <div class="selected-info">
+            <span style="font-size: 14px;">📈</span>
+            <div>
+              <div class="main">蓝海科技 · 智能仓储 SaaS 采购</div>
+              <div class="sub mono">BIZ-2026-0618 · ¥328,000 · 方案报价</div>
+            </div>
+          </div>
+          <span class="arrow">▾</span>
+        </div>
+        <div class="entity-preview is-business">
+          <div class="ico">📈</div>
+          <div class="body">
+            <div class="name">蓝海科技 · 智能仓储 SaaS 采购</div>
+            <div class="meta">客户:蓝海科技(北京)有限公司 · 负责人:李雪 · 预计成交 2026-07-15</div>
+          </div>
+          <a class="link">查看详情 →</a>
+        </div>
+      </div>
+
+      <!-- 跟进方式 -->
+      <div class="form-row">
+        <label class="form-label">跟进方式 <span class="req">*</span></label>
+        <div class="way-row">
+          <div class="way-chip"><span class="ico">📞</span><span class="name">电话</span></div>
+          <div class="way-chip active"><span class="ico">🚗</span><span class="name">上门拜访</span></div>
+          <div class="way-chip"><span class="ico">💬</span><span class="name">微信</span></div>
+          <div class="way-chip"><span class="ico">📧</span><span class="name">邮件</span></div>
+        </div>
+      </div>
+
+      <!-- 跟进内容 -->
+      <div class="form-row">
+        <label class="form-label">跟进内容 <span class="req">*</span></label>
+        <textarea class="textarea" placeholder="例:王经理当面确认了 9 折方案,要求合同加 1 年免费维保。已与产品总监确认可行,本周内回复客户。">王经理当面确认了 9 折方案,要求合同加 1 年免费维保。已与产品总监确认可行,本周内给客户最终答复。</textarea>
+        <div class="char-counter">68 / 500</div>
+      </div>
+
+      <!-- 下次跟进时间 -->
+      <div class="form-row">
+        <div class="switch-row">
+          <span class="label-text">📅 <strong>安排下次跟进</strong> · 提醒我再次联系客户</span>
+          <label class="toggle"><input type="checkbox" checked><span></span></label>
+        </div>
+        <div class="datetime-row">
+          <input class="input" value="2026-06-29 10:00" />
+          <div style="display:flex; gap:4px;">
+            <button class="btn btn-ghost" style="font-size:11.5px; padding:4px 8px;">+1 天</button>
+            <button class="btn btn-ghost" style="font-size:11.5px; padding:4px 8px;">+3 天</button>
+            <button class="btn btn-ghost" style="font-size:11.5px; padding:4px 8px;">下周一</button>
+          </div>
+        </div>
+        <div class="form-hint">到期时会在右上角铃铛提醒(提前 30 分钟),逾期则在跟进中心用红标显示。</div>
+      </div>
+
+      <!-- 附件 -->
+      <div class="form-row">
+        <label class="form-label">附件 <span style="font-weight:normal; color:var(--subtle);">(可选 · 最大 20MB)</span></label>
+        <div class="upload-area">
+          <div class="ico">📎</div>
+          <div class="text">点击或拖拽文件到此处上传</div>
+          <div class="sub">支持 PDF / Word / Excel / 图片</div>
+        </div>
+      </div>
+
+      <!-- 阶段联动提示(仅商机/合同可见) -->
+      <div class="note">
+        <span class="ico">💡</span>
+        <span>检测到此 <strong>商机</strong> 当前阶段为「方案报价」,如本次跟进需推进到「商务谈判」,请在保存后到商机详情页变更阶段(每次阶段变更必须写跟进,已记录)。</span>
+      </div>
+
+    </div>
+
+    <!-- Foot -->
+    <div class="dialog-foot">
+      <div class="foot-meta">
+        <span>📍 保存后将通知:</span>
+        <span style="color:var(--ink); font-weight:500;">王经理(客户) · sales_li(我)</span>
+      </div>
+      <div class="foot-actions">
+        <button class="btn btn-ghost">取消</button>
+        <button class="btn">保存并继续写</button>
+        <button class="btn btn-primary">✓ 保存跟进</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

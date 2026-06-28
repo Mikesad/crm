@@ -76,18 +76,23 @@ public class CustomerService {
         wrapper.orderByDesc(CrmCustomer::getCreateTime);
         IPage<CrmCustomer> result = customerMapper.selectPage(page, wrapper);
 
-        // 阶段四:批量填充 ownerName(避免 N+1)— 收集本页所有 ownerId,1 次 IN 查询拿全
-        Set<Long> ownerIds = result.getRecords().stream()
+        Map<Long, String> ownerNameMap = buildOwnerNameMap(result.getRecords());
+        Map<Long, String> finalMap = ownerNameMap;
+        return result.convert(c -> toVO(c, finalMap));
+    }
+
+    /**
+     * 阶段五修复:从记录集合中提取 ownerUserId,批量查 user 表拿 nickname,
+     * 复用于列表和单条详情(单条详情也走 1 次 IN 查,避免单点 selectById N+1)。
+     */
+    private Map<Long, String> buildOwnerNameMap(java.util.List<CrmCustomer> customers) {
+        Set<Long> ownerIds = customers.stream()
                 .map(CrmCustomer::getOwnerUserId)
                 .filter(java.util.Objects::nonNull)
                 .collect(Collectors.toSet());
-        Map<Long, String> ownerNameMap = ownerIds.isEmpty()
-                ? Collections.emptyMap()
-                : userMapper.selectBatchIds(ownerIds).stream()
-                    .collect(Collectors.toMap(SysUser::getId, SysUser::getNickname));
-
-        Map<Long, String> finalMap = ownerNameMap;
-        return result.convert(c -> toVO(c, finalMap));
+        if (ownerIds.isEmpty()) return Collections.emptyMap();
+        return userMapper.selectBatchIds(ownerIds).stream()
+                .collect(Collectors.toMap(SysUser::getId, SysUser::getNickname));
     }
 
     public CustomerVO detail(Long id) {
@@ -95,7 +100,8 @@ public class CustomerService {
         if (customer == null) {
             throw new BusinessException(ResultCode.DATA_NOT_FOUND, "客户不存在");
         }
-        return toVO(customer);
+        // 单条详情复用批量查 ownerName 的 helper
+        return toVO(customer, buildOwnerNameMap(java.util.List.of(customer)));
     }
 
     @Transactional

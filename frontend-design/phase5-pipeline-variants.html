@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<!--
+  phase5-pipeline-variants.html
+  状态/阶段流转的 4 种箭头方案,横向对比,选完后删掉其他三个
+
+  4 个方案:
+  A. 横向直线箭头链 (step boxes + 三角箭头)
+  B. 横向时间线分支 (git branch 风格,支持转客户 / 死线索 分叉)
+  C. 垂直阶梯大箭头 (从上到下,每个阶梯一个阶段)
+  D. 数字步骤条 + 当前居中高亮 (1/2/3/4 数字 step indicator)
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>状态流转箭头方案 · ZenCRM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #fafaf9;
+      --surface: #ffffff;
+      --ink: #18181b;
+      --ink-soft: #3f3f46;
+      --muted: #71717a;
+      --subtle: #a1a1aa;
+      --hairline: #e4e4e7;
+      --hairline-soft: #f4f4f5;
+      --accent: #166534;
+      --accent-soft: #dcfce7;
+      --accent-pale: #f0fdf4;
+      --accent-ring: rgba(22, 101, 52, 0.12);
+      --warn: #b45309;
+      --warn-soft: #fef3c7;
+      --info: #1e40af;
+      --info-soft: #dbeafe;
+      --danger: #b91c1c;
+      --danger-soft: #fee2e2;
+      --radius: 6px;
+      --font: 'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      font-family: var(--font);
+      font-size: 14px;
+      line-height: 1.5;
+      color: var(--ink);
+      background: var(--bg);
+      margin: 0;
+      padding: 32px;
+      -webkit-font-smoothing: antialiased;
+    }
+    h1 { font-size: 22px; font-weight: 600; margin: 0 0 8px; letter-spacing: -0.015em; }
+    .lead { color: var(--muted); margin: 0 0 32px; font-size: 13.5px; }
+
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 1200px) { .grid { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius);
+      padding: 20px 24px 24px;
+    }
+    .card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .card-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      background: var(--accent-pale);
+      color: var(--accent);
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .card-title { font-size: 16px; font-weight: 600; margin: 6px 0 4px; }
+    .card-desc { font-size: 12.5px; color: var(--muted); margin: 0 0 16px; line-height: 1.6; }
+
+    .stage-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      font-size: 11.5px;
+      color: var(--muted);
+    }
+    .stage-meta strong { color: var(--ink); font-weight: 500; }
+
+    .legend { display: flex; gap: 12px; font-size: 11.5px; color: var(--muted); margin-top: 14px; }
+    .legend-item { display: flex; align-items: center; gap: 4px; }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+    .legend-dot.future { background: var(--hairline); }
+    .legend-dot.terminal { background: var(--warn); }
+
+    /* ===================== 方案 A:横向直线箭头链 ===================== */
+    .pipe-A {
+      display: flex;
+      align-items: stretch;
+      gap: 0;
+      margin: 18px 0 6px;
+    }
+    .pipe-A .step {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      font-size: 12.5px;
+      background: var(--bg);
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius);
+      color: var(--muted);
+      min-width: 0;
+      position: relative;
+    }
+    .pipe-A .step .dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--hairline);
+      flex-shrink: 0;
+    }
+    .pipe-A .step .name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pipe-A .step.done {
+      color: var(--ink-soft);
+      background: var(--accent-pale);
+      border-color: var(--accent-soft);
+      .dot { background: var(--accent); }
+    }
+    .pipe-A .step.current {
+      color: var(--accent);
+      font-weight: 600;
+      background: var(--accent-pale);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-ring);
+      .dot {
+        background: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-ring);
+      }
+    }
+    .pipe-A .step.terminal {
+      color: var(--warn);
+      background: var(--warn-soft);
+      border-color: var(--warn);
+      .dot { background: var(--warn); }
+    }
+    /* 段间箭头 */
+    .pipe-A .arrow {
+      display: flex;
+      align-items: center;
+      padding: 0 4px;
+      color: var(--hairline);
+      flex-shrink: 0;
+    }
+    .pipe-A .arrow svg { display: block; }
+    .pipe-A .arrow.done { color: var(--accent); }
+
+    /* ===================== 方案 B:横向时间线分支 ===================== */
+    .pipe-B {
+      position: relative;
+      padding: 24px 0 8px;
+      margin: 8px 0;
+    }
+    /* 主轴线 */
+    .pipe-B::before {
+      content: '';
+      position: absolute;
+      left: 12px;
+      top: 38px;
+      bottom: 38px;
+      width: 2px;
+      background: var(--hairline);
+      border-radius: 1px;
+    }
+    .pipe-B .node {
+      position: relative;
+      display: grid;
+      grid-template-columns: 24px 1fr;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 0;
+    }
+    .pipe-B .node .dot {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--surface);
+      border: 2px solid var(--hairline);
+      margin-left: 5px;
+      z-index: 1;
+      position: relative;
+    }
+    .pipe-B .node.done .dot { background: var(--accent); border-color: var(--accent); }
+    .pipe-B .node.current .dot {
+      background: var(--accent);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-ring);
+    }
+    .pipe-B .node.terminal .dot { background: var(--warn); border-color: var(--warn); }
+    .pipe-B .node .body { font-size: 13px; }
+    .pipe-B .node .name { font-weight: 500; color: var(--ink-soft); }
+    .pipe-B .node.current .name { color: var(--accent); font-weight: 600; }
+    .pipe-B .node.terminal .name { color: var(--warn); font-weight: 600; }
+    .pipe-B .node .meta { font-size: 11.5px; color: var(--muted); margin-top: 1px; }
+    /* 分叉支线(从主轴分出到转客户 / 死线索) */
+    .pipe-B .fork {
+      position: relative;
+      display: grid;
+      grid-template-columns: 24px 1fr 1fr;
+      gap: 12px;
+      padding: 8px 0;
+    }
+    .pipe-B .fork .dot {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--surface);
+      border: 2px solid var(--hairline);
+      margin-left: 5px;
+      z-index: 1;
+    }
+    .pipe-B .fork::before {
+      content: '';
+      position: absolute;
+      left: 11px;
+      top: -8px;
+      width: 12px;
+      height: 32px;
+      border-left: 2px solid var(--hairline);
+      border-bottom: 2px solid var(--hairline);
+      border-bottom-left-radius: 8px;
+    }
+    .pipe-B .fork::after {
+      content: '';
+      position: absolute;
+      left: 23px;
+      top: 24px;
+      width: calc(50% - 23px);
+      height: 2px;
+      background: var(--hairline);
+    }
+    .pipe-B .fork .label { font-size: 13px; font-weight: 500; color: var(--muted); }
+
+    /* ===================== 方案 C:垂直阶梯大箭头 ===================== */
+    .pipe-C {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin: 12px 0;
+    }
+    .pipe-C .step {
+      display: grid;
+      grid-template-columns: 32px 1fr;
+      gap: 12px;
+      align-items: center;
+      padding: 8px 0;
+    }
+    .pipe-C .step .marker {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: var(--surface);
+      border: 2px solid var(--hairline);
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 600;
+      z-index: 1;
+      position: relative;
+    }
+    .pipe-C .step.done .marker { background: var(--accent); border-color: var(--accent); color: white; }
+    .pipe-C .step.current .marker {
+      background: var(--accent); border-color: var(--accent); color: white;
+      box-shadow: 0 0 0 3px var(--accent-ring);
+    }
+    .pipe-C .step.terminal .marker { background: var(--warn); border-color: var(--warn); color: white; }
+    .pipe-C .step .body { display: flex; flex-direction: column; gap: 1px; }
+    .pipe-C .step .name { font-size: 13.5px; font-weight: 500; color: var(--ink-soft); }
+    .pipe-C .step.current .name { color: var(--accent); font-weight: 600; }
+    .pipe-C .step.terminal .name { color: var(--warn); font-weight: 600; }
+    .pipe-C .step .meta { font-size: 11.5px; color: var(--muted); }
+    /* 阶梯之间的大箭头(向下) */
+    .pipe-C .arrow-down {
+      margin-left: 13px;
+      width: 0; height: 0;
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-top: 8px solid var(--hairline);
+      position: relative;
+      z-index: 0;
+    }
+    .pipe-C .arrow-down.done { border-top-color: var(--accent); }
+
+    /* ===================== 方案 D:数字步骤条 ===================== */
+    .pipe-D {
+      display: flex;
+      align-items: center;
+      margin: 18px 0 6px;
+      gap: 0;
+    }
+    .pipe-D .step {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      text-align: center;
+      position: relative;
+      min-width: 0;
+    }
+    .pipe-D .step .num {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: var(--surface);
+      border: 2px solid var(--hairline);
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 600;
+      z-index: 1;
+      position: relative;
+    }
+    .pipe-D .step.done .num { background: var(--accent); border-color: var(--accent); color: white; }
+    .pipe-D .step.current .num {
+      background: var(--accent); border-color: var(--accent); color: white;
+      box-shadow: 0 0 0 4px var(--accent-ring);
+    }
+    .pipe-D .step.terminal .num { background: var(--warn); border-color: var(--warn); color: white; }
+    .pipe-D .step .name { font-size: 12.5px; color: var(--muted); }
+    .pipe-D .step.done .name { color: var(--ink-soft); font-weight: 500; }
+    .pipe-D .step.current .name { color: var(--accent); font-weight: 600; }
+    .pipe-D .step.terminal .name { color: var(--warn); font-weight: 600; }
+    /* 段间连线 + 三角 */
+    .pipe-D .step::after {
+      content: '';
+      position: absolute;
+      left: calc(50% + 20px);
+      right: calc(-50% + 20px);
+      top: 16px;
+      height: 2px;
+      background: var(--hairline);
+    }
+    .pipe-D .step:last-child::after { display: none; }
+    .pipe-D .step.done::after { background: var(--accent); }
+    .pipe-D .step::before {
+      content: '';
+      position: absolute;
+      right: calc(-50% + 13px);
+      top: 11px;
+      width: 0; height: 0;
+      border-top: 5px solid transparent;
+      border-bottom: 5px solid transparent;
+      border-left: 7px solid var(--hairline);
+      z-index: 2;
+    }
+    .pipe-D .step:last-child::before { display: none; }
+    .pipe-D .step.done::before { border-left-color: var(--accent); }
+  </style>
+</head>
+<body>
+  <h1>状态流转箭头 · 4 个备选方案</h1>
+  <p class="lead">挑一个最顺眼的,挑中后只保留该方案的代码,其他三个弃用。所有方案都按"商机详情阶段"举例,线索详情(带分支)也用同一套样式。</p>
+
+  <div class="grid">
+    <!-- 方案 A -->
+    <div class="card">
+      <div class="card-head">
+        <span class="card-label">方案 A</span>
+        <span class="badge">横向 · step box · 三角箭头</span>
+      </div>
+      <div class="card-title">横向直线箭头链</div>
+      <div class="card-desc">每段是带边框的"卡片框",框间用 → 三角箭头连接。视觉密度中等,适合 4-5 段线性流转。</div>
+      <div class="stage-meta">当前阶段: <strong>方案报价</strong> · 商机 BIZ-2026-0618</div>
+      <div class="pipe-A">
+        <div class="step done"><span class="dot"></span><span class="name">需求分析</span></div>
+        <div class="arrow done">
+          <svg width="14" height="12" viewBox="0 0 14 12"><path d="M0 6h10M6 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="step current"><span class="dot"></span><span class="name">方案报价</span></div>
+        <div class="arrow">
+          <svg width="14" height="12" viewBox="0 0 14 12"><path d="M0 6h10M6 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="step"><span class="dot"></span><span class="name">商务谈判</span></div>
+        <div class="arrow">
+          <svg width="14" height="12" viewBox="0 0 14 12"><path d="M0 6h10M6 2l4 4-4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="step"><span class="dot"></span><span class="name">赢单</span></div>
+      </div>
+      <div class="legend">
+        <span class="legend-item"><span class="legend-dot"></span>已完成</span>
+        <span class="legend-item"><span class="legend-dot" style="background: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring)"></span>当前</span>
+        <span class="legend-item"><span class="legend-dot future"></span>未来</span>
+      </div>
+    </div>
+
+    <!-- 方案 B -->
+    <div class="card">
+      <div class="card-head">
+        <span class="card-label">方案 B</span>
+        <span class="badge">竖直时间线 · 支持分支</span>
+      </div>
+      <div class="card-title">时间线 (git branch 风格)</div>
+      <div class="card-desc">类似 git log 视图,主轴是时间线,各阶段是节点,支持"转客户 / 死线索"二选一的分叉支线。适合流程带分支的(线索详情最合适)。</div>
+      <div class="stage-meta">当前状态: <strong>跟进中</strong> · 线索 LEAD-0042</div>
+      <div class="pipe-B">
+        <div class="node done">
+          <span class="dot"></span>
+          <div class="body">
+            <div class="name">未跟进</div>
+            <div class="meta">2026-06-01 创建</div>
+          </div>
+        </div>
+        <div class="node current">
+          <span class="dot"></span>
+          <div class="body">
+            <div class="name">跟进中</div>
+            <div class="meta">2026-06-08 首次跟进 · 已停留 18 天</div>
+          </div>
+        </div>
+        <div class="fork">
+          <span class="dot"></span>
+          <div class="label">↓ 二选一分支</div>
+          <div class="label"></div>
+        </div>
+        <div class="node" style="grid-template-columns: 24px 1fr 1fr;">
+          <span class="dot"></span>
+          <div class="body">
+            <div class="name">转客户</div>
+            <div class="meta">已转化 / 不可逆</div>
+          </div>
+          <div class="body">
+            <div class="name" style="color: var(--warn)">死线索</div>
+            <div class="meta">死因归档 / 不可写</div>
+          </div>
+        </div>
+      </div>
+      <div class="legend">
+        <span class="legend-item"><span class="legend-dot"></span>已完成</span>
+        <span class="legend-item"><span class="legend-dot" style="background: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring)"></span>当前</span>
+        <span class="legend-item"><span class="legend-dot future"></span>未达</span>
+      </div>
+    </div>
+
+    <!-- 方案 C -->
+    <div class="card">
+      <div class="card-head">
+        <span class="card-label">方案 C</span>
+        <span class="badge">垂直阶梯 · 大向下箭头</span>
+      </div>
+      <div class="card-title">垂直阶梯(大向下箭头)</div>
+      <div class="card-desc">从上到下阶梯式排列,每段之间一个大三角箭头向下指。视觉冲击力强,适合 5 段以内、强调"流程正在向下走"的场景。</div>
+      <div class="stage-meta">当前阶段: <strong>方案报价</strong> · 商机 BIZ-2026-0618</div>
+      <div class="pipe-C">
+        <div class="step done">
+          <div class="marker">1</div>
+          <div class="body">
+            <div class="name">需求分析</div>
+            <div class="meta">06-01 ~ 06-08 · 共 7 天</div>
+          </div>
+        </div>
+        <div class="arrow-down done"></div>
+        <div class="step current">
+          <div class="marker">2</div>
+          <div class="body">
+            <div class="name">方案报价</div>
+            <div class="meta">06-08 ~ · 已停留 18 天</div>
+          </div>
+        </div>
+        <div class="arrow-down"></div>
+        <div class="step">
+          <div class="marker">3</div>
+          <div class="body">
+            <div class="name">商务谈判</div>
+            <div class="meta">未开始</div>
+          </div>
+        </div>
+        <div class="arrow-down"></div>
+        <div class="step">
+          <div class="marker">4</div>
+          <div class="body">
+            <div class="name">赢单</div>
+            <div class="meta">未开始</div>
+          </div>
+        </div>
+      </div>
+      <div class="legend">
+        <span class="legend-item"><span class="legend-dot"></span>已完成</span>
+        <span class="legend-item"><span class="legend-dot" style="background: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring)"></span>当前</span>
+        <span class="legend-item"><span class="legend-dot future"></span>未来</span>
+      </div>
+    </div>
+
+    <!-- 方案 D -->
+    <div class="card">
+      <div class="card-head">
+        <span class="card-label">方案 D</span>
+        <span class="badge">数字 step · 1/2/3/4</span>
+      </div>
+      <div class="card-title">数字步骤条</div>
+      <div class="card-desc">注册流程 / 电商结算页常见样式:每段一个圆圈数字 + 段间带箭头连线。视觉最"流程化",强调"步骤 1 → 步骤 2 → ..."的有序感。</div>
+      <div class="stage-meta">当前阶段: <strong>方案报价</strong> · 商机 BIZ-2026-0618</div>
+      <div class="pipe-D">
+        <div class="step done">
+          <div class="num">1</div>
+          <div class="name">需求分析</div>
+        </div>
+        <div class="step current">
+          <div class="num">2</div>
+          <div class="name">方案报价</div>
+        </div>
+        <div class="step">
+          <div class="num">3</div>
+          <div class="name">商务谈判</div>
+        </div>
+        <div class="step">
+          <div class="num">4</div>
+          <div class="name">赢单</div>
+        </div>
+      </div>
+      <div class="legend">
+        <span class="legend-item"><span class="legend-dot"></span>已完成</span>
+        <span class="legend-item"><span class="legend-dot" style="background: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring)"></span>当前</span>
+        <span class="legend-item"><span class="legend-dot future"></span>未来</span>
+      </div>
+    </div>
+  </div>
+
+  <p class="lead" style="margin-top: 32px">
+    看完挑一个回复我"A / B / C / D"。<br>
+    线索详情(带分支)建议方案 B;商机详情(线性 4 段)任意 4 个都可以;客户详情暂不强制加 pipeline。
+  </p>
+</body>
+</html>

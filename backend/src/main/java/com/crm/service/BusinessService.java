@@ -16,6 +16,7 @@ import com.crm.entity.CrmRecord;
 import com.crm.mapper.CrmBusinessMapper;
 import com.crm.mapper.CrmCustomerMapper;
 import com.crm.mapper.CrmRecordMapper;
+import com.crm.mapper.SysUserMapper;
 import com.crm.vo.BusinessVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,6 +51,7 @@ public class BusinessService {
     private final CrmBusinessMapper businessMapper;
     private final CrmCustomerMapper customerMapper;
     private final CrmRecordMapper recordMapper;
+    private final SysUserMapper userMapper;
 
     public IPage<BusinessVO> page(BusinessQueryRequest query) {
         Page<CrmBusiness> page = new Page<>(query.normalizeCurrent(), query.normalizeSize());
@@ -63,7 +65,28 @@ public class BusinessService {
         if (StringUtils.hasText(query.getStage())) {
             wrapper.eq(CrmBusiness::getStage, query.getStage());
         }
-        wrapper.orderByDesc(CrmBusiness::getUpdateTime);
+        // 排序:前端可控 sortBy + order,空时默认 updateTime desc
+        boolean asc = "asc".equalsIgnoreCase(query.getOrder());
+        switch (query.getSortBy() == null ? "" : query.getSortBy()) {
+            case "expectedDealDate":
+                if (asc) wrapper.orderByAsc(CrmBusiness::getExpectedDealDate);
+                else wrapper.orderByDesc(CrmBusiness::getExpectedDealDate);
+                break;
+            case "createTime":
+                if (asc) wrapper.orderByAsc(CrmBusiness::getCreateTime);
+                else wrapper.orderByDesc(CrmBusiness::getCreateTime);
+                break;
+            case "expectedAmount":
+                if (asc) wrapper.orderByAsc(CrmBusiness::getExpectedAmount);
+                else wrapper.orderByDesc(CrmBusiness::getExpectedAmount);
+                break;
+            case "businessName":
+                if (asc) wrapper.orderByAsc(CrmBusiness::getBusinessName);
+                else wrapper.orderByDesc(CrmBusiness::getBusinessName);
+                break;
+            default:
+                wrapper.orderByDesc(CrmBusiness::getUpdateTime);
+        }
         IPage<CrmBusiness> result = businessMapper.selectPage(page, wrapper);
         return result.convert(b -> {
             BusinessVO vo = toVO(b);
@@ -185,7 +208,7 @@ public class BusinessService {
                 + "」推进到「" + targetStage + "」" +
                 (StringUtils.hasText(req.getFollowContent()) ? "\n跟进内容：" + req.getFollowContent() : ""));
         record.setFollowType("系统");
-        record.setCreateBy(UserContext.currentUsername());
+        record.setCreateBy(UserContext.currentAuthor());
         record.setCreateTime(LocalDateTime.now());
         recordMapper.insert(record);
 
@@ -196,6 +219,10 @@ public class BusinessService {
     private BusinessVO toVO(CrmBusiness b) {
         BusinessVO vo = new BusinessVO();
         BeanUtils.copyProperties(b, vo);
+        if (b.getOwnerUserId() != null) {
+            com.crm.entity.SysUser u = userMapper.selectById(b.getOwnerUserId());
+            if (u != null) vo.setOwnerName(u.getNickname());
+        }
         return vo;
     }
 }

@@ -211,6 +211,45 @@ curl -X GET "http://localhost:8080/api/crm/lead/page?keyword=华为&status=2&pag
 
 ---
 
+## 1.7 标记为死线索（阶段五新增）
+
+**基本信息**
+- 方法：POST
+- 路径：`/api/crm/lead/{id}/markDead`
+- 权限：`crm:lead:markDead`（独立权限码，仅 owner 可调）
+
+**请求体（body）**
+
+```json
+{
+  "deadReason": "客户长期不回复，3 个月未接通电话"
+}
+```
+
+| 字段 | 类型 | 必填 | 默认 | 说明 |
+|:---|:---|:---|:---|:---|
+| deadReason | string | 否 | null | 死因备注，可空（前端表单显示"建议填写"），最长 500 字符 |
+
+**业务校验**
+- 调用者必须是该线索的 owner（`owner_user_id = StpUtil.getLoginId()`），否则 3001 "仅线索负责人可标记为死线索"
+- `status` 必须 ∈ {1, 2}（已转客户/已死线索 拒绝），否则 3001 "仅 1-未跟进 / 2-跟进中 可标记为死线索"
+
+**响应**
+
+```json
+{ "code": 200, "data": null, "msg": "操作成功" }
+```
+
+**副作用**
+- UPDATE `crm_lead SET status=4, dead_time=NOW(), dead_reason=?`
+- INSERT `crm_record(relatedType='lead', followType='系统', content='线索已标记为死线索，原因：xxx')`
+
+**业务码**
+- 3001：线索不存在 / 非 owner / 状态机非法
+- 1003：线索不存在
+
+---
+
 ## 关联接口
 
 - 拉取线索跟进时间轴：`GET /api/crm/record/timeline?relatedType=lead&relatedId={id}`
@@ -220,4 +259,6 @@ curl -X GET "http://localhost:8080/api/crm/lead/page?keyword=华为&status=2&pag
 
 - **不可逆**：转客户后线索的 `status=3` 永久不可改回。
 - **唯一转化路径**：除本接口外，没有任何其他途径可以把 `status` 改成 3。
+- **死线索不可逆**：阶段五新增约束，`status=4` 后只能查看历史跟进，不可再写新跟进（后端 `RecordService.append` 校验）。
+- **跟进迁移**：线索转客户后，原跟进记录按模式 A 物理迁移到客户时间轴，迁移日志写入 `crm_record_migration_log`。
 - **删除**：已转化（status=3）的线索理论上仍可删除，但推荐保留作为审计。

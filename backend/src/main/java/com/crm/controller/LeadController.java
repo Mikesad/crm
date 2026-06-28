@@ -6,6 +6,7 @@ import com.crm.common.result.Result;
 import com.crm.dto.LeadConvertRequest;
 import com.crm.dto.LeadCreateRequest;
 import com.crm.dto.LeadImportResultVO;
+import com.crm.dto.LeadMarkDeadRequest;
 import com.crm.dto.LeadQueryRequest;
 import com.crm.dto.LeadUpdateRequest;
 import com.crm.service.LeadService;
@@ -77,11 +78,20 @@ public class LeadController {
     }
 
     @Operation(summary = "线索转客户",
-        description = "事务内双写 crm_customer + crm_contact，并把原线索 status 置 3-已转客户")
+        description = "事务内双写 crm_customer + crm_contact，并把原线索 status 置 3-已转客户，同时按模式 A 物理迁移该线索下的全部跟进记录到客户时间轴")
     @SaCheckPermission("crm:lead:edit")
     @PostMapping("/{id}/convert")
     public Result<Long> convert(@PathVariable Long id, @Valid @RequestBody LeadConvertRequest req) {
         return Result.success(leadService.convertToCustomer(id, req));
+    }
+
+    @Operation(summary = "标记线索为死线索",
+        description = "仅线索 owner 可调用；status 必须为 1-未跟进 / 2-跟进中；事务内写系统跟进")
+    @SaCheckPermission("crm:lead:markDead")
+    @PostMapping("/{id}/markDead")
+    public Result<Void> markDead(@PathVariable Long id, @Valid @RequestBody(required = false) LeadMarkDeadRequest req) {
+        leadService.markDead(id, req != null ? req : new LeadMarkDeadRequest());
+        return Result.success();
     }
 
     @Operation(summary = "导出线索 Excel",

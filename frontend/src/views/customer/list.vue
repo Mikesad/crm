@@ -54,7 +54,7 @@
             <el-table-column prop="customerName" label="客户名称" min-width="180">
               <template #default="{ row }">
                 <div class="name-block">
-                  <span class="name">{{ row.customerName }}</span>
+                  <a class="name customer-link" @click.stop="handleView(row)">{{ row.customerName }}</a>
                   <span class="sub">客户 ID #{{ row.id }}</span>
                 </div>
               </template>
@@ -90,24 +90,24 @@
             </el-table-column>
             <el-table-column label="操作" width="240" fixed="right">
               <template #default="{ row }">
-                <el-button link class="action-link" @click="handleView(row)">查看</el-button>
+                <el-button link class="action-link" @click.stop="handleView(row)">详情</el-button>
                 <el-button
                   link
                   class="action-link"
                   :disabled="isReadOnlyOnRow(row)"
-                  @click="handleEdit(row)"
+                  @click.stop="handleEdit(row)"
                 >编辑</el-button>
                 <el-button
                   v-if="isOwnerOnRow(row)"
                   link
                   class="action-link share-link"
-                  @click="openShareDialog(row)"
+                  @click.stop="openShareDialog(row)"
                 >↗ 共享</el-button>
                 <el-button
                   v-if="currentTab === 'public'"
                   link
                   class="action-link claim-link"
-                  @click="handleClaim(row)"
+                  @click.stop="handleClaim(row)"
                 >认领</el-button>
               </template>
             </el-table-column>

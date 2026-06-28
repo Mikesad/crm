@@ -49,12 +49,18 @@ const userStore = useUserStore()
  */
 const menuGroups = [
   {
-    label: '工作区',
+    label: '工作台',
     children: [
       { path: '/dashboard', title: '仪表盘', icon: 'HomeFilled' },
-      { path: '/lead/list', title: '线索', icon: 'Aim', badge: 28 },
-      { path: '/customer/list', title: '客户', icon: 'User', badge: 156 },
-      { path: '/business/list', title: '商机', icon: 'TrendCharts', badge: 42 }
+      { path: '/record/center', title: '跟进中心', icon: 'BellFilled', perm: 'crm:record:center' }
+    ]
+  },
+  {
+    label: '业务',
+    children: [
+      { path: '/lead/list', title: '线索', icon: 'Aim' },
+      { path: '/customer/list', title: '客户', icon: 'User' },
+      { path: '/business/list', title: '商机', icon: 'TrendCharts' }
     ]
   },
   {
@@ -65,9 +71,8 @@ const menuGroups = [
     ]
   },
   {
-    label: '协作',
+    label: '可视化',
     children: [
-      { path: '/record/list', title: '跟进记录', icon: 'ChatLineRound' },
       { path: '/report', title: '报表', icon: 'DataLine' }
     ]
   }
@@ -81,7 +86,7 @@ function isActive(path) {
 
 function hasPerm(item) {
   if (!item.perm) return true
-  const perms = userStore.userInfo?.permissions || []
+  const perms = userStore.permissions || []
   return perms.includes(item.perm)
 }
 </script>

@@ -39,11 +39,11 @@
 
         <!-- 表格 -->
         <el-card class="table-card" v-loading="loading">
-          <el-table :data="list" stripe @row-dblclick="handleRowDblClick">
+          <el-table :data="list" stripe @row-click="handleRowClick">
             <el-table-column type="selection" width="40" />
             <el-table-column prop="leadName" label="线索名称" min-width="160">
               <template #default="{ row }">
-                <span class="name">{{ row.leadName }}</span>
+                <a class="name-link" @click.stop="goDetail(row)">{{ row.leadName }}</a>
               </template>
             </el-table-column>
             <el-table-column prop="contactName" label="联系人" width="100" />
@@ -71,15 +71,15 @@
             </el-table-column>
             <el-table-column label="操作" width="200" fixed="right">
               <template #default="{ row }">
-                <el-button link class="action-link" @click="handleDetail(row)">详情</el-button>
-                <el-button link class="action-link" @click="handleEdit(row)">编辑</el-button>
+                <el-button link class="action-link" @click.stop="goDetail(row)">详情</el-button>
+                <el-button link class="action-link" @click.stop="handleEdit(row)">编辑</el-button>
                 <el-button
                   v-if="row.status !== 3"
                   link
                   class="action-link"
-                  @click="handleConvert(row)"
+                  @click.stop="handleConvert(row)"
                 >转客户</el-button>
-                <el-button v-else link class="action-link danger" @click="handleDelete(row)">删除</el-button>
+                <el-button v-else link class="action-link danger" @click.stop="handleDelete(row)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -441,12 +441,14 @@ async function handleDelete(row) {
   } catch (e) { /* 取消 */ }
 }
 
-function handleDetail(row) {
-  ElMessage.info('线索详情 - 待阶段三实现独立详情页（阶段二列表+弹窗已够用）')
+// ---------- 跳详情(独立详情页) ----------
+function goDetail(row) {
+  if (!row?.id) return
+  router.push(`/lead/${row.id}`)
 }
 
-function handleRowDblClick(row) {
-  handleEdit(row)
+function handleRowClick(row) {
+  goDetail(row)
 }
 
 // ---------- 导入 / 导出(EasyExcel) ----------

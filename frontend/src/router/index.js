@@ -40,6 +40,26 @@ const routes = [
         name: 'LeadList',
         component: () => import('@/views/lead/list.vue'),
         meta: { title: '线索列表', permissions: ['crm:lead:list'] }
+      },
+      {
+        // 必须放在 list 之后
+        path: ':id',
+        name: 'LeadDetail',
+        component: () => import('@/views/lead/detail.vue'),
+        meta: { title: '线索详情', permissions: ['crm:lead:list'], hidden: true }
+      }
+    ]
+  },
+  {
+    path: '/record',
+    component: () => import('@/layout/index.vue'),
+    meta: { title: '跟进中心', icon: 'BellFilled' },
+    children: [
+      {
+        path: 'center',
+        name: 'RecordCenter',
+        component: () => import('@/views/record/center.vue'),
+        meta: { title: '跟进中心', permissions: ['crm:record:center'] }
       }
     ]
   },
@@ -55,16 +75,17 @@ const routes = [
         meta: { title: '客户列表', permissions: ['crm:customer:list'] }
       },
       {
-        path: ':id',
-        name: 'CustomerDetail',
-        component: () => import('@/views/customer/detail.vue'),
-        meta: { title: '客户详情', permissions: ['crm:customer:list'], hidden: true }
-      },
-      {
         path: 'public',
         name: 'CustomerPublicPool',
         component: () => import('@/views/customer/public-pool.vue'),
         meta: { title: '公海池', permissions: ['crm:customer:public_pool'] }
+      },
+      {
+        // 必须放在 list/public 之后
+        path: ':id',
+        name: 'CustomerDetail',
+        component: () => import('@/views/customer/detail.vue'),
+        meta: { title: '客户详情', permissions: ['crm:customer:list'], hidden: true }
       }
     ]
   },
@@ -96,6 +117,13 @@ const routes = [
         name: 'BusinessFunnel',
         component: () => import('@/views/business/funnel.vue'),
         meta: { title: '销售漏斗', permissions: ['crm:business:funnel'] }
+      },
+      {
+        // 必须放在 list/funnel 之后,否则 :id 会捕获 /business/list
+        path: ':id',
+        name: 'BusinessDetail',
+        component: () => import('@/views/business/detail.vue'),
+        meta: { title: '商机详情', permissions: ['crm:business:list'], hidden: true }
       }
     ]
   },

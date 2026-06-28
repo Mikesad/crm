@@ -13,17 +13,16 @@
             <span>{{ customer.industry || '未分类' }}</span>
             <span class="sep">·</span>
             <span>归属 {{ customer.ownerName || '-' }}</span>
-            <span v-if="!isOwner" class="sep">·</span>
-            <span v-if="!isOwner" class="readonly-tag">🔒 只读共享</span>
+            <span v-if="isReadOnly" class="sep">·</span>
+            <span v-if="isReadOnly" class="readonly-tag">🔒 只读共享</span>
             <span class="sep">·</span>
             <span>最后跟进 <span class="mono" :class="followClass(customer.lastFollowTime)">{{ followText(customer.lastFollowTime) }}</span></span>
           </div>
         </div>
         <div class="detail-actions">
-          <el-button :icon="EditPen" :disabled="isReadOnly" @click="handleAddRecord">写跟进</el-button>
           <el-button :icon="Plus" :disabled="isReadOnly" @click="handleAddBusiness">新建商机</el-button>
           <el-button v-if="isOwner" :icon="ShareIcon" @click="openShareDialog">共享</el-button>
-          <el-button class="btn-zen-primary" :disabled="isReadOnly" @click="handleEdit">编辑</el-button>
+          <el-button :disabled="isReadOnly" @click="handleEdit">编辑</el-button>
         </div>
       </div>
 
@@ -41,112 +40,128 @@
       <!-- Tabs -->
       <div class="tabs">
         <div class="tab" :class="{ active: activeTab === 'basic' }" @click="activeTab = 'basic'">基本信息</div>
-        <div class="tab" :class="{ active: activeTab === 'contact' }" @click="activeTab = 'contact'">
-          联系人 <span class="count">{{ contacts.length }}</span>
-        </div>
-        <div class="tab" :class="{ active: activeTab === 'business' }" @click="activeTab = 'business'">
-          商机 <span class="count">{{ businesses.length }}</span>
-        </div>
         <div class="tab" :class="{ active: activeTab === 'timeline' }" @click="activeTab = 'timeline'">
-          跟进时间轴
+          跟进记录
         </div>
       </div>
 
       <div class="layout">
         <!-- 主区 -->
         <div class="layout-main">
-          <!-- 基本信息 tab -->
-          <div v-if="activeTab === 'basic'" class="panel">
-            <div class="info-grid">
-              <div class="info-item"><div class="info-label">客户名称</div><div class="info-value">{{ customer.customerName }}</div></div>
-              <div class="info-item"><div class="info-label">客户级别</div><div class="info-value">{{ levelText(customer.level) }}</div></div>
-              <div class="info-item"><div class="info-label">所属行业</div><div class="info-value">{{ customer.industry || '未分类' }}</div></div>
-              <div class="info-item"><div class="info-label">归属销售</div><div class="info-value">{{ customer.ownerName || '-' }}</div></div>
-              <div class="info-item"><div class="info-label">最后跟进</div><div class="info-value mono" :class="followClass(customer.lastFollowTime)">{{ followText(customer.lastFollowTime) }}</div></div>
-              <div class="info-item"><div class="info-label">商机金额</div><div class="info-value mono">¥ {{ formatAmount(businessAmount) }}</div></div>
-              <div class="info-item"><div class="info-label">建立于</div><div class="info-value mono">{{ formatDate(customer.createTime) }}</div></div>
-              <div class="info-item"><div class="info-label">客户 ID</div><div class="info-value mono">#{{ customer.id }}</div></div>
+          <!-- 基本信息 tab:含客户信息 + 联系人 + 商机三段 -->
+          <div v-if="activeTab === 'basic'" class="basic-stack">
+            <!-- 1. 客户基础信息 -->
+            <div class="panel">
+              <div class="section-head">
+                <div class="section-title">客户信息</div>
+              </div>
+              <div class="info-grid">
+                <div class="info-item"><div class="info-label">客户名称</div><div class="info-value">{{ customer.customerName }}</div></div>
+                <div class="info-item"><div class="info-label">客户级别</div><div class="info-value">{{ levelText(customer.level) }}</div></div>
+                <div class="info-item"><div class="info-label">所属行业</div><div class="info-value">{{ customer.industry || '未分类' }}</div></div>
+                <div class="info-item"><div class="info-label">归属销售</div><div class="info-value">{{ customer.ownerName || '-' }}</div></div>
+                <div class="info-item"><div class="info-label">最后跟进</div><div class="info-value mono" :class="followClass(customer.lastFollowTime)">{{ followText(customer.lastFollowTime) }}</div></div>
+                <div class="info-item"><div class="info-label">商机金额</div><div class="info-value mono">¥ {{ formatAmount(businessAmount) }}</div></div>
+                <div class="info-item"><div class="info-label">建立于</div><div class="info-value mono">{{ formatDate(customer.createTime) }}</div></div>
+                <div class="info-item"><div class="info-label">客户 ID</div><div class="info-value mono">#{{ customer.id }}</div></div>
+              </div>
+            </div>
+
+            <!-- 2. 联系人 -->
+            <div class="panel">
+              <div class="section-head">
+                <div class="section-title">联系人 ({{ contacts.length }})</div>
+                <el-button class="btn-zen-primary" :icon="Plus" size="small" :disabled="isReadOnly" @click="handleAddContact">新建联系人</el-button>
+              </div>
+              <el-card class="list-card" v-loading="loadingContact">
+                <el-table :data="contacts" stripe>
+                  <el-table-column label="姓名" min-width="140">
+                    <template #default="{ row }">
+                      <span class="name">{{ row.contactName }}</span>
+                      <el-tag v-if="row.isMaster === 1" type="success" size="small" effect="light" style="margin-left: 6px">主</el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="post" label="职务" min-width="120" />
+                  <el-table-column prop="phone" label="手机" min-width="140">
+                    <template #default="{ row }">
+                      <span class="mono">{{ row.phone || '-' }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="决策权重" width="100">
+                    <template #default="{ row }">
+                      <el-tag :type="weightTagType(row.decisionWeight)" effect="light" size="small">
+                        {{ weightText(row.decisionWeight) }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="操作" width="140" fixed="right">
+                    <template #default="{ row }">
+                      <el-button link class="action-link" :disabled="isReadOnly" @click.stop="handleEditContact(row)">编辑</el-button>
+                      <el-button link class="action-link danger" :disabled="isReadOnly" @click.stop="handleDeleteContact(row)">删除</el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </el-card>
+            </div>
+
+            <!-- 3. 商机 -->
+            <div class="panel">
+              <div class="section-head">
+                <div class="section-title">商机 ({{ businesses.length }})</div>
+                <el-button class="btn-zen-primary" :icon="Plus" size="small" :disabled="isReadOnly" @click="handleAddBusiness">新建商机</el-button>
+              </div>
+              <el-card class="list-card" v-loading="loadingBusiness">
+                <el-table :data="businesses" stripe>
+                  <el-table-column prop="businessName" label="商机名称" min-width="200">
+                    <template #default="{ row }">
+                      <span class="name">{{ row.businessName }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="阶段" width="130">
+                    <template #default="{ row }">
+                      <el-tag :type="stageTagType(row.stage)" effect="light" size="small">{{ row.stage }}</el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="预计金额" width="140" align="right">
+                    <template #default="{ row }">
+                      <span class="mono">¥ {{ formatAmount(row.expectedAmount) }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="ownerName" label="负责人" width="100" />
+                  <el-table-column label="预计结单" width="120">
+                    <template #default="{ row }">
+                      <span class="mono">{{ row.expectedDealDate || '-' }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="操作" width="160" fixed="right">
+                    <template #default="{ row }">
+                      <el-button link class="action-link" @click.stop="goBusinessDetail(row.id)">详情</el-button>
+                      <el-button link class="action-link" :disabled="isReadOnly" @click.stop="handleStage(row)">推进阶段</el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </el-card>
             </div>
           </div>
 
-          <!-- 联系人 tab -->
-          <div v-else-if="activeTab === 'contact'">
-            <div class="section-head">
-              <div class="section-title">联系人 ({{ contacts.length }})</div>
-              <el-button class="btn-zen-primary" :icon="Plus" size="small" @click="handleAddContact">新建联系人</el-button>
-            </div>
-            <el-card class="list-card" v-loading="loadingContact">
-              <el-table :data="contacts" stripe>
-                <el-table-column label="姓名" min-width="140">
-                  <template #default="{ row }">
-                    <span class="name">{{ row.contactName }}</span>
-                    <el-tag v-if="row.isMaster === 1" type="success" size="small" effect="light" style="margin-left: 6px">主</el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="post" label="职务" min-width="120" />
-                <el-table-column prop="phone" label="手机" min-width="140">
-                  <template #default="{ row }">
-                    <span class="mono">{{ row.phone || '-' }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column label="决策权重" width="100">
-                  <template #default="{ row }">
-                    <el-tag :type="weightTagType(row.decisionWeight)" effect="light" size="small">
-                      {{ weightText(row.decisionWeight) }}
-                    </el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column label="操作" width="140" fixed="right">
-                  <template #default="{ row }">
-                    <el-button link class="action-link" @click="handleEditContact(row)">编辑</el-button>
-                    <el-button link class="action-link danger" @click="handleDeleteContact(row)">删除</el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
-            </el-card>
-          </div>
-
-          <!-- 商机 tab -->
-          <div v-else-if="activeTab === 'business'">
-            <div class="section-head">
-              <div class="section-title">商机 ({{ businesses.length }})</div>
-              <el-button class="btn-zen-primary" :icon="Plus" size="small" @click="handleAddBusiness">新建商机</el-button>
-            </div>
-            <el-card class="list-card" v-loading="loadingBusiness">
-              <el-table :data="businesses" stripe>
-                <el-table-column prop="businessName" label="商机名称" min-width="200">
-                  <template #default="{ row }">
-                    <span class="name">{{ row.businessName }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column label="阶段" width="130">
-                  <template #default="{ row }">
-                    <el-tag :type="stageTagType(row.stage)" effect="light" size="small">{{ row.stage }}</el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column label="预计金额" width="140" align="right">
-                  <template #default="{ row }">
-                    <span class="mono">¥ {{ formatAmount(row.expectedAmount) }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="ownerName" label="负责人" width="100" />
-                <el-table-column label="预计结单" width="120">
-                  <template #default="{ row }">
-                    <span class="mono">{{ row.expectedDealDate || '-' }}</span>
-                  </template>
-                </el-table-column>
-                <el-table-column label="操作" width="120" fixed="right">
-                  <template #default="{ row }">
-                    <el-button link class="action-link" @click="handleStage(row)">推进阶段</el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
-            </el-card>
-          </div>
-
-          <!-- 跟进时间轴 tab -->
+          <!-- 跟进记录 tab -->
           <div v-else-if="activeTab === 'timeline'">
-            <RecordTimeline related-type="customer" :related-id="customer.id" />
+            <div class="timeline-card">
+              <div class="timeline-head">
+                <div class="timeline-title">
+                  📋 跟进记录
+                  <span class="count">· 共 {{ recordCount }} 条</span>
+                </div>
+                <el-button
+                  class="btn-zen-primary"
+                  size="small"
+                  @click="handleAddRecord"
+                >✚ 新建跟进</el-button>
+              </div>
+              <div class="timeline-body">
+                <RecordTimeline :key="timelineKey" related-type="customer" :related-id="customer.id" />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -191,7 +206,7 @@
               <div class="sug-content">
                 <div class="sug-title">{{ suggestions.overdue ? `客户 ${daysSinceLastFollow()} 天未跟进` : '跟进状态良好' }}</div>
                 <div class="sug-desc">{{ suggestions.overdue ? '建议立即电话沟通，推动主商机' : '继续保持每周一次的跟进节奏' }}</div>
-                <div v-if="suggestions.overdue" class="sug-action" @click="handleAddRecord">立即写跟进 →</div>
+                <div v-if="suggestions.overdue" class="sug-action" @click="handleAddRecord">立即新建跟进 →</div>
               </div>
             </div>
             <div v-if="suggestions.advancingBusiness" class="sug-item">
@@ -283,29 +298,15 @@
       </template>
     </el-dialog>
 
-    <!-- 写跟进弹窗 -->
-    <el-dialog v-model="recordVisible" title="写跟进" width="460px">
-      <el-form ref="recordFormRef" :model="recordForm" :rules="recordRules" label-position="top">
-        <el-form-item label="跟进内容" prop="content">
-          <el-input v-model="recordForm.content" type="textarea" :rows="4" placeholder="沟通要点、客户反馈、下一步动作" />
-        </el-form-item>
-        <el-form-item label="跟进方式">
-          <el-radio-group v-model="recordForm.followType">
-            <el-radio value="电话">电话</el-radio>
-            <el-radio value="微信">微信</el-radio>
-            <el-radio value="上门拜访">上门拜访</el-radio>
-            <el-radio value="邮件">邮件</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="下次跟进时间">
-          <el-date-picker v-model="recordForm.nextFollowTime" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" style="width: 220px" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="recordVisible = false">取消</el-button>
-        <el-button class="btn-zen-primary" :loading="savingRecord" @click="handleSaveRecord">保存</el-button>
-      </template>
-    </el-dialog>
+    <!-- 写跟进弹窗(阶段五:抽成通用 AddRecordDialog) -->
+    <AddRecordDialog
+      v-if="customer.id"
+      v-model:visible="recordVisible"
+      related-type="customer"
+      :related-id="customer.id"
+      :related-name="customer.customerName"
+      @saved="onRecordSaved"
+    />
 
     <!-- 阶段四:共享对话框 -->
     <CustomerShareDialog
@@ -320,15 +321,16 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { EditPen, Plus, Share as ShareIcon } from '@element-plus/icons-vue'
+import { Plus, Share as ShareIcon } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { useUserStore } from '@/store/user'
 import { getCustomer, updateCustomer } from '@/api/customer'
 import { listContact, addContact, updateContact, deleteContact } from '@/api/contact'
 import { pageBusiness, addBusiness, updateBusinessStage } from '@/api/business'
-import { addRecord } from '@/api/record'
 import RecordTimeline from '@/components/RecordTimeline.vue'
+import AddRecordDialog from '@/components/AddRecordDialog.vue'
 import CustomerShareDialog from './components/ShareDialog.vue'
+import { getTimeline } from '@/api/record'
 
 defineOptions({ name: 'CustomerDetail' })
 
@@ -343,17 +345,26 @@ const businesses = ref([])
 const loading = ref(false)
 const loadingContact = ref(false)
 const loadingBusiness = ref(false)
-const activeTab = ref('contact')
+const activeTab = ref('basic')   // 合并后默认展示"基本信息" Tab(含客户信息/联系人/商机三段)
+const recordCount = ref(0)
+const timelineKey = ref(0)
 
 // ---------- 阶段四:写权限判定 ----------
 const myUserId = computed(() => userStore.userId)
-const isOwner = computed(() => customer.value.ownerUserId === myUserId.value)
+const isAdmin = computed(() => Array.isArray(userStore.roleKeys) && userStore.roleKeys.includes('admin'))
+const isOwner = computed(() => {
+  if (!myUserId.value || !customer.value.ownerUserId) return false
+  return Number(customer.value.ownerUserId) === Number(myUserId.value)
+})
 const isPublicCustomer = computed(() => customer.value.isPublic === 1)
+// 只读 = 非 owner + 非 admin + 非公海
+// (admin 有全量权限,任何客户都可写;owner 可写;公海客户允许认领即编辑)
 const isReadOnly = computed(() => {
-  if (!customer.value.id) return false
-  if (isPublicCustomer.value) return false  // 公海客户允许编辑
-  if (isOwner.value) return false          // owner 允许编辑
-  return true                              // 共享给我或其他,只读
+  if (!customer.value.id) return false   // 客户未加载完,不展示警示
+  if (isOwner.value) return false
+  if (isAdmin.value) return false
+  if (isPublicCustomer.value) return false
+  return true                            // 被共享给我(读写未知)或其他人 → 只读
 })
 
 // 共享对话框
@@ -449,6 +460,7 @@ function loadAll() {
   loadCustomer()
   loadContacts()
   loadBusinesses()
+  loadRecordCount()
 }
 
 // ---------- 客户编辑 ----------
@@ -463,6 +475,11 @@ function handleEdit() {
     ElMessage.success('已更新')
     loadCustomer()
   }).catch(() => {})
+}
+
+// ---------- 跳转 ----------
+function goBusinessDetail(id) {
+  if (id) router.push(`/business/${id}`)
 }
 
 // ---------- 联系人 CRUD ----------
@@ -622,32 +639,30 @@ async function handleSaveStage() {
   }
 }
 
-// ---------- 写跟进 ----------
+// ---------- 写跟进(阶段五:通用 AddRecordDialog) ----------
 const recordVisible = ref(false)
-const recordFormRef = ref(null)
-const savingRecord = ref(false)
-const recordForm = reactive({ relatedType: 'customer', relatedId: null, content: '', followType: '电话', nextFollowTime: null })
-const recordRules = { content: [{ required: true, message: '请输入跟进内容', trigger: 'blur' }] }
 
 function handleAddRecord() {
-  recordForm.relatedType = 'customer'
-  recordForm.relatedId = customer.value.id
-  recordForm.content = ''
-  recordForm.followType = '电话'
-  recordForm.nextFollowTime = null
   recordVisible.value = true
 }
 
-async function handleSaveRecord() {
-  await recordFormRef.value.validate()
-  savingRecord.value = true
+async function onRecordSaved() {
+  await loadCustomer()
+  await loadRecordCount()
+  timelineKey.value++  // 强制 RecordTimeline 重新加载
+}
+
+// ---------- 跟进记录数(用于 timeline 卡片头部计数) ----------
+async function loadRecordCount() {
+  if (!customer.value.id) {
+    recordCount.value = 0
+    return
+  }
   try {
-    await addRecord(recordForm)
-    ElMessage.success('已记录')
-    recordVisible.value = false
-    loadCustomer() // 刷新 lastFollowTime
-  } finally {
-    savingRecord.value = false
+    const { data } = await getTimeline({ relatedType: 'customer', relatedId: customer.value.id })
+    recordCount.value = (data || []).length
+  } catch (e) {
+    recordCount.value = 0
   }
 }
 
@@ -800,4 +815,44 @@ onMounted(loadAll)
 .empty-mini { font-size: 12.5px; color: var(--muted); padding: 8px 0; text-align: center; }
 
 .stage-current { font-size: 13.5px; color: var(--ink-soft); }
+
+/* 基本信息 Tab 内多 section 堆叠 */
+.basic-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.basic-stack .panel {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 16px 20px 20px;
+}
+
+/* 跟进记录卡片(阶段五:与商机/线索统一) */
+.timeline-card {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+}
+.timeline-head {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--hairline-soft);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.timeline-title {
+  font-size: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  .count {
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 400;
+  }
+}
+.timeline-body { padding: 8px 18px 18px; }
 </style>

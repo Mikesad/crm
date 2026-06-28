@@ -17,6 +17,12 @@ public class PageQuery {
     @Schema(description = "每页条数（最大 200）", example = "10")
     private Integer pageSize = 10;
 
+    @Schema(description = "排序字段(如 expectedDealDate / createTime / updateTime),为空用默认")
+    private String sortBy;
+
+    @Schema(description = "排序方向: asc / desc,默认 desc")
+    private String order = "desc";
+
     /**
      * 归一化为 MyBatis-Plus {@code Page} 所需的 current/size
      */

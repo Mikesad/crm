@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<!--
+  phase5-record-center-v2.html
+  阶段五 · 跟进中心 V2(过滤+精准标红)
+    - 顶部 4 KPI(今日/本周/逾期/本月已写)
+    - 3 Tab:今日 / 本周(含逾期) / 我的历史
+    - 新增:实体类型过滤栏(全部/客户/线索/商机/合同)
+    - 红边规则:仅对 next_follow_time < NOW() 的"逾期"卡片标红,其他普通卡片无标记
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>跟进中心 V2 · ZenCRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:#fafaf9; --bg-warm:#fff; --ink:#18181b; --ink-soft:#3f3f46;
+      --muted:#71717a; --subtle:#a1a1aa; --hairline:#e4e4e7; --hairline-soft:#f4f4f5;
+      --surface:#fff; --accent:#166534; --accent-soft:#dcfce7; --accent-pale:#f0fdf4;
+      --accent-ring:rgba(22,101,52,0.12); --info:#1e40af; --info-soft:#dbeafe;
+      --warn:#b45309; --warn-soft:#fef3c7; --danger:#b91c1c; --danger-soft:#fee2e2;
+      --font-sans:'Inter','Noto Sans SC',-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;
+      --font-mono:'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+      --radius:6px;
+    }
+    *,*::before,*::after{box-sizing:border-box}
+    body{font-family:var(--font-sans);font-size:14px;line-height:1.5;color:var(--ink);background:var(--bg);margin:0;-webkit-font-smoothing:antialiased}
+    .mono{font-family:var(--font-mono);font-feature-settings:'tnum' 1}
+
+    /* ===== Sidebar(简化) ===== */
+    .app{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+    .sidebar{background:var(--bg-warm);border-right:1px solid var(--hairline);padding:20px 12px 16px}
+    .wordmark{display:flex;align-items:center;gap:8px;font-weight:600;font-size:14px;margin-bottom:24px}
+    .wordmark-glyph{width:18px;height:18px;background:var(--accent);border-radius:4px}
+    .nav-label{padding:6px 8px 4px;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--subtle);font-weight:500}
+    .nav-item{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:var(--radius);color:var(--ink-soft);cursor:pointer;font-size:13.5px}
+    .nav-item.active{background:var(--accent-ring);color:var(--accent);font-weight:500}
+
+    /* ===== Main ===== */
+    .main{padding:0}
+    .topbar{height:48px;padding:0 32px;background:var(--bg-warm);border-bottom:1px solid var(--hairline);display:flex;align-items:center;justify-content:flex-end;gap:12px;position:sticky;top:0;z-index:10}
+    .icon-btn{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;background:transparent;border:1px solid transparent;border-radius:var(--radius);cursor:pointer;color:var(--ink-soft);position:relative;font-size:16px}
+    .icon-btn:hover{background:var(--bg);color:var(--accent)}
+    .icon-btn .dot{position:absolute;top:4px;right:4px;min-width:16px;height:16px;padding:0 4px;background:var(--danger);color:#fff;font-size:10px;font-weight:600;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;border:2px solid var(--bg-warm)}
+    .content{padding:32px 32px 48px}
+
+    /* Page header */
+    .page-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:20px}
+    .page-title{font-size:26px;font-weight:600;letter-spacing:-.015em;margin:0 0 6px}
+    .page-sub{font-size:13.5px;color:var(--muted)}
+    .btn{padding:8px 16px;font-size:13px;background:var(--surface);border:1px solid var(--hairline);border-radius:var(--radius);cursor:pointer;color:var(--ink);font-family:inherit;font-weight:500;display:inline-flex;align-items:center;gap:6px}
+    .btn:hover{border-color:var(--muted)}
+    .btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .btn-primary:hover{background:#14532d;border-color:#14532d}
+
+    /* KPI */
+    .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+    .kpi{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--radius);padding:16px 20px}
+    .kpi.is-danger{border-color:var(--danger);background:linear-gradient(180deg,var(--danger-soft) 0%,var(--surface) 60%)}
+    .kpi.is-danger .kpi-value{color:var(--danger)}
+    .kpi-label{font-size:12.5px;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+    .kpi-value{font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:1.1;margin-bottom:4px}
+    .kpi-foot{font-size:12px;color:var(--muted)}
+    .kpi-foot .delta-up{color:var(--accent)}
+
+    /* ===== 新增:实体类型过滤栏 ===== */
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: var(--surface);
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius);
+      margin-bottom: 16px;
+    }
+    .filter-bar-label {
+      font-size: 12.5px;
+      color: var(--muted);
+      font-weight: 500;
+      margin-right: 4px;
+    }
+    .filter-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      font-size: 12.5px;
+      background: var(--bg);
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius);
+      color: var(--ink-soft);
+      cursor: pointer;
+      transition: all 0.12s;
+      font-weight: 500;
+    }
+    .filter-chip:hover {
+      border-color: var(--muted);
+      color: var(--ink);
+    }
+    .filter-chip.active {
+      background: var(--accent-pale);
+      border-color: var(--accent);
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .filter-chip .num {
+      font-size: 11px;
+      padding: 1px 6px;
+      background: var(--hairline-soft);
+      color: var(--muted);
+      border-radius: 8px;
+      font-feature-settings: 'tnum' 1;
+      font-weight: 400;
+    }
+    .filter-chip.active .num {
+      background: var(--accent-soft);
+      color: var(--accent);
+    }
+    .filter-clear {
+      margin-left: auto;
+      font-size: 12px;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 4px 8px;
+    }
+    .filter-clear:hover {
+      color: var(--accent);
+    }
+
+    /* Tabs */
+    .tabs-row{display:flex;align-items:center;border-bottom:1px solid var(--hairline);margin-bottom:18px}
+    .tab{padding:11px 18px;font-size:14px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;display:flex;align-items:center;gap:6px}
+    .tab:hover{color:var(--ink)}
+    .tab.active{color:var(--ink);font-weight:500;border-bottom-color:var(--accent)}
+    .tab .count{font-size:11.5px;padding:1px 7px;background:var(--hairline-soft);color:var(--muted);border-radius:8px;font-feature-settings:'tnum' 1}
+    .tab.active .count{background:var(--accent-soft);color:var(--accent)}
+    .tab .count.danger{background:var(--danger-soft);color:var(--danger)}
+    .tab-meta{margin-left:auto;font-size:12px;color:var(--muted);padding:0 8px}
+
+    /* 双栏 */
+    .layout{display:grid;grid-template-columns:1fr 300px;gap:24px;align-items:start}
+    @media (max-width:1280px){.layout{grid-template-columns:1fr}}
+    .layout-side{display:flex;flex-direction:column;gap:14px;position:sticky;top:76px}
+
+    /* Section meta */
+    .section-meta{font-size:12px;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:10px}
+    .section-meta .dot{width:6px;height:6px;border-radius:50%}
+    .section-meta .dot.d-danger{background:var(--danger)}
+    .section-meta strong{color:var(--ink)}
+
+    /* 跟进卡片 */
+    .record-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+    @media (max-width:1100px){.record-grid{grid-template-columns:1fr}}
+    .record-card{
+      background:var(--surface);
+      border:1px solid var(--hairline);
+      border-radius:var(--radius);
+      padding:16px 18px;
+      transition:all .12s;
+      position: relative;
+    }
+    /* ===== 改动 1:红边规则收紧 ===== */
+    /* 仅 next_follow_time < NOW() 的卡片才标红边 + 顶右"逾期"标签 */
+    .record-card.is-overdue{
+      border-left:3px solid var(--danger);
+    }
+    .record-card.is-overdue::before{
+      content:'逾期';
+      position:absolute;
+      top:14px;right:18px;
+      background:var(--danger-soft);
+      color:var(--danger);
+      font-size:10.5px;font-weight:600;
+      padding:2px 8px;
+      border-radius:3px;
+    }
+    /* 普通卡片(含今日到期 / 本周内):无边框标记 */
+    .record-card:hover{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-ring)}
+
+    .card-head{display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+    .entity-chip{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;font-size:10.5px;font-weight:500;border-radius:3px;line-height:1.6}
+    .chip-lead{background:#ede9fe;color:#6d28d9}
+    .chip-customer{background:var(--accent-soft);color:var(--accent)}
+    .chip-business{background:var(--info-soft);color:var(--info)}
+    .chip-contract{background:var(--warn-soft);color:var(--warn)}
+    .pill{display:inline-flex;align-items:center;padding:1px 8px;font-size:11px;font-weight:500;border-radius:10px;background:var(--hairline-soft);color:var(--muted)}
+    .card-amount{margin-left:auto;font-size:13px;color:var(--ink);font-weight:600;font-feature-settings:'tnum' 1}
+    .card-amount .currency{color:var(--muted);font-size:11.5px;font-weight:400;margin-right:2px}
+    .card-title{font-size:15.5px;font-weight:600;letter-spacing:-.01em;margin-bottom:6px;line-height:1.4}
+    .card-sub{font-size:12.5px;color:var(--muted);margin-bottom:12px;line-height:1.5}
+    .last-follow{padding:10px 12px;background:var(--bg);border-radius:var(--radius);margin-bottom:14px;font-size:12.5px;line-height:1.55}
+    .last-follow-head{display:flex;align-items:center;gap:6px;margin-bottom:5px}
+    .follow-type{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;color:var(--ink-soft)}
+    .follow-type::before{content:'';width:6px;height:6px;border-radius:50%;background:var(--accent)}
+    .follow-type.t-phone::before{background:var(--info)}
+    .follow-type.t-wechat::before{background:#16a34a}
+    .follow-type.t-visit::before{background:var(--warn)}
+    .follow-type.t-email::before{background:#6d28d9}
+    .last-follow-meta{color:var(--subtle);font-size:11px;margin-left:auto}
+    .last-follow-body{color:var(--ink-soft);line-height:1.55}
+    .card-foot{display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid var(--hairline-soft)}
+    .next-time{font-size:12.5px}
+    .next-time-label{color:var(--muted);font-size:11px;margin-bottom:2px}
+    .next-time-val{font-weight:600;color:var(--ink);font-feature-settings:'tnum' 1}
+    .next-time-val.danger{color:var(--danger)}
+    .next-time-val.warn{color:var(--warn)}
+    .btn-ghost{background:transparent;border-color:transparent;color:var(--ink-soft);padding:5px 10px;font-size:12.5px;border-radius:var(--radius);cursor:pointer;font-family:inherit;font-weight:500}
+    .btn-ghost:hover{background:var(--bg);color:var(--accent)}
+    .card-actions{display:flex;gap:6px}
+
+    /* 右侧 */
+    .side-card{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--radius);padding:16px 18px}
+    .side-card-title{font-size:13.5px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:6px}
+    .side-card-title .more{margin-left:auto;font-size:11.5px;color:var(--muted);font-weight:400;cursor:pointer}
+    .side-card-title .more:hover{color:var(--accent)}
+    .bar-row{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:12.5px}
+    .bar-row .label{width:64px;color:var(--ink-soft)}
+    .bar-row .track{flex:1;height:6px;background:var(--hairline-soft);border-radius:3px;overflow:hidden}
+    .bar-row .fill{height:100%;background:var(--accent);border-radius:3px}
+    .bar-row .fill.b-phone{background:var(--info)}
+    .bar-row .fill.b-wechat{background:#16a34a}
+    .bar-row .fill.b-visit{background:var(--warn)}
+    .bar-row .fill.b-email{background:#6d28d9}
+    .bar-row .val{font-size:12px;color:var(--muted);font-feature-settings:'tnum' 1;min-width:24px;text-align:right}
+    .sparkline{display:flex;align-items:flex-end;gap:6px;height:70px;padding:6px 0}
+    .spark-bar{flex:1;background:var(--accent-soft);border-radius:3px 3px 0 0;position:relative}
+    .spark-bar.is-peak{background:var(--accent)}
+    .spark-labels{display:flex;justify-content:space-between;font-size:10.5px;color:var(--subtle);margin-top:6px;font-feature-settings:'tnum' 1}
+    .tip{padding:12px 14px;background:var(--accent-pale);border-radius:var(--radius);font-size:12.5px;color:var(--ink-soft);line-height:1.6;display:flex;gap:10px}
+    .tip .ico{flex-shrink:0;color:var(--accent);font-size:14px;line-height:1.4}
+  </style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="wordmark"><span class="wordmark-glyph"></span> ZenCRM</div>
+    <div class="nav-label">工作台</div>
+    <div class="nav-item">⌂ 仪表盘</div>
+    <div class="nav-item active">🔔 跟进中心</div>
+    <div class="nav-label">业务</div>
+    <div class="nav-item">📥 线索</div>
+    <div class="nav-item">👥 客户</div>
+    <div class="nav-item">📈 商机</div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <button class="icon-btn" title="通知">🔔<span class="dot">6</span></button>
+      <button class="icon-btn" title="用户">李</button>
+    </div>
+
+    <div class="content">
+      <!-- Page header -->
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">跟进中心</h1>
+          <div class="page-sub">个人工作台 · 查看今日 / 本周待跟进与历史记录</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn">📅 导出日历</button>
+          <button class="btn btn-primary">✚ 快速新建跟进</button>
+        </div>
+      </div>
+
+      <!-- KPI -->
+      <div class="kpi-row">
+        <div class="kpi">
+          <div class="kpi-label">📌 今日待跟进</div>
+          <div class="kpi-value mono">12</div>
+          <div class="kpi-foot">较昨日 <span class="delta-up">+3</span></div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">📅 本周待跟进</div>
+          <div class="kpi-value mono">35</div>
+          <div class="kpi-foot">本周剩余 <strong style="color:var(--ink)">23</strong> 个工作日</div>
+        </div>
+        <div class="kpi is-danger">
+          <div class="kpi-label">⚠ 逾期未跟进</div>
+          <div class="kpi-value mono">6</div>
+          <div class="kpi-foot">需尽快处理,避免进入公海</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">✓ 本月已写跟进</div>
+          <div class="kpi-value mono">28</div>
+          <div class="kpi-foot">较上月 <span class="delta-up">+12</span></div>
+        </div>
+      </div>
+
+      <!-- ===== 新增:实体类型过滤栏 ===== -->
+      <div class="filter-bar">
+        <span class="filter-bar-label">📂 实体类型</span>
+        <span class="filter-chip active">
+          全部 <span class="num">35</span>
+        </span>
+        <span class="filter-chip">
+          👥 客户 <span class="num">14</span>
+        </span>
+        <span class="filter-chip">
+          📥 线索 <span class="num">8</span>
+        </span>
+        <span class="filter-chip">
+          📈 商机 <span class="num">11</span>
+        </span>
+        <span class="filter-chip">
+          📄 合同 <span class="num">2</span>
+        </span>
+        <span class="filter-clear">↻ 重置</span>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs-row">
+        <div class="tab">今日待跟进 <span class="count">12</span></div>
+        <div class="tab active">本周待跟进 <span class="count">35</span> <span class="count danger">逾期 6</span></div>
+        <div class="tab">我的历史 <span class="count">128</span></div>
+        <div class="tab-meta">排序: 逾期优先,再按下次跟进时间 ↑</div>
+      </div>
+
+      <!-- Layout -->
+      <div class="layout">
+        <div>
+          <div class="section-meta">
+            <span>展示 <strong>35</strong> 条</span>
+            <span style="color:var(--hairline)">·</span>
+            <span><span class="dot d-danger"></span> 逾期 (6)</span>
+            <span style="color:var(--hairline)">·</span>
+            <span style="color:var(--muted)">今日到期 (12)</span>
+            <span style="color:var(--hairline)">·</span>
+            <span style="color:var(--muted)">本周 (17)</span>
+          </div>
+
+          <div class="record-grid">
+
+            <!-- 卡片 1:逾期(标红) -->
+            <div class="record-card is-overdue">
+              <div class="card-head">
+                <span class="entity-chip chip-business">📈 商机</span>
+                <span class="pill">方案报价</span>
+                <div class="card-amount"><span class="currency">¥</span>328,000</div>
+              </div>
+              <div class="card-title">蓝海科技 · 智能仓储 SaaS 采购</div>
+              <div class="card-sub">客户:蓝海科技(北京)有限公司 · 联系人:王经理</div>
+              <div class="last-follow">
+                <div class="last-follow-head">
+                  <span class="follow-type t-visit">🚗 上门拜访</span>
+                  <span class="last-follow-meta">3 天前 · sales_li</span>
+                </div>
+                <div class="last-follow-body">王经理要求周五前提交最终报价单,需协调产品部确认折扣区间。</div>
+              </div>
+              <div class="card-foot">
+                <div class="next-time">
+                  <div class="next-time-label">下次跟进(逾期 2 天)</div>
+                  <div class="next-time-val danger">2026-06-26 10:00</div>
+                </div>
+                <div class="card-actions">
+                  <button class="btn-ghost">查看详情</button>
+                  <button class="btn-ghost" style="background:var(--accent);color:#fff">立即跟进</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 卡片 2:逾期(标红) -->
+            <div class="record-card is-overdue">
+              <div class="card-head">
+                <span class="entity-chip chip-customer">👥 客户</span>
+                <span class="pill">A 级</span>
+                <div class="card-amount"><span class="currency">¥</span>—</div>
+              </div>
+              <div class="card-title">顺达物流股份有限公司</div>
+              <div class="card-sub">主营:第三方物流 · 联系人:陈总监</div>
+              <div class="last-follow">
+                <div class="last-follow-head">
+                  <span class="follow-type t-visit">🚗 上门拜访</span>
+                  <span class="last-follow-meta">12 天前 · sales_li</span>
+                </div>
+                <div class="last-follow-body">客户提到年底有 ERP 升级预算,需本月内再次上门做需求调研。</div>
+              </div>
+              <div class="card-foot">
+                <div class="next-time">
+                  <div class="next-time-label">下次跟进(逾期 5 天)</div>
+                  <div class="next-time-val danger">2026-06-23 14:00</div>
+                </div>
+                <div class="card-actions">
+                  <button class="btn-ghost">查看详情</button>
+                  <button class="btn-ghost" style="background:var(--accent);color:#fff">立即跟进</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 卡片 3:今日到期(不标红,普通卡片) -->
+            <div class="record-card">
+              <div class="card-head">
+                <span class="entity-chip chip-business">📈 商机</span>
+                <span class="pill">需求分析</span>
+                <div class="card-amount"><span class="currency">¥</span>85,000</div>
+              </div>
+              <div class="card-title">明远教育 · 在线培训平台搭建</div>
+              <div class="card-sub">客户:明远教育科技 · 联系人:张老师</div>
+              <div class="last-follow">
+                <div class="last-follow-head">
+                  <span class="follow-type t-wechat">💬 微信</span>
+                  <span class="last-follow-meta">昨天 16:22 · sales_li</span>
+                </div>
+                <div class="last-follow-body">客户确认周三上午 10 点视频会议,需提前准备需求调研问卷。</div>
+              </div>
+              <div class="card-foot">
+                <div class="next-time">
+                  <div class="next-time-label">下次跟进(今日)</div>
+                  <div class="next-time-val warn">今天 10:00</div>
+                </div>
+                <div class="card-actions">
+                  <button class="btn-ghost">查看详情</button>
+                  <button class="btn-ghost" style="background:var(--accent);color:#fff">立即跟进</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 卡片 4:本周普通(不标红) -->
+            <div class="record-card">
+              <div class="card-head">
+                <span class="entity-chip chip-contract">📄 合同</span>
+                <span class="pill">执行中</span>
+                <div class="card-amount"><span class="currency">¥</span>560,000</div>
+              </div>
+              <div class="card-title">万象制造 · MES 系统二期</div>
+              <div class="card-sub">签约日 2026-04-12 · 回款进度 40%</div>
+              <div class="last-follow">
+                <div class="last-follow-head">
+                  <span class="follow-type t-email">📧 邮件</span>
+                  <span class="last-follow-meta">5 天前 · sales_li</span>
+                </div>
+                <div class="last-follow-body">客户技术团队反馈二期部署问题清单 23 项,本周内安排电话会议同步进度。</div>
+              </div>
+              <div class="card-foot">
+                <div class="next-time">
+                  <div class="next-time-label">下次跟进</div>
+                  <div class="next-time-val">2026-06-30 09:30</div>
+                </div>
+                <div class="card-actions">
+                  <button class="btn-ghost">查看详情</button>
+                  <button class="btn-ghost" style="background:var(--accent);color:#fff">立即跟进</button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Side -->
+        <aside class="layout-side">
+          <div class="side-card">
+            <div class="side-card-title">📊 本周跟进方式分布<span class="more">明细</span></div>
+            <div class="bar-row"><span class="label">📞 电话</span><div class="track"><div class="fill b-phone" style="width:42%"></div></div><span class="val">12</span></div>
+            <div class="bar-row"><span class="label">🚗 上门</span><div class="track"><div class="fill b-visit" style="width:32%"></div></div><span class="val">9</span></div>
+            <div class="bar-row"><span class="label">💬 微信</span><div class="track"><div class="fill b-wechat" style="width:18%"></div></div><span class="val">5</span></div>
+            <div class="bar-row"><span class="label">📧 邮件</span><div class="track"><div class="fill b-email" style="width:8%"></div></div><span class="val">2</span></div>
+          </div>
+          <div class="side-card">
+            <div class="side-card-title">📈 近 7 日频次<span class="more">趋势</span></div>
+            <div class="sparkline">
+              <div class="spark-bar" style="height:30%"></div>
+              <div class="spark-bar" style="height:55%"></div>
+              <div class="spark-bar is-peak" style="height:90%"></div>
+              <div class="spark-bar" style="height:65%"></div>
+              <div class="spark-bar" style="height:80%"></div>
+              <div class="spark-bar" style="height:35%"></div>
+              <div class="spark-bar" style="height:25%"></div>
+            </div>
+            <div class="spark-labels"><span>6/22</span><span>6/28</span></div>
+          </div>
+          <div class="tip">
+            <span class="ico">💡</span>
+            <span>建议每天至少跟进 <strong>3-5 个客户</strong>,保持销售节奏。</span>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </main>
+</div>
+</body>
+</html>
