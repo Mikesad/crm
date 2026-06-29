@@ -146,6 +146,7 @@ const routes = [
     meta: { title: '产品管理', icon: 'Goods' },
     children: [
       {
+        // v0.5:产品分类作为产品库页内的第 2 个 Tab,不再是独立路由
         path: 'list',
         name: 'ProductList',
         component: () => import('@/views/product/list.vue'),

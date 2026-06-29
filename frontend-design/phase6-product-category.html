@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<!--
+  phase6-product-category.html
+  阶段六 commit 2 · 产品管理 · 产品分类
+
+  配套后端:
+    GET    /api/crm/product/category/page    分页(后续做,先用全量)
+    GET    /api/crm/product/category/all     全量(产品表单下拉用)
+    POST   /api/crm/product/category         新建
+    PUT    /api/crm/product/category/{id}    编辑
+    DELETE /api/crm/product/category/{id}    删除(校验是否被引用)
+
+  决策对齐:
+    D5 产品分类补齐 - 平铺表格(不做树形,parent_id 仅展示+编辑用)
+    D7 v0.4 修订:产品/产品分类 进 sidebar "系统设置"组(原"管理"组改名为"系统设置")
+        "系统设置"组顺序:用户管理/角色管理/菜单权限/部门管理/产品/产品分类
+        可见角色:产品/产品分类 全员(5 角色);其余 4 项 admin + 销售总监
+    D6 权限码:crm:product:category:list / crm:product:category:edit
+
+  字段说明(crm_product_category):
+    id            分类ID
+    parent_id     父分类ID(0=顶级,V1 仅展示不展示为树)
+    category_name 分类名称
+
+  Design Read: 与 phase6-user-management 同一令牌
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>产品分类 · ZenCRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:           #fafaf9;
+      --bg-warm:      #ffffff;
+      --ink:          #18181b;
+      --ink-soft:     #3f3f46;
+      --muted:        #71717a;
+      --subtle:       #a1a1aa;
+      --hairline:     #e4e4e7;
+      --hairline-soft:#f4f4f5;
+      --surface:      #ffffff;
+      --accent:       #166534;
+      --accent-soft:  #dcfce7;
+      --accent-pale:  #f0fdf4;
+      --accent-ring:  rgba(22, 101, 52, 0.12);
+      --info:         #1e40af;
+      --info-soft:    #dbeafe;
+      --warn:         #b45309;
+      --warn-soft:    #fef3c7;
+      --danger:       #b91c1c;
+      --danger-soft:  #fee2e2;
+      --teal:         #0d9488;
+      --teal-soft:    #ccfbf1;
+      --font-sans:    'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+      --radius:       6px;
+      --shadow-md:    0 4px 12px rgba(0,0,0,0.08);
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: var(--font-sans); font-size: 14px; line-height: 1.5; color: var(--ink); background: var(--bg); margin: 0; -webkit-font-smoothing: antialiased; }
+    .mono { font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
+    .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+
+    /* === sidebar === */
+    .sidebar { background: var(--bg-warm); border-right: 1px solid var(--hairline); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; }
+    .sidebar-top { padding: 20px 20px 16px; }
+    .wordmark { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+    .wordmark-glyph { width: 18px; height: 18px; background: var(--accent); border-radius: 4px; }
+    .nav { padding: 8px 12px; flex: 1; overflow-y: auto; }
+    .nav-group { margin-bottom: 16px; }
+    .nav-label { padding: 6px 8px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--subtle); font-weight: 500; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: var(--radius); color: var(--ink-soft); cursor: pointer; font-size: 13.5px; text-decoration: none; transition: background 0.12s, color 0.12s; }
+    .nav-item:hover { background: var(--bg); color: var(--ink); }
+    .nav-item.active { background: var(--accent-ring); color: var(--accent); font-weight: 500; }
+    .nav-icon { font-size: 15px; }
+    .nav-text { flex: 1; }
+    .user-card { margin: 0 12px 16px; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: var(--radius); display: flex; align-items: center; gap: 10px; }
+    .user-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+    .user-info { flex: 1; line-height: 1.3; min-width: 0; }
+    .user-name { font-size: 13px; font-weight: 500; }
+    .user-role { font-size: 11.5px; color: var(--muted); }
+
+    /* === main === */
+    .main { padding: 32px 32px 48px; min-width: 0; }
+    .breadcrumb { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+    .breadcrumb a { color: var(--muted); text-decoration: none; }
+    .breadcrumb a:hover { color: var(--accent); }
+    .breadcrumb .sep { margin: 0 6px; color: var(--subtle); }
+    .page-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; }
+    .page-title { font-size: 24px; font-weight: 600; letter-spacing: -0.015em; color: var(--ink); }
+    .page-sub { color: var(--muted); font-size: 13.5px; margin-top: 4px; }
+    .page-sub .accent { color: var(--accent); font-weight: 500; }
+    .page-sub .mono { color: var(--ink-soft); }
+
+    /* === buttons === */
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--hairline); background: var(--surface); border-radius: var(--radius); font-size: 13px; font-weight: 500; color: var(--ink-soft); cursor: pointer; transition: all 0.12s; }
+    .btn:hover { background: var(--bg); color: var(--ink); }
+    .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+    .btn-primary:hover { background: #14532d; color: white; }
+    .btn-link { background: none; border: none; padding: 4px 6px; color: var(--accent); cursor: pointer; font-size: 13px; }
+    .btn-link:hover { text-decoration: underline; }
+    .btn-link.danger { color: var(--danger); }
+    .btn-link.disabled { color: var(--subtle); cursor: not-allowed; pointer-events: none; }
+
+    /* === toolbar === */
+    .toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .input { padding: 6px 10px; border: 1px solid var(--hairline); background: var(--surface); border-radius: var(--radius); font-size: 13px; color: var(--ink); min-width: 240px; outline: none; transition: border 0.12s; }
+    .input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+    .input::placeholder { color: var(--subtle); }
+    .select { padding: 6px 10px; border: 1px solid var(--hairline); background: var(--surface); border-radius: var(--radius); font-size: 13px; min-width: 140px; cursor: pointer; }
+    .spacer { flex: 1; }
+
+    /* === table === */
+    .table-card { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead { background: var(--bg); }
+    th { padding: 10px 16px; text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--hairline); }
+    th.num, td.num { text-align: right; }
+    td { padding: 12px 16px; border-bottom: 1px solid var(--hairline-soft); color: var(--ink-soft); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: var(--bg); }
+    .name-block { display: flex; align-items: center; gap: 8px; }
+    .name-block .icon { width: 28px; height: 28px; border-radius: var(--radius); display: inline-flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+    .name-block .name { font-weight: 500; color: var(--ink); }
+    .name-block .sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+    .mono-cell { font-family: var(--font-mono); font-feature-settings: 'tnum' 1; color: var(--accent); }
+    .text-muted { color: var(--subtle); }
+    .empty { padding: 64px 16px; text-align: center; color: var(--muted); font-size: 13px; }
+
+    /* === chips === */
+    .chip { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 500; line-height: 18px; }
+    .chip-root { background: var(--accent-pale); color: var(--accent); border: 1px solid var(--accent-soft); }
+    .chip-child { background: var(--hairline); color: var(--muted); }
+    .chip-count { background: var(--info-soft); color: var(--info); font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
+
+    /* === pagination === */
+    .pagination { padding: 12px 16px; display: flex; align-items: center; justify-content: flex-end; gap: 12px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--hairline-soft); }
+    .page-btn { padding: 4px 8px; border: 1px solid var(--hairline); background: var(--surface); border-radius: 4px; cursor: pointer; color: var(--ink-soft); font-size: 12px; }
+    .page-btn:hover { color: var(--accent); border-color: var(--accent-soft); }
+    .page-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+    /* === modal === */
+    .modal-mask { position: fixed; inset: 0; background: rgba(24,24,27,0.4); display: flex; align-items: center; justify-content: center; z-index: 50; }
+    .modal { background: var(--surface); border-radius: 8px; box-shadow: var(--shadow-md); max-width: 480px; width: calc(100% - 32px); }
+    .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--hairline); }
+    .modal-title { font-size: 16px; font-weight: 600; }
+    .modal-close { background: none; border: none; font-size: 18px; color: var(--muted); cursor: pointer; padding: 0; line-height: 1; }
+    .modal-body { padding: 20px; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--hairline); background: var(--bg); border-radius: 0 0 8px 8px; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+    .form-group .label { font-size: 12.5px; color: var(--ink-soft); font-weight: 500; }
+    .form-group .label .required { color: var(--danger); margin-left: 2px; }
+    .form-group .input, .form-group .select { width: 100%; }
+    .help { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+    /* === info banner (rebrand 提示) === */
+    .banner { background: var(--info-soft); border: 1px solid #bfdbfe; border-radius: var(--radius); padding: 10px 14px; font-size: 12.5px; color: var(--info); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .banner .icon { font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- ============== SIDEBAR ============== -->
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <div class="wordmark">
+          <div class="wordmark-glyph"></div>
+          <span>ZenCRM</span>
+        </div>
+      </div>
+      <nav class="nav">
+        <div class="nav-group">
+          <div class="nav-label">工作台</div>
+          <a class="nav-item" href="#"><span class="nav-icon">🏠</span><span class="nav-text">仪表盘</span></a>
+          <a class="nav-item" href="#"><span class="nav-icon">🔔</span><span class="nav-text">跟进中心</span></a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">业务</div>
+          <a class="nav-item" href="#"><span class="nav-icon">◎</span><span class="nav-text">线索</span></a>
+          <a class="nav-item" href="#"><span class="nav-icon">👤</span><span class="nav-text">客户</span></a>
+          <a class="nav-item" href="#"><span class="nav-icon">📈</span><span class="nav-text">商机</span></a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">交易</div>
+          <a class="nav-item" href="#"><span class="nav-icon">📄</span><span class="nav-text">合同</span></a>
+          <a class="nav-item" href="#"><span class="nav-icon">💰</span><span class="nav-text">回款</span></a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">可视化</div>
+          <a class="nav-item" href="#"><span class="nav-icon">📊</span><span class="nav-text">报表</span></a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">系统设置</div>
+          <a class="nav-item" href="#"><span class="nav-icon">👥</span><span class="nav-text">用户管理</span></a>
+          <a class="nav-item" href="#"><span class="nav-icon">🛡️</span><span class="nav-text">角色管理</span></a>
+          <a class="nav-item" href="#"><span class="nav-icon">🗂️</span><span class="nav-text">菜单权限</span></a>
+          <a class="nav-item" href="#"><span class="nav-icon">🏢</span><span class="nav-text">部门管理</span></a>
+          <a class="nav-item" href="#"><span class="nav-icon">📦</span><span class="nav-text">产品</span></a>
+          <a class="nav-item active" href="#"><span class="nav-icon">🗂️</span><span class="nav-text">产品分类</span></a>
+        </div>
+      </nav>
+      <div class="user-card">
+        <div class="user-avatar">超</div>
+        <div class="user-info">
+          <div class="user-name">超级管理员</div>
+          <div class="user-role">admin</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============== MAIN ============== -->
+    <main class="main">
+      <div class="breadcrumb">
+        <a href="#">系统设置</a><span class="sep">/</span><span>产品分类</span>
+      </div>
+
+      <div class="page-header">
+        <div>
+          <div class="page-title">产品分类</div>
+          <div class="page-sub">
+            共 <span class="accent mono">4</span> 个分类 ·
+            顶级 <span class="mono">4</span> ·
+            已用 <span class="mono" style="color:var(--info)">4</span> / 4 (全部有产品)
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="document.getElementById('createModal').style.display='flex'">
+          ＋ 新建分类
+        </button>
+      </div>
+
+      <div class="banner">
+        <span class="icon">💡</span>
+        <span>
+          分类用于合同新建时的产品归类与产品下拉过滤;
+          <strong>删除分类前需先迁移该分类下所有产品</strong>,否则产品将变成"未分类"。
+        </span>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <input class="input" placeholder="搜索分类名称" />
+        <select class="select">
+          <option>全部层级</option>
+          <option>顶级分类</option>
+          <option>子分类</option>
+        </select>
+        <select class="select">
+          <option>使用状态</option>
+          <option>已使用</option>
+          <option>未使用</option>
+        </select>
+        <div class="spacer"></div>
+        <button class="btn">查询</button>
+        <button class="btn">重置</button>
+      </div>
+
+      <!-- Table -->
+      <div class="table-card">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:60px">序号</th>
+              <th>分类名称</th>
+              <th style="width:120px">层级</th>
+              <th style="width:120px" class="num">关联产品数</th>
+              <th style="width:140px">创建时间</th>
+              <th style="width:180px">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="mono text-muted">1</td>
+              <td>
+                <div class="name-block">
+                  <div class="icon" style="background:var(--accent-pale);color:var(--accent)">★</div>
+                  <div>
+                    <div class="name">核心产品</div>
+                    <div class="sub">SaaS 主线产品 / 基础 / 专业 / 旗舰</div>
+                  </div>
+                </div>
+              </td>
+              <td><span class="chip chip-root">顶级</span></td>
+              <td class="num"><span class="chip chip-count">3</span></td>
+              <td class="mono" style="color:var(--muted)">2026-01-15 09:00</td>
+              <td>
+                <button class="btn-link">编辑</button>
+                <button class="btn-link disabled" title="该分类下还有 3 个产品,无法删除">删除</button>
+              </td>
+            </tr>
+            <tr>
+              <td class="mono text-muted">2</td>
+              <td>
+                <div class="name-block">
+                  <div class="icon" style="background:var(--info-soft);color:var(--info)">◧</div>
+                  <div>
+                    <div class="name">功能模块</div>
+                    <div class="sub">可插拔的增值模块 / 数据分析 / 高级报表</div>
+                  </div>
+                </div>
+              </td>
+              <td><span class="chip chip-root">顶级</span></td>
+              <td class="num"><span class="chip chip-count">2</span></td>
+              <td class="mono" style="color:var(--muted)">2026-01-15 09:05</td>
+              <td>
+                <button class="btn-link">编辑</button>
+                <button class="btn-link disabled" title="该分类下还有 2 个产品,无法删除">删除</button>
+              </td>
+            </tr>
+            <tr>
+              <td class="mono text-muted">3</td>
+              <td>
+                <div class="name-block">
+                  <div class="icon" style="background:var(--teal-soft);color:var(--teal)">⚙</div>
+                  <div>
+                    <div class="name">服务类</div>
+                    <div class="sub">实施 / 培训 / 咨询类一次性服务</div>
+                  </div>
+                </div>
+              </td>
+              <td><span class="chip chip-root">顶级</span></td>
+              <td class="num"><span class="chip chip-count">2</span></td>
+              <td class="mono" style="color:var(--muted)">2026-01-15 09:10</td>
+              <td>
+                <button class="btn-link">编辑</button>
+                <button class="btn-link disabled" title="该分类下还有 2 个产品,无法删除">删除</button>
+              </td>
+            </tr>
+            <tr>
+              <td class="mono text-muted">4</td>
+              <td>
+                <div class="name-block">
+                  <div class="icon" style="background:var(--warn-soft);color:var(--warn)">＋</div>
+                  <div>
+                    <div class="name">增值包</div>
+                    <div class="sub">客户定制 / API 接入 / 高级支持</div>
+                  </div>
+                </div>
+              </td>
+              <td><span class="chip chip-root">顶级</span></td>
+              <td class="num"><span class="chip chip-count">1</span></td>
+              <td class="mono" style="color:var(--muted)">2026-01-15 09:15</td>
+              <td>
+                <button class="btn-link">编辑</button>
+                <button class="btn-link disabled" title="该分类下还有 1 个产品,无法删除">删除</button>
+              </td>
+            </tr>
+            <tr style="background:var(--bg)">
+              <td class="mono text-muted" colspan="6" style="text-align:center;padding:24px;color:var(--subtle)">
+                —
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="pagination">
+          <span>共 4 条</span>
+          <select class="select" style="min-width:auto"><option>10 条/页</option><option>20 条/页</option></select>
+          <button class="page-btn">‹</button>
+          <button class="page-btn active">1</button>
+          <button class="page-btn">›</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ============== 新建/编辑分类 MODAL ============== -->
+  <div class="modal-mask" id="createModal" style="display:flex">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">新建分类</div>
+        <button class="modal-close" onclick="this.closest('.modal-mask').style.display='none'">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="label">父分类</label>
+          <select class="select">
+            <option selected>— 顶级分类 —</option>
+            <option>核心产品</option>
+            <option>功能模块</option>
+            <option>服务类</option>
+            <option>增值包</option>
+          </select>
+          <div class="help">V1 暂不开放多级分类;选择顶级即作为一级分类</div>
+        </div>
+        <div class="form-group">
+          <label class="label">分类名称 <span class="required">*</span></label>
+          <input class="input" placeholder="如 高级支持服务" value="高级支持服务" />
+          <div class="help">同一父分类下不可重复,建议 2-8 个字</div>
+        </div>
+        <div class="form-group">
+          <label class="label">分类图标</label>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <div class="icon" style="background:var(--accent-pale);color:var(--accent);width:32px;height:32px;border-radius:var(--radius);display:inline-flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer;border:2px solid var(--accent)">★</div>
+            <div class="icon" style="background:var(--info-soft);color:var(--info);width:32px;height:32px;border-radius:var(--radius);display:inline-flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer">◧</div>
+            <div class="icon" style="background:var(--teal-soft);color:var(--teal);width:32px;height:32px;border-radius:var(--radius);display:inline-flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer">⚙</div>
+            <div class="icon" style="background:var(--warn-soft);color:var(--warn);width:32px;height:32px;border-radius:var(--radius);display:inline-flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer">＋</div>
+            <div class="icon" style="background:var(--violet-soft,var(--hairline));color:var(--muted);width:32px;height:32px;border-radius:var(--radius);display:inline-flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer">⊕</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="this.closest('.modal-mask').style.display='none'">取消</button>
+        <button class="btn btn-primary">保存</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

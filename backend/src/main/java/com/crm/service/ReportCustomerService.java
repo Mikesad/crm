@@ -7,8 +7,8 @@ import com.crm.vo.ReportCustomerVO;
 import com.crm.vo.ReportDistItemVO;
 import com.crm.vo.ReportKpiVO;
 import com.crm.vo.ReportTrendPointVO;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -34,12 +34,26 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class ReportCustomerService {
 
     private final ReportCacheService cache;
     private final ReportQueryHelper helper;
     private final CrmCustomerMapper customerMapper;
+
+    /**
+     * 沉睡阈值(天)— 与公海池回收共用同一配置 {@code crm.customer.public-pool-days},默认 15 天。
+     * <p>语义:超过该天数无跟进的客户视为「沉睡」,与公海回收口径一致,
+     * 改 yml 一处即可同步调整「沉睡客户数」KPI 与「活跃/沉睡」分布。</p>
+     * <p>注意:与「活跃(30 天)」是独立的另一窗口(体现近期互动强度),保留 30 天不变。</p>
+     */
+    @Value("${crm.customer.public-pool-days:15}")
+    private int publicPoolDays;
+
+    public ReportCustomerService(ReportCacheService cache, ReportQueryHelper helper, CrmCustomerMapper customerMapper) {
+        this.cache = cache;
+        this.helper = helper;
+        this.customerMapper = customerMapper;
+    }
 
     public ReportCustomerVO buildCustomerReport(String range, String startDate, String endDate,
                                                  Long deptId, Long userId, String dim) {
@@ -66,7 +80,7 @@ public class ReportCustomerService {
         long total = customerMapper.countByOwner(ownerIds);
         long industryCount = customerMapper.countDistinctIndustry(ownerIds);
         long publicCount = customerMapper.countPublic();
-        long dormant = customerMapper.countDormant(30, ownerIds);
+        long dormant = customerMapper.countDormant(publicPoolDays, ownerIds);
         String publicPct = total > 0
                 ? new BigDecimal(publicCount * 100).divide(new BigDecimal(total), 1, RoundingMode.HALF_UP).toPlainString() + "%"
                 : "0%";
@@ -89,7 +103,7 @@ public class ReportCustomerService {
         ReportKpiVO k4 = new ReportKpiVO();
         k4.setKey("dormantCount"); k4.setLabel("沉睡客户数");
         k4.setValue(String.valueOf(dormant));
-        k4.setFootnote(dormantPct + " 客户超 30 天未跟进");
+        k4.setFootnote(dormantPct + " 客户超 " + publicPoolDays + " 天未跟进");
         kpis.add(k4);
         return kpis;
     }
@@ -121,12 +135,13 @@ public class ReportCustomerService {
         ReportActivityVO a = new ReportActivityVO();
         long total = customerMapper.countByOwner(ownerIds);
         long active = customerMapper.countActive(30, ownerIds);
-        long dormant = customerMapper.countDormant(30, ownerIds);
+        long dormant = customerMapper.countDormant(publicPoolDays, ownerIds);
         long publicCount = customerMapper.countPublic();
         a.setTotal(total);
         a.setActive(active);
         a.setDormant(dormant);
         a.setPublicPool(publicCount);
+        a.setDormantDays(publicPoolDays);
         a.setActivePercent(pct(active, total));
         a.setDormantPercent(pct(dormant, total));
         a.setPublicPercent(pct(publicCount, total));

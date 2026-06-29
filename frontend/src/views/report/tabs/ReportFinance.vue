@@ -3,7 +3,7 @@
     <!-- 4 KPI 密集条 -->
     <KpiStrip :kpis="data.kpis || []" />
 
-    <!-- 2x2 图表:回款趋势 / 月度堆叠 / 账龄 / 回款方式 -->
+    <!-- 2x2 图表:回款趋势 / 月度堆叠 / 账龄 / 应收 TopN -->
     <ChartGrid2x2>
       <ChartCard title="回款趋势" meta="合同 / 已回款 / 预测(3 series)">
         <ChartTrend
@@ -29,16 +29,6 @@
           :height="240"
         />
       </ChartCard>
-      <ChartCard title="回款方式" meta="银行转账/微信/支付宝/现金">
-        <ChartDonut
-          :data="(data.receivableMethod || []).map(d => ({ name: d.key, value: d.count }))"
-          :height="240"
-        />
-      </ChartCard>
-    </ChartGrid2x2>
-
-    <!-- 应收 TopN -->
-    <ChartGrid2x2>
       <ReportDataTable
         title="应收 Top N 客户"
         meta="按未回款金额"
@@ -67,7 +57,6 @@ import ReportDataTable from '@/components/report/ReportDataTable.vue'
 import ChartTrend from '@/components/report/charts/ChartTrend.vue'
 import ChartStacked from '@/components/report/charts/ChartStacked.vue'
 import ChartBarH from '@/components/report/charts/ChartBarH.vue'
-import ChartDonut from '@/components/report/charts/ChartDonut.vue'
 
 const props = defineProps({
   data: { type: Object, required: true }

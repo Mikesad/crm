@@ -48,6 +48,8 @@ public class CrmProduct implements Serializable {
     /** 状态：0 下架 / 1 上架 */
     private Integer status;
 
+    // v0.7:移除套餐线 / 计费周期字段(撤销 D4 中度 SaaS 升级)
+
     private String createBy;
 
     private LocalDateTime createTime;

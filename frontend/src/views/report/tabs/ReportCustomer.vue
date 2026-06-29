@@ -22,9 +22,9 @@
           </div>
         </div>
       </ChartCard>
-      <ChartCard title="客户等级分布" meta="A / B / C">
+      <ChartCard title="客户等级分布" meta="重要 / 普通 / 意向">
         <ChartDonut
-          :data="(data.levelDistribution || []).map(d => ({ name: d.key, value: d.count }))"
+          :data="(data.levelDistribution || []).map(d => ({ name: LEVEL_LABEL[d.key] || d.key, value: d.count }))"
           :height="240"
         />
       </ChartCard>
@@ -50,6 +50,9 @@ const props = defineProps({
   data: { type: Object, required: true },
   dim:  { type: String, default: 'industry' }
 })
+
+// 客户等级 → 中文示意(与后端 CustomerService#toVO 保持一致)
+const LEVEL_LABEL = { A: '重要客户', B: '普通客户', C: '意向客户' }
 
 const dimLabel = computed(() => {
   return { industry: '行业', level: '等级', source: '来源' }[props.dim] || props.dim

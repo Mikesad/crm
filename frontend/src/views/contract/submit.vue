@@ -89,9 +89,9 @@
             <span v-else class="text-muted">—</span>
           </template>
         </el-table-column>
-        <el-table-column label="" width="50" align="center">
+        <el-table-column label="" width="48" align="center">
           <template #default="{ $index }">
-            <el-button text @click="removeItem($index)" :disabled="form.items.length === 1">×</el-button>
+            <el-button circle size="small" type="danger" :icon="Close" @click="removeItem($index)" :disabled="form.items.length === 1" />
           </template>
         </el-table-column>
       </el-table>
@@ -120,6 +120,59 @@
       </div>
     </el-card>
 
+    <!-- v0.13:回款计划(可选,与合同同步创建) -->
+    <el-card class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">📅 回款计划 <span class="text-muted micro" style="font-weight: normal;">(可选)</span></div>
+          <div v-if="minDiscount < 8.5" class="text-muted micro" style="margin-top: 4px;">
+            ⚠ 折扣低于 8.5 折,合同将进入审批;审批通过后再在详情页录入回款计划
+          </div>
+          <div v-else class="text-muted micro" style="margin-top: 4px;">
+            提交时同步创建;期数 period 不能重复,合计金额应等于合同总金额
+          </div>
+        </div>
+        <el-button text class="add-link" :disabled="minDiscount < 8.5" @click="addPlan">+ 添加分期</el-button>
+      </div>
+
+      <el-table v-if="form.plans.length" :data="form.plans" class="plans-table">
+        <el-table-column label="期数" width="80" align="center">
+          <template #default="{ row }">
+            <span class="mono accent">第 {{ row.period }} 期</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="预计回款日" width="160">
+          <template #default="{ row }">
+            <el-date-picker v-model="row.expectedDate" type="date" value-format="YYYY-MM-DD" style="width: 150px;" />
+          </template>
+        </el-table-column>
+        <el-table-column label="预计金额" min-width="220" align="right">
+          <template #default="{ row }">
+            <el-input-number v-model="row.expectedAmount" :min="0.01" :precision="2" :step="1000" controls-position="right" style="width: 160px;" />
+            <span class="text-muted micro" style="margin-left: 6px;">元</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="备注" min-width="260">
+          <template #default="{ row }">
+            <el-input v-model="row.remark" placeholder="如:首款 40%" style="width: 100%;" />
+          </template>
+        </el-table-column>
+        <el-table-column label="" width="48" align="center">
+          <template #default="{ $index }">
+            <el-button circle size="small" type="danger" :icon="Close" @click="removePlan($index)" />
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <div v-if="form.plans.length" class="plan-summary">
+        <span class="text-muted micro">合计 {{ form.plans.length }} 期 · 预计 ¥ {{ plansTotal.toLocaleString() }}</span>
+        <span v-if="Math.abs(plansTotal - totalAmount) > 0.01" class="warn-text micro">
+          ⚠ 与合同总额差 ¥ {{ Math.abs(totalAmount - plansTotal).toLocaleString() }}
+        </span>
+        <span v-else class="ok-text micro">✓ 与合同总额一致</span>
+      </div>
+    </el-card>
+
     <div class="actions">
       <el-button @click="$router.push('/contract/list')">取消</el-button>
       <el-button class="btn-zen-primary" :loading="submitting" @click="handleSubmit">
@@ -133,10 +186,13 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { Close } from '@element-plus/icons-vue'
+import dayjs from 'dayjs'
 import { createContract } from '@/api/contract'
 import { pageProduct } from '@/api/product'
 import { pageCustomer } from '@/api/customer'
 import { pageBusiness } from '@/api/business'
+import { createReceivablePlanBatch } from '@/api/receivable-plan'
 
 defineOptions({ name: 'ContractSubmit' })
 
@@ -149,7 +205,9 @@ const form = reactive({
   contractNum: '',
   startDate: '',
   endDate: '',
-  items: [{ productId: null, count: 1, discount: 10.0, standardPrice: 0 }]
+  items: [{ productId: null, count: 1, discount: 10.0, standardPrice: 0 }],
+  // v0.13:回款计划(可选,折扣合规时同步创建)
+  plans: []
 })
 
 const baseFormRef = ref(null)
@@ -225,6 +283,24 @@ function removeItem(idx) {
   form.items.splice(idx, 1)
 }
 
+// v0.13:回款计划增删
+function addPlan() {
+  form.plans.push({
+    period: form.plans.length + 1,
+    expectedDate: dayjs().add(30 * (form.plans.length + 1), 'day').format('YYYY-MM-DD'),
+    expectedAmount: 0,
+    remark: ''
+  })
+}
+function removePlan(idx) {
+  form.plans.splice(idx, 1)
+  // 重新编号
+  form.plans.forEach((p, i) => { p.period = i + 1 })
+}
+const plansTotal = computed(() => {
+  return Math.round(form.plans.reduce((s, p) => s + Number(p.expectedAmount || 0), 0) * 100) / 100
+})
+
 async function handleSubmit() {
   await baseFormRef.value.validate()
   if (!hasItems.value) {
@@ -246,8 +322,29 @@ async function handleSubmit() {
       }))
     }
     const res = await createContract(payload)
-    ElMessage.success(minDiscount.value < 8.5 ? '合同已提交,等待销售总监审批' : '合同已提交,直接进入执行中')
-    router.push(`/contract/${res.data}`)
+    const contractId = res.data
+
+    // v0.13:折扣合规 + 有回款计划 → 同步创建
+    if (form.plans.length > 0 && minDiscount.value >= 8.5) {
+      try {
+        await createReceivablePlanBatch({
+          contractId,
+          plans: form.plans.map(p => ({
+            period: p.period,
+            expectedAmount: p.expectedAmount,
+            expectedDate: p.expectedDate,
+            remark: p.remark || ''
+          }))
+        })
+        ElMessage.success('合同已提交,回款计划已同步创建')
+      } catch (e) {
+        ElMessage.warning('合同已提交,但回款计划创建失败,请到详情页补录')
+      }
+    } else {
+      ElMessage.success(minDiscount.value < 8.5 ? '合同已提交,等待销售总监审批' : '合同已提交,直接进入执行中')
+    }
+
+    router.push(`/contract/${contractId}`)
   } finally {
     submitting.value = false
   }
@@ -297,6 +394,17 @@ async function handleSubmit() {
   .icon { font-size: 16px; flex-shrink: 0; }
   b { color: #78350f; }
 }
+
+/* v0.13:回款计划 */
+.plans-table { border-radius: 0; }
+.plans-table :deep(.el-input-number .el-input__inner) { text-align: center; }
+.plan-summary {
+  margin-top: 12px; padding: 8px 12px;
+  background: #f9fafb; border-radius: var(--radius);
+  display: flex; align-items: center; gap: 12px; font-size: 12.5px;
+}
+.warn-text { color: var(--warn); font-weight: 500; }
+.ok-text { color: var(--accent); font-weight: 500; }
 .info-banner {
   background: #f0fdf4; border: 1px solid #86efac; border-radius: var(--radius);
   padding: 12px 16px; margin-top: 16px;

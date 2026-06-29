@@ -32,4 +32,11 @@ public class CustomerQueryRequest extends PageQuery {
      * <p>与 isPublic 互斥:若 sharedToMeOnly=1,无论 isPublic 是什么,只返回共享表命中的客户。</p>
      */
     private Integer sharedToMeOnly;
+
+    // v0.16:排序字段(可选 lastFollowTime)
+    @Schema(description = "排序字段:lastFollowTime(默认)")
+    private String sortBy;
+
+    @Schema(description = "排序方向:asc / desc(默认 desc)", example = "desc")
+    private String order;
 }

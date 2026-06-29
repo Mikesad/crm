@@ -29,5 +29,10 @@ public class ProductVO {
     private Integer status;
     private String statusText;
 
+    // v0.7:移除套餐线 / 计费周期字段(撤销 D4 中度 SaaS 升级)
+
+    @Schema(description = "产品分类名称(批量填充,阶段六 commit 2 新增)")
+    private String categoryName;
+
     private LocalDateTime createTime;
 }

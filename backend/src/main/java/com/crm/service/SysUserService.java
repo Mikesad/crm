@@ -71,7 +71,16 @@ public class SysUserService {
         }
         wrapper.orderByAsc(SysUser::getId);
         IPage<SysUser> result = userMapper.selectPage(page, wrapper);
-        return result.convert(this::toVO);
+        IPage<SysUserVO> voPage = result.convert(this::toVO);
+        // v0.11:补 roleIds + roleNames 填充(原 page 漏掉,导致前端列表全显示"未分配")
+        List<SysUserVO> records = voPage.getRecords();
+        if (!records.isEmpty()) {
+            for (SysUserVO vo : records) {
+                vo.setRoleIds(userRoleMapper.selectRoleIdsByUserId(vo.getId()));
+            }
+            fillRoleNames(records);
+        }
+        return voPage;
     }
 
     public SysUserVO detail(Long id) {

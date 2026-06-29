@@ -3,7 +3,7 @@
     <!-- 6 KPI 密集条 -->
     <KpiStrip :kpis="data.kpis || []" />
 
-    <!-- 2x2 图表:漏斗 / 趋势 / 部门 / 来源 -->
+    <!-- 2x2 图表:漏斗 / 趋势 / 部门 / 个人榜 -->
     <ChartGrid2x2>
       <ChartCard title="销售漏斗" :meta="`按阶段 · ${data.funnel?.length || 0} 阶段`">
         <ChartFunnel :data="(data.funnel || []).map(s => ({ name: s.stageName, value: s.count }))" :height="280" />
@@ -17,16 +17,6 @@
           :height="240"
         />
       </ChartCard>
-      <ChartCard title="客户来源" meta="按渠道(基于 crm_lead.source)">
-        <ChartDonut
-          :data="(data.sourceDistribution || []).map(s => ({ name: s.key, value: s.count }))"
-          :height="240"
-        />
-      </ChartCard>
-    </ChartGrid2x2>
-
-    <!-- 销售个人榜 -->
-    <ChartGrid2x2>
       <ReportDataTable
         title="销售个人榜 · TOP N"
         :meta="`按销售总额`"
@@ -54,7 +44,6 @@ import ReportDataTable from '@/components/report/ReportDataTable.vue'
 import ChartFunnel from '@/components/report/charts/ChartFunnel.vue'
 import ChartTrend from '@/components/report/charts/ChartTrend.vue'
 import ChartBar from '@/components/report/charts/ChartBar.vue'
-import ChartDonut from '@/components/report/charts/ChartDonut.vue'
 
 defineProps({
   data: { type: Object, required: true }

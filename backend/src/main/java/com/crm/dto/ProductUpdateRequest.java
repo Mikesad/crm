@@ -35,6 +35,8 @@ public class ProductUpdateRequest {
     @Size(max = 10, message = "单位最长 10 字符")
     private String unit;
 
+    // v0.7:移除套餐线 / 计费周期字段(撤销 D4 中度 SaaS 升级)
+
     @Schema(description = "状态：0 下架 / 1 上架")
     private Integer status;
 }

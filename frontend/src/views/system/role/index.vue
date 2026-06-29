@@ -14,10 +14,10 @@
 
     <div class="tabs">
       <div class="tab" :class="{ active: tab === 'users' }" @click="switchTab('users')">
-        用户管理 <span class="badge">{{ userCount }}</span>
+        用户管理
       </div>
       <div class="tab" :class="{ active: tab === 'roles' }" @click="switchTab('roles')">
-        权限管理 <span class="badge">{{ roleCount }}</span>
+        权限管理
       </div>
       <div class="spacer" />
       <div class="right-action">
@@ -86,8 +86,6 @@ onMounted(fetchCounts)
 .tab { padding: 10px 16px; font-size: 14px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.12s; display: flex; align-items: center; gap: 6px; }
 .tab:hover { color: var(--ink-soft); }
 .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
-.tab .badge { font-size: 11px; padding: 1px 6px; background: var(--hairline); color: var(--muted); border-radius: 8px; font-family: var(--font-mono); }
-.tab.active .badge { background: var(--accent-ring); color: var(--accent); }
 .spacer { flex: 1; }
 .right-action { padding: 0 0 8px; }
 .action-link { background: none; border: none; padding: 4px 10px; color: var(--accent); cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; gap: 4px; }

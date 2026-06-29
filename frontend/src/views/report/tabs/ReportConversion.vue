@@ -3,7 +3,7 @@
     <!-- 4 KPI 密集条 -->
     <KpiStrip :kpis="data.kpis || []" />
 
-    <!-- 2x2 图表:转化漏斗 / 跟进方式 / 高频跟进人 / 团队 vs 全公司 -->
+    <!-- 2x2 图表:转化漏斗 / 高频跟进人 / 团队 vs 全公司 / 6 月频次 -->
     <ChartGrid2x2>
       <ChartCard title="阶段转化漏斗" :meta="`5 阶段 · ${data.stageFunnel?.length || 0}`">
         <ChartFunnel
@@ -11,12 +11,16 @@
           :height="280"
         />
       </ChartCard>
-      <ChartCard title="跟进方式分布" meta="电话/微信/拜访/邮件/其他">
-        <ChartDonut
-          :data="(data.followTypeDist || []).map(d => ({ name: d.key, value: d.count }))"
-          :height="280"
-        />
-      </ChartCard>
+      <ReportDataTable
+        title="高频跟进人 · TOP N"
+        meta="按跟进条数"
+        :columns="[
+          { key: 'rank',  title: '排名' },
+          { key: 'name',  title: '跟进人' },
+          { key: 'count', title: '条数', align: 'right' }
+        ]"
+        :rows="data.topPerformers || []"
+      />
       <ChartCard title="团队 vs 全公司" meta="5 阶段转化率对比">
         <div class="compare-table">
           <div class="compare-row compare-head">
@@ -39,20 +43,6 @@
         />
       </ChartCard>
     </ChartGrid2x2>
-
-    <!-- 高频跟进人榜 -->
-    <ChartGrid2x2>
-      <ReportDataTable
-        title="高频跟进人 · TOP N"
-        meta="按跟进条数"
-        :columns="[
-          { key: 'rank',  title: '排名' },
-          { key: 'name',  title: '跟进人' },
-          { key: 'count', title: '条数', align: 'right' }
-        ]"
-        :rows="data.topPerformers || []"
-      />
-    </ChartGrid2x2>
   </div>
 </template>
 
@@ -62,7 +52,6 @@ import ChartCard from '@/components/report/ChartCard.vue'
 import ChartGrid2x2 from '@/components/report/ChartGrid2x2.vue'
 import ReportDataTable from '@/components/report/ReportDataTable.vue'
 import ChartFunnel from '@/components/report/charts/ChartFunnel.vue'
-import ChartDonut from '@/components/report/charts/ChartDonut.vue'
 import ChartTrend from '@/components/report/charts/ChartTrend.vue'
 
 const props = defineProps({

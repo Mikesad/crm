@@ -20,4 +20,11 @@ public class LeadQueryRequest extends PageQuery {
 
     @Schema(description = "线索来源")
     private String source;
+
+    // v0.16:排序字段(可选 createTime)
+    @Schema(description = "排序字段:createTime(默认)")
+    private String sortBy;
+
+    @Schema(description = "排序方向:asc / desc(默认 desc)", example = "desc")
+    private String order;
 }

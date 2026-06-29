@@ -18,6 +18,23 @@
             <span v-else class="zen-status gray">已作废</span>
           </div>
           <div class="mono text-muted micro">{{ contract.contractNum }}</div>
+          <!-- v0.12:合同元信息(签约人/创建人/客户) -->
+          <div class="meta-row">
+            <span class="meta-item">
+              <span class="meta-label">签约人</span>
+              <span class="meta-value">{{ contract.ownerName || '— 未分配 —' }}</span>
+            </span>
+            <span class="meta-sep">·</span>
+            <span class="meta-item">
+              <span class="meta-label">客户</span>
+              <span class="meta-value">{{ contract.customerName || '—' }}</span>
+            </span>
+            <span class="meta-sep">·</span>
+            <span class="meta-item">
+              <span class="meta-label">创建人</span>
+              <span class="meta-value">{{ contract.createBy || '—' }}</span>
+            </span>
+          </div>
         </div>
         <div class="amount-block">
           <div class="text-muted micro">合同总金额</div>
@@ -328,6 +345,16 @@ onMounted(loadDetail)
 .mono.accent { color: var(--accent); }
 .text-muted { color: var(--subtle); }
 .text-muted.micro { font-size: 12px; }
+
+/* v0.12:meta row(签约人/客户/创建人) */
+.meta-row {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 8px; font-size: 12.5px; flex-wrap: wrap;
+}
+.meta-item { display: inline-flex; align-items: baseline; gap: 4px; }
+.meta-label { color: var(--subtle); }
+.meta-value { color: var(--ink-soft); font-weight: 500; }
+.meta-sep { color: var(--hairline); }
 .amount-block { text-align: right; }
 .amount-block .micro { margin-bottom: 4px; }
 .amount-value { font-size: 24px; font-weight: 700; color: var(--accent); font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }

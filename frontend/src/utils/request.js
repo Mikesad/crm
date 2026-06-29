@@ -55,6 +55,15 @@ service.interceptors.response.use(
       })
       return Promise.reject(new Error(res.message))
     }
+    // 403：权限不足（v0.15 友好提示,替代后端默认 "无 xxx 权限"）
+    if (res.code === 403) {
+      ElMessage({
+        message: '不好意思你的权限不足，请联系管理员',
+        type: 'warning',
+        duration: 3000
+      })
+      return Promise.reject(new Error('权限不足'))
+    }
     ElMessage.error(res.message || '请求失败')
     return Promise.reject(new Error(res.message || '请求失败'))
   },

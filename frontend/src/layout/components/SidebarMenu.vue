@@ -1,13 +1,14 @@
 <template>
   <nav class="nav">
     <template v-for="group in menuGroups" :key="group.label || group.path">
-      <!-- v0.2:整组按 requiresRole 过滤(管理组:admin + sales_director) -->
-      <div v-if="hasGroupRole(group)" class="nav-group">
+      <!-- v0.4:整组不再按 requiresRole 过滤,改为 per-item 过滤;
+           group 始终显示 label,空子项组(无任何可见子项)整个隐藏 -->
+      <div v-if="hasVisibleChildren(group)" class="nav-group">
         <div v-if="group.label" class="nav-label">{{ group.label }}</div>
 
         <!-- 单级菜单项 -->
         <router-link
-          v-if="!group.children && hasPerm(group)"
+          v-if="!group.children && hasItemAccess(group)"
           :to="group.path"
           class="nav-item"
           :class="{ active: isActive(group.path) }"
@@ -17,10 +18,10 @@
           <span v-if="group.badge" class="nav-badge">{{ group.badge }}</span>
         </router-link>
 
-        <!-- 分组菜单（含子项） -->
+        <!-- 分组菜单（含子项,按 perm + requiresRole per-item 过滤） -->
         <template v-else-if="group.children">
           <router-link
-            v-for="child in group.children.filter(hasPerm)"
+            v-for="child in group.children.filter(hasItemAccess)"
             :key="child.path"
             :to="child.path"
             class="nav-item"
@@ -46,10 +47,16 @@ const userStore = useUserStore()
 
 /**
  * 菜单定义（顺序：工作台 → 业务 → 交易 → 可视化 → 系统设置）
- * v0.3:"系统设置"组只保留"角色管理" 1 项(内含 用户/权限 2 tab)
+ *
+ * v0.4 修订(D7):
+ *   - "系统设置"组收纳 4 项系统设置(当前 v0.3 只保留"角色管理" 1 项) + 产品 + 产品分类
+ *   - 可见性 **per-item**:
+ *       角色管理:admin + sales_director(D3 v0.2 锁定)
+ *       产品 / 产品分类:全员 5 角色(D7 v0.4)
+ *   - group 不再设 requiresRole,空子项组整组隐藏(hasVisibleChildren 实现)
+ *
  * icon 使用 Element Plus Icons（已在 main.js 全局注册）
  * perm 缺失则默认全部角色可见；存在则校验用户 permissions
- * requiresRole 限定可见角色（v0.2: admin + sales_director 才能看"系统设置"组）
  * badge 由业务模块通过 store 注入
  */
 const menuGroups = [
@@ -83,10 +90,13 @@ const menuGroups = [
   },
   {
     label: '系统设置',
-    requiresRole: ['admin', 'sales_director'],
     children: [
-      // v0.3:仅"角色管理" 1 项,内含 用户/权限 2 个 tab
-      { path: '/system/role', title: '角色管理', icon: 'Avatar', perm: 'sys:user:list' }
+      // 角色管理 - admin + 销售总监(D3 v0.2)
+      { path: '/system/role', title: '角色管理', icon: 'Avatar', perm: 'sys:user:list', requiresRole: ['admin', 'sales_director'] },
+      // 产品 - 全员(D7 v0.4 全员可见)
+      // v0.5:产品分类已整合为产品库 Tab,不再单独是菜单项
+      // v0.7:产品图标从 Goods 改成 Box(包装盒,SaaS 产品更直观)
+      { path: '/product/list', title: '产品', icon: 'Box', perm: 'crm:product:list' }
     ]
   }
 ]
@@ -103,15 +113,28 @@ function hasPerm(item) {
   return perms.includes(item.perm)
 }
 
-/**
- * 整组可见性判定(v0.2)
- * - 未配置 requiresRole:整组可见
- * - 配置了 requiresRole:当前用户的 roleKey 命中其一才可见
- */
-function hasGroupRole(group) {
-  if (!group.requiresRole || group.requiresRole.length === 0) return true
+function hasRole(item) {
+  if (!item.requiresRole || item.requiresRole.length === 0) return true
   const keys = userStore.roleKeys || []
-  return group.requiresRole.some((r) => keys.includes(r))
+  return item.requiresRole.some((r) => keys.includes(r))
+}
+
+/**
+ * per-item 可见性(v0.4):
+ *   - perm 命中 + requiresRole 命中(若配置) → 可见
+ */
+function hasItemAccess(item) {
+  return hasPerm(item) && hasRole(item)
+}
+
+/**
+ * 整组可见性(v0.4):
+ *   - 无 children:不显示分组(交给单级 router-link)
+ *   - 有 children:至少 1 个子项 visible 才显示整组,空子项组不显示
+ */
+function hasVisibleChildren(group) {
+  if (!group.children) return true
+  return group.children.some(hasItemAccess)
 }
 </script>
 

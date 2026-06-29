@@ -20,7 +20,20 @@ const props = defineProps({
 const chartRef = ref(null)
 let chart = null
 
-const COLORS = ['#166534', '#4ade80', '#86efac', '#bbf7d0', '#22c55e', '#16a34a', '#15803d']
+// 调色板:森林绿为主色 + 互补色相(青/琥珀/紫/粉/蓝/红)
+// 既保持 Zen 风格,又能区分多类别(行业 TOP 10 场景)
+const COLORS = [
+  '#166534', // 森林绿(品牌主色)
+  '#0891b2', // 青
+  '#d97706', // 琥珀
+  '#7c3aed', // 紫
+  '#db2777', // 粉
+  '#2563eb', // 蓝
+  '#65a30d', // 草绿
+  '#dc2626', // 红
+  '#0e7490', // 深青
+  '#a16207'  // 暗黄
+]
 
 function render() {
   if (!chartRef.value) return

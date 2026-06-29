@@ -77,7 +77,16 @@ public class LeadService {
             wrapper.eq(CrmLead::getSource, query.getSource());
         }
         // dataScope 由 DataPermissionHandler 自动注入(仅本部门/仅本人)
-        wrapper.orderByDesc(CrmLead::getCreateTime);
+        // v0.16:支持前端 sortBy + order 控制升降序(默认 createTime desc)
+        boolean asc = "asc".equalsIgnoreCase(query.getOrder());
+        switch (query.getSortBy() == null ? "" : query.getSortBy()) {
+            case "createTime":
+                if (asc) wrapper.orderByAsc(CrmLead::getCreateTime);
+                else wrapper.orderByDesc(CrmLead::getCreateTime);
+                break;
+            default:
+                wrapper.orderByDesc(CrmLead::getCreateTime);
+        }
         IPage<CrmLead> result = leadMapper.selectPage(page, wrapper);
         return result.convert(l -> toVO(l, buildOwnerNameMap(result.getRecords())));
     }

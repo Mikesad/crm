@@ -50,7 +50,7 @@
         </div>
 
         <el-card class="table-card" v-loading="loading">
-          <el-table :data="list" stripe>
+          <el-table :data="list" stripe @sort-change="handleSortChange">
             <el-table-column prop="customerName" label="客户名称" min-width="180">
               <template #default="{ row }">
                 <div class="name-block">
@@ -74,7 +74,7 @@
                 </span>
               </template>
             </el-table-column>
-            <el-table-column prop="lastFollowTime" label="最后跟进" width="110">
+            <el-table-column prop="lastFollowTime" label="最后跟进" width="120" sortable="custom">
               <template #default="{ row }">
                 <span class="mono" :class="followTimeClass(row.lastFollowTime)">{{ followTimeText(row.lastFollowTime) }}</span>
               </template>
@@ -247,7 +247,20 @@ const userStore = useUserStore()
 // ---------- 状态 ----------
 // 'mine' 私海 / 'public' 公海池 / 'shared' 被共享给我的
 const currentTab = ref('mine')
-const query = reactive({ keyword: '', level: '', industry: '', pageNum: 1, pageSize: 10 })
+const query = reactive({ keyword: '', level: '', industry: '', sortBy: '', order: '', pageNum: 1, pageSize: 10 })
+
+// v0.17:列头点击排序(与商机/lead list 一致)
+function handleSortChange({ prop, order }) {
+  if (order === null) {
+    query.sortBy = ''
+    query.order = ''
+  } else {
+    query.sortBy = prop
+    query.order = order === 'ascending' ? 'asc' : 'desc'
+  }
+  query.pageNum = 1
+  loadList()
+}
 const list = ref([])
 const total = ref(0)
 const myTotal = ref(0)
@@ -309,6 +322,8 @@ async function loadList() {
       keyword: query.keyword || undefined,
       level: query.level || undefined,
       industry: query.industry || undefined,
+      sortBy: query.sortBy || undefined,  // v0.16
+      order: query.order || undefined,     // v0.16
       pageNum: query.pageNum,
       pageSize: query.pageSize
     }

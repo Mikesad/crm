@@ -87,7 +87,8 @@ public class BusinessService {
                 else wrapper.orderByDesc(CrmBusiness::getBusinessName);
                 break;
             default:
-                wrapper.orderByDesc(CrmBusiness::getUpdateTime);
+                // v0.14:商机默认按"预计接单时间"排序(最关注的字段,旧默认 updateTime 不直观)
+                wrapper.orderByDesc(CrmBusiness::getExpectedDealDate);
         }
         IPage<CrmBusiness> result = businessMapper.selectPage(page, wrapper);
         // 批量查 customerName + ownerName(避免 N+1)

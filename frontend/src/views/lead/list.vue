@@ -39,7 +39,7 @@
 
         <!-- 表格 -->
         <el-card class="table-card" v-loading="loading">
-          <el-table :data="list" stripe>
+          <el-table :data="list" stripe @sort-change="handleSortChange">
             <el-table-column prop="leadName" label="线索名称" min-width="160">
               <template #default="{ row }">
                 <span class="name-link">{{ row.leadName }}</span>
@@ -63,7 +63,7 @@
               </template>
             </el-table-column>
             <el-table-column prop="ownerName" label="负责人" width="90" />
-            <el-table-column prop="createTime" label="创建时间" width="110">
+            <el-table-column prop="createTime" label="创建时间" width="120" sortable="custom">
               <template #default="{ row }">
                 <span class="mono">{{ formatDate(row.createTime) }}</span>
               </template>
@@ -300,9 +300,26 @@ const query = reactive({
   keyword: '',
   status: null,
   source: '',
+  sortBy: 'createTime',  // v0.17 列头点击排序
+  order: 'desc',
   pageNum: 1,
   pageSize: 10
 })
+
+// v0.17:列头点击排序回调(与商机 list 一致)
+function handleSortChange({ prop, order }) {
+  // el-table 排序事件:order = ascending | descending | null
+  // 不支持 prop 的列不传 sortable,不进 switch
+  if (order === null) {
+    query.sortBy = ''
+    query.order = ''
+  } else {
+    query.sortBy = prop
+    query.order = order === 'ascending' ? 'asc' : 'desc'
+  }
+  query.pageNum = 1
+  loadList()
+}
 const list = ref([])
 const total = ref(0)
 const loading = ref(false)
@@ -326,6 +343,8 @@ async function loadList() {
       keyword: query.keyword || undefined,
       status: query.status || undefined,
       source: query.source || undefined,
+      sortBy: query.sortBy || undefined,  // v0.16
+      order: query.order || undefined,     // v0.16
       pageNum: query.pageNum,
       pageSize: query.pageSize
     })
@@ -602,8 +621,9 @@ onMounted(() => {
   margin-bottom: 16px;
   flex-wrap: wrap;
 }
-.search { width: 280px; }
+.search { width: 240px; }
 .filter { width: 140px; }
+.filter.sort { width: 130px; }
 .spacer { flex: 1; }
 
 /* 表格 */

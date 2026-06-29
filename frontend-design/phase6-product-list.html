@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<!--
+  phase6-product-list.html
+  阶段六 commit 2 · 产品管理 · 产品库
+  v0.7:撤回 productLine / billingCycle,产品库回到阶段三原版
+
+  配套后端:
+    GET    /api/crm/product/page          分页 + 筛选
+    POST   /api/crm/product               新建
+    PUT    /api/crm/product/{id}          编辑
+    DELETE /api/crm/product/{id}          删除(逻辑)
+    GET    /api/crm/product/category/all  下拉全量分类
+
+  决策对齐:
+    D4 v0.7 撤回(撤销"中度 SaaS 升级",移除套餐线/计费周期)
+    D5 分类补齐:列表展示 + 表单下拉(平铺,不做树形)
+    D7 v0.4 产品/分类进 sidebar "系统设置"组
+       D7 v0.7 图标改 Box(包装盒,SaaS 产品更直观)
+    D6 权限码:crm:product:list / crm:product:edit(沿用,id 17/18)
+           crm:product:category:list / crm:product:category:edit(新增 id 50/51)
+
+  Design Read: 与 phase6-user-management 同一令牌(森林绿 #166534 / 6px 圆角 / Inter)
+  Dials: VARIANCE 3 / MOTION 2 / DENSITY 4
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>产品库 · ZenCRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:           #fafaf9;
+      --bg-warm:      #ffffff;
+      --ink:          #18181b;
+      --ink-soft:     #3f3f46;
+      --muted:        #71717a;
+      --subtle:       #a1a1aa;
+      --hairline:     #e4e4e7;
+      --hairline-soft:#f4f4f5;
+      --surface:      #ffffff;
+      --accent:       #166534;
+      --accent-soft:  #dcfce7;
+      --accent-pale:  #f0fdf4;
+      --accent-ring:  rgba(22, 101, 52, 0.12);
+      --info:         #1e40af;
+      --info-soft:    #dbeafe;
+      --warn:         #b45309;
+      --warn-soft:    #fef3c7;
+      --danger:       #b91c1c;
+      --danger-soft:  #fee2e2;
+      --teal:         #0d9488;
+      --teal-soft:    #ccfbf1;
+      --font-sans:    'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+      --radius:       6px;
+      --shadow-sm:    0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md:    0 4px 12px rgba(0,0,0,0.08);
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: var(--font-sans); font-size: 14px; line-height: 1.5; color: var(--ink); background: var(--bg); margin: 0; -webkit-font-smoothing: antialiased; }
+    .mono { font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
+    .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+
+    /* === sidebar === */
+    .sidebar { background: var(--bg-warm); border-right: 1px solid var(--hairline); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; }
+    .sidebar-top { padding: 20px 20px 16px; }
+    .wordmark { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+    .wordmark-glyph { width: 18px; height: 18px; background: var(--accent); border-radius: 4px; }
+    .nav { padding: 8px 12px; flex: 1; overflow-y: auto; }
+    .nav-group { margin-bottom: 16px; }
+    .nav-label { padding: 6px 8px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--subtle); font-weight: 500; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: var(--radius); color: var(--ink-soft); cursor: pointer; font-size: 13.5px; text-decoration: none; transition: background 0.12s, color 0.12s; }
+    .nav-item:hover { background: var(--bg); color: var(--ink); }
+    .nav-item.active { background: var(--accent-ring); color: var(--accent); font-weight: 500; }
+    .nav-icon { font-size: 15px; }
+    .nav-text { flex: 1; }
+    .user-card { margin: 0 12px 16px; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: var(--radius); display: flex; align-items: center; gap: 10px; }
+    .user-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+    .user-info { flex: 1; line-height: 1.3; min-width: 0; }
+    .user-name { font-size: 13px; font-weight: 500; }
+    .user-role { font-size: 11.5px; color: var(--muted); }
+
+    /* === main === */
+    .main { padding: 32px 32px 48px; min-width: 0; }
+    .breadcrumb { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+    .breadcrumb a { color: var(--muted); text-decoration: none; }
+    .breadcrumb a:hover { color: var(--accent); }
+    .breadcrumb .sep { margin: 0 6px; color: var(--subtle); }
+    .page-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; }
+    .page-title { font-size: 24px; font-weight: 600; letter-spacing: -0.015em; color: var(--ink); }
+    .page-sub { color: var(--muted); font-size: 13.5px; margin-top: 4px; }
+    .page-sub .accent { color: var(--accent); font-weight: 500; }
+
+    /* === buttons === */
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--hairline); background: var(--surface); border-radius: var(--radius); font-size: 13px; font-weight: 500; color: var(--ink-soft); cursor: pointer; transition: all 0.12s; }
+    .btn:hover { background: var(--bg); color: var(--ink); }
+    .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+    .btn-primary:hover { background: #14532d; color: white; }
+    .btn-link { background: none; border: none; padding: 4px 6px; color: var(--accent); cursor: pointer; font-size: 13px; }
+    .btn-link:hover { text-decoration: underline; }
+    .btn-link.danger { color: var(--danger); }
+    .btn-link.disabled { color: var(--subtle); cursor: not-allowed; pointer-events: none; }
+
+    /* === toolbar === */
+    .toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .input { padding: 6px 10px; border: 1px solid var(--hairline); background: var(--surface); border-radius: var(--radius); font-size: 13px; color: var(--ink); min-width: 240px; outline: none; transition: border 0.12s; }
+    .input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+    .input::placeholder { color: var(--subtle); }
+    .select { padding: 6px 10px; border: 1px solid var(--hairline); background: var(--surface); border-radius: var(--radius); font-size: 13px; min-width: 140px; cursor: pointer; }
+    .spacer { flex: 1; }
+
+    /* === tabs(v0.5:产品分类作为产品库 Tab) === */
+    .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--hairline); margin-bottom: 24px; align-items: center; }
+    .tab { padding: 10px 16px; font-size: 14px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.12s; display: flex; align-items: center; gap: 6px; }
+    .tab:hover { color: var(--ink-soft); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
+    .tab .badge { font-size: 11px; padding: 1px 6px; background: var(--hairline); color: var(--muted); border-radius: 8px; font-family: var(--font-mono); }
+    .tab.active .badge { background: var(--accent-ring); color: var(--accent); }
+
+    /* === table === */
+    .table-card { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead { background: var(--bg); }
+    th { padding: 10px 16px; text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--hairline); }
+    th.num, td.num { text-align: right; }
+    td { padding: 12px 16px; border-bottom: 1px solid var(--hairline-soft); color: var(--ink-soft); vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: var(--bg); }
+    .name-block { display: flex; flex-direction: column; gap: 2px; }
+    .name-block .name { font-weight: 500; color: var(--ink); }
+    .name-block .sub { font-size: 11.5px; color: var(--muted); }
+    .mono-cell { font-family: var(--font-mono); font-feature-settings: 'tnum' 1; color: var(--accent); }
+    .price { font-family: var(--font-mono); font-feature-settings: 'tnum' 1; font-weight: 600; color: var(--ink); }
+    .text-muted { color: var(--subtle); }
+    .empty { padding: 64px 16px; text-align: center; color: var(--muted); font-size: 13px; }
+
+    /* === chips === */
+    .chip { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 500; line-height: 18px; }
+    .chip-cat     { background: var(--teal-soft); color: var(--teal); }
+    .chip-status-on  { background: var(--accent-pale); color: var(--accent); }
+    .chip-status-off { background: var(--hairline); color: var(--muted); }
+
+    /* === pagination === */
+    .pagination { padding: 12px 16px; display: flex; align-items: center; justify-content: flex-end; gap: 12px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--hairline-soft); }
+    .page-btn { padding: 4px 8px; border: 1px solid var(--hairline); background: var(--surface); border-radius: 4px; cursor: pointer; color: var(--ink-soft); font-size: 12px; }
+    .page-btn:hover { color: var(--accent); border-color: var(--accent-soft); }
+    .page-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+    /* === modal === */
+    .modal-mask { position: fixed; inset: 0; background: rgba(24,24,27,0.4); display: flex; align-items: center; justify-content: center; z-index: 50; }
+    .modal { background: var(--surface); border-radius: 8px; box-shadow: var(--shadow-md); max-width: 640px; width: calc(100% - 32px); max-height: 90vh; overflow-y: auto; }
+    .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--hairline); }
+    .modal-title { font-size: 16px; font-weight: 600; }
+    .modal-close { background: none; border: none; font-size: 18px; color: var(--muted); cursor: pointer; padding: 0; line-height: 1; }
+    .modal-body { padding: 20px; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--hairline); background: var(--bg); border-radius: 0 0 8px 8px; }
+    .form-row { display: flex; gap: 12px; margin-bottom: 14px; }
+    .form-row > .form-group { flex: 1; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+    .form-group .label { font-size: 13px; color: var(--ink); font-weight: 500; }
+    .form-group .label .required { color: var(--danger); margin-left: 2px; }
+    .form-group .input, .form-group .select { width: 100%; }
+    .help { font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+    .help-link { color: var(--accent); font-weight: 500; cursor: pointer; }
+
+    /* === form-row-full + segmented === */
+    .form-row-full .label { font-weight: 500; color: var(--ink); }
+    .seg { display: inline-flex; border: 1px solid var(--hairline); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+    .seg-item { padding: 6px 16px; font-size: 13px; color: var(--ink-soft); cursor: pointer; border-right: 1px solid var(--hairline); background: var(--surface); transition: all 0.12s; }
+    .seg-item:last-child { border-right: none; }
+    .seg-item.on { background: var(--accent-pale); color: var(--accent); font-weight: 500; }
+    .seg-item:hover:not(.on) { background: var(--bg); }
+
+    .price-input { display: flex; align-items: center; gap: 8px; }
+    .price-prefix { font-family: var(--font-mono); color: var(--muted); font-size: 13px; }
+    .price-suffix { color: var(--muted); font-size: 12.5px; }
+    .price-input .input { flex: 1; min-width: auto; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- ============== SIDEBAR(v0.7:产品图标 Box) ============== -->
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <div class="wordmark">
+          <div class="wordmark-glyph"></div>
+          <span>ZenCRM</span>
+        </div>
+      </div>
+      <nav class="nav">
+        <div class="nav-group">
+          <div class="nav-label">工作台</div>
+          <a class="nav-item" href="#"><span class="nav-icon">🏠</span><span class="nav-text">仪表盘</span></a>
+          <a class="nav-item" href="#"><span class="nav-icon">🔔</span><span class="nav-text">跟进中心</span></a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">业务</div>
+          <a class="nav-item" href="#"><span class="nav-icon">◎</span><span class="nav-text">线索</span></a>
+          <a class="nav-item" href="#"><span class="nav-icon">👤</span><span class="nav-text">客户</span></a>
+          <a class="nav-item" href="#"><span class="nav-icon">📈</span><span class="nav-text">商机</span></a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">交易</div>
+          <a class="nav-item" href="#"><span class="nav-icon">📄</span><span class="nav-text">合同</span></a>
+          <a class="nav-item" href="#"><span class="nav-icon">💰</span><span class="nav-text">回款</span></a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">可视化</div>
+          <a class="nav-item" href="#"><span class="nav-icon">📊</span><span class="nav-text">报表</span></a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">系统设置</div>
+          <a class="nav-item" href="#"><span class="nav-icon">👥</span><span class="nav-text">用户管理</span></a>
+          <a class="nav-item" href="#"><span class="nav-icon">🛡️</span><span class="nav-text">角色管理</span></a>
+          <a class="nav-item" href="#"><span class="nav-icon">🗂️</span><span class="nav-text">菜单权限</span></a>
+          <a class="nav-item" href="#"><span class="nav-icon">🏢</span><span class="nav-text">部门管理</span></a>
+          <a class="nav-item active" href="#"><span class="nav-icon">📦</span><span class="nav-text">产品</span></a>
+        </div>
+      </nav>
+      <div class="user-card">
+        <div class="user-avatar">超</div>
+        <div class="user-info">
+          <div class="user-name">超级管理员</div>
+          <div class="user-role">admin</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ============== MAIN ============== -->
+    <main class="main">
+      <div class="breadcrumb">
+        <a href="#">系统设置</a><span class="sep">/</span><span>产品库</span>
+      </div>
+
+      <div class="page-header">
+        <div>
+          <div class="page-title">产品库</div>
+          <div class="page-sub">
+            共 <span class="accent mono">8</span> 个产品 ·
+            上架 <span class="accent mono">6</span> ·
+            下架 <span class="mono" style="color:var(--muted)">2</span>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="document.getElementById('createModal').style.display='flex'">
+          ＋ 新建产品
+        </button>
+      </div>
+
+      <!-- Tabs(v0.5:产品分类作为产品库 Tab 存在) -->
+      <div class="tabs">
+        <div class="tab active">产品 <span class="badge">8</span></div>
+        <div class="tab">产品分类 <span class="badge">4</span></div>
+      </div>
+
+      <!-- Toolbar(v0.7:移除套餐线/计费周期筛选) -->
+      <div class="toolbar">
+        <input class="input" placeholder="搜索产品编码 / 名称" value="CRM" />
+        <select class="select">
+          <option>全部分类</option>
+          <option>核心产品</option>
+          <option>功能模块</option>
+          <option>服务类</option>
+          <option>增值包</option>
+        </select>
+        <select class="select">
+          <option>全部状态</option>
+          <option>上架</option>
+          <option>下架</option>
+        </select>
+        <div class="spacer"></div>
+        <button class="btn">查询</button>
+        <button class="btn">重置</button>
+      </div>
+
+      <!-- Table(v0.7:移除套餐线/计费周期 2 列) -->
+      <div class="table-card">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:130px">产品编码</th>
+              <th>产品名称</th>
+              <th style="width:110px">分类</th>
+              <th style="width:120px" class="num">标准售价</th>
+              <th style="width:80px">状态</th>
+              <th style="width:140px">创建时间</th>
+              <th style="width:140px">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="mono-cell">P-CRM-BASE-01</span></td>
+              <td>
+                <div class="name-block">
+                  <span class="name">ZenCRM 基础版</span>
+                  <span class="sub">10 用户 / 含核心模块</span>
+                </div>
+              </td>
+              <td><span class="chip chip-cat">核心产品</span></td>
+              <td class="num"><span class="price">¥ 9,800</span><div class="text-muted" style="font-size:11.5px">/ 套 / 年</div></td>
+              <td><span class="chip chip-status-on">● 上架</span></td>
+              <td class="mono" style="color:var(--muted)">2026-01-20 10:12</td>
+              <td>
+                <button class="btn-link">编辑</button>
+                <button class="btn-link danger">下架</button>
+              </td>
+            </tr>
+            <tr>
+              <td><span class="mono-cell">P-CRM-PRO-01</span></td>
+              <td>
+                <div class="name-block">
+                  <span class="name">ZenCRM 专业版</span>
+                  <span class="sub">30 用户 / 含自动化 + API</span>
+                </div>
+              </td>
+              <td><span class="chip chip-cat">核心产品</span></td>
+              <td class="num"><span class="price">¥ 29,800</span><div class="text-muted" style="font-size:11.5px">/ 套 / 年</div></td>
+              <td><span class="chip chip-status-on">● 上架</span></td>
+              <td class="mono" style="color:var(--muted)">2026-01-20 10:18</td>
+              <td>
+                <button class="btn-link">编辑</button>
+                <button class="btn-link danger">下架</button>
+              </td>
+            </tr>
+            <tr>
+              <td><span class="mono-cell">P-CRM-ULT-01</span></td>
+              <td>
+                <div class="name-block">
+                  <span class="name">ZenCRM 旗舰版</span>
+                  <span class="sub">不限用户 / 含全部模块 + 专属客户经理</span>
+                </div>
+              </td>
+              <td><span class="chip chip-cat">核心产品</span></td>
+              <td class="num"><span class="price">¥ 98,000</span><div class="text-muted" style="font-size:11.5px">/ 套 / 年</div></td>
+              <td><span class="chip chip-status-on">● 上架</span></td>
+              <td class="mono" style="color:var(--muted)">2026-01-20 10:24</td>
+              <td>
+                <button class="btn-link">编辑</button>
+                <button class="btn-link danger">下架</button>
+              </td>
+            </tr>
+            <tr>
+              <td><span class="mono-cell">P-MOD-ANALY-01</span></td>
+              <td>
+                <div class="name-block">
+                  <span class="name">数据分析模块</span>
+                  <span class="sub">需搭配基础版 / 专业版 / 旗舰版</span>
+                </div>
+              </td>
+              <td><span class="chip chip-cat">功能模块</span></td>
+              <td class="num"><span class="price">¥ 12,000</span><div class="text-muted" style="font-size:11.5px">/ 模块 / 年</div></td>
+              <td><span class="chip chip-status-on">● 上架</span></td>
+              <td class="mono" style="color:var(--muted)">2026-02-08 14:36</td>
+              <td>
+                <button class="btn-link">编辑</button>
+                <button class="btn-link danger">下架</button>
+              </td>
+            </tr>
+            <tr>
+              <td><span class="mono-cell">P-MOD-RPT-01</span></td>
+              <td>
+                <div class="name-block">
+                  <span class="name">高级报表模块</span>
+                  <span class="sub">自定义报表 + 仪表盘</span>
+                </div>
+              </td>
+              <td><span class="chip chip-cat">功能模块</span></td>
+              <td class="num"><span class="price">¥ 8,000</span><div class="text-muted" style="font-size:11.5px">/ 模块 / 年</div></td>
+              <td><span class="chip chip-status-on">● 上架</span></td>
+              <td class="mono" style="color:var(--muted)">2026-02-08 14:42</td>
+              <td>
+                <button class="btn-link">编辑</button>
+                <button class="btn-link danger">下架</button>
+              </td>
+            </tr>
+            <tr>
+              <td><span class="mono-cell">P-ULT-CUST-01</span></td>
+              <td>
+                <div class="name-block">
+                  <span class="name">定制化开发</span>
+                  <span class="sub">基于旗舰版的功能定制</span>
+                </div>
+              </td>
+              <td><span class="chip chip-cat">增值包</span></td>
+              <td class="num"><span class="price">¥ 50,000</span><div class="text-muted" style="font-size:11.5px">/ 项目</div></td>
+              <td><span class="chip chip-status-on">● 上架</span></td>
+              <td class="mono" style="color:var(--muted)">2026-03-15 09:20</td>
+              <td>
+                <button class="btn-link">编辑</button>
+                <button class="btn-link danger">下架</button>
+              </td>
+            </tr>
+            <tr>
+              <td><span class="mono-cell">P-SVC-IMPL-01</span></td>
+              <td>
+                <div class="name-block">
+                  <span class="name">实施服务费</span>
+                  <span class="sub">现场实施 5 人天</span>
+                </div>
+              </td>
+              <td><span class="chip chip-cat">服务类</span></td>
+              <td class="num"><span class="price">¥ 15,000</span><div class="text-muted" style="font-size:11.5px">/ 次</div></td>
+              <td><span class="chip chip-status-on">● 上架</span></td>
+              <td class="mono" style="color:var(--muted)">2026-01-20 10:30</td>
+              <td>
+                <button class="btn-link">编辑</button>
+                <button class="btn-link danger">下架</button>
+              </td>
+            </tr>
+            <tr>
+              <td><span class="mono-cell">P-SVC-TRAIN-01</span></td>
+              <td>
+                <div class="name-block">
+                  <span class="name">培训服务</span>
+                  <span class="sub">管理员 + 销售 2 场</span>
+                </div>
+              </td>
+              <td><span class="chip chip-cat">服务类</span></td>
+              <td class="num"><span class="price">¥ 6,000</span><div class="text-muted" style="font-size:11.5px">/ 次</div></td>
+              <td><span class="chip chip-status-off">● 下架</span></td>
+              <td class="mono" style="color:var(--muted)">2026-01-20 10:35</td>
+              <td>
+                <button class="btn-link">编辑</button>
+                <button class="btn-link">上架</button>
+                <button class="btn-link danger">删除</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="pagination">
+          <span>共 8 条</span>
+          <select class="select" style="min-width:auto"><option>10 条/页</option><option>20 条/页</option></select>
+          <button class="page-btn">‹</button>
+          <button class="page-btn active">1</button>
+          <button class="page-btn">›</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- ============== 新建/编辑产品 MODAL(v0.6 对齐 frontend-design/UI/新建产品.png;v0.7 移除套餐线/计费周期) ============== -->
+  <div class="modal-mask" id="createModal" style="display:flex">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">新建产品</div>
+        <button class="modal-close" onclick="this.closest('.modal-mask').style.display='none'">×</button>
+      </div>
+      <div class="modal-body">
+        <!-- Row 1: 编码 + 名称 -->
+        <div class="form-row">
+          <div class="form-group">
+            <label class="label">产品编码 <span class="required">*</span></label>
+            <input class="input" placeholder="如 P-CRM-BASE-02" value="P-CRM-BASE-02" />
+            <div class="help">全局唯一 / SKU,创建后不可修改</div>
+          </div>
+          <div class="form-group">
+            <label class="label">产品名称 <span class="required">*</span></label>
+            <input class="input" placeholder="如 ZenCRM 基础版" value="ZenCRM 基础版 (季度版)" />
+          </div>
+        </div>
+
+        <!-- Row 2: 分类 + 规格 -->
+        <div class="form-row">
+          <div class="form-group">
+            <label class="label">产品分类 <span class="required">*</span></label>
+            <select class="select">
+              <option>请选择分类</option>
+              <option>核心产品</option>
+              <option selected>功能模块</option>
+              <option>服务类</option>
+              <option>增值包</option>
+            </select>
+            <div class="help">
+              分类用于合同选择时归类;<a class="help-link">去维护分类 →</a>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="label">规格型号</label>
+            <input class="input" placeholder="如 30 用户 / 3 月" value="30 用户 / 3 月" />
+          </div>
+        </div>
+
+        <!-- Row 3: 标准售价 + 单位 -->
+        <div class="form-row">
+          <div class="form-group">
+            <label class="label">标准售价 <span class="required">*</span></label>
+            <div class="price-input">
+              <span class="price-prefix">¥</span>
+              <input class="input" type="number" value="7800" />
+              <span class="price-suffix">元</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="label">单位</label>
+            <select class="select">
+              <option>套</option>
+              <option>个</option>
+              <option selected>套 / 季</option>
+              <option>模块 / 年</option>
+              <option>次</option>
+              <option>项目</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Row 4: 状态(整行) -->
+        <div class="form-group form-row-full">
+          <label class="label">状态</label>
+          <div class="seg">
+            <div class="seg-item on">上架</div>
+            <div class="seg-item">下架</div>
+          </div>
+          <div class="help">下架后,合同新建时不可再选;已签订合同不受影响</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="this.closest('.modal-mask').style.display='none'">取消</button>
+        <button class="btn btn-primary">保存</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

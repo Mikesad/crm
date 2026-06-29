@@ -217,10 +217,15 @@ CREATE TABLE `crm_product_category` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '分类ID',
   `parent_id` bigint DEFAULT 0 COMMENT '父分类ID',
   `category_name` varchar(50) NOT NULL COMMENT '分类名称',
+  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
+  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
+  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `is_deleted` tinyint DEFAULT 0 COMMENT '是否删除',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='产品分类表';
 
--- 14. 产品表
+-- 14. 产品表(v0.7 撤回 product_line/billing_cycle 字段)
 CREATE TABLE `crm_product` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '产品ID',
   `category_id` bigint DEFAULT NULL COMMENT '产品分类ID',
@@ -374,7 +379,37 @@ INSERT INTO `sys_menu` (`id`, `menu_name`, `parent_id`, `order_num`, `path`, `co
   (17, '产品列表',     0, 17, '', NULL, 'F', 'crm:product:list',       1),
   (18, '产品编辑',     0, 18, '', NULL, 'F', 'crm:product:edit',       1),
   (19, '客户共享',     0, 19, '', NULL, 'F', 'crm:customer:share',     1),
-  (20, '公海池',       0, 20, '', NULL, 'F', 'crm:customer:public_pool', 1);
+  (20, '公海池',       0, 20, '', NULL, 'F', 'crm:customer:public_pool', 1),
+  -- 阶段六 commit 1:系统设置 10 条
+  (24, '系统设置入口', 0, 35, '/system', 'layout', 'M', 'sys:system:view', 1),
+  (25, '用户管理',     24, 1, 'system/user', 'system/user', 'C', 'sys:user:list', 1),
+  (26, '用户编辑',     24, 2, '', NULL, 'F', 'sys:user:edit', 1),
+  (27, '重置密码',     24, 3, '', NULL, 'F', 'sys:user:reset_pwd', 1),
+  (28, '分配角色',     24, 4, '', NULL, 'F', 'sys:user:assign_role', 1),
+  (29, '角色管理',     24, 5, 'system/role', 'system/role', 'C', 'sys:role:list', 1),
+  (30, '角色编辑',     24, 6, '', NULL, 'F', 'sys:role:edit', 1),
+  (31, '分配菜单',     24, 7, '', NULL, 'F', 'sys:role:assign_menu', 1),
+  (32, '菜单权限',     24, 8, 'system/menu', 'system/menu', 'C', 'sys:menu:list', 1),
+  (33, '菜单编辑',     24, 9, '', NULL, 'F', 'sys:menu:edit', 1),
+  -- 阶段六 commit 1 v0.6 + v0.7:14 个细粒度 add/delete 权限码(来源 phase6-add-perms/delete/extras-v2)
+-- (id 36-49,顺序:add 5 + delete 6 + extras-v2 3)
+  (36, '线索添加',     0, 26, '', NULL, 'F', 'crm:lead:add',       1),
+  (37, '客户添加',     0, 27, '', NULL, 'F', 'crm:customer:add',   1),
+  (38, '商机添加',     0, 28, '', NULL, 'F', 'crm:business:add',   1),
+  (39, '合同添加',     0, 29, '', NULL, 'F', 'crm:contract:add',   1),
+  (40, '产品添加',     0, 30, '', NULL, 'F', 'crm:product:add',    1),
+  (41, '线索删除',     0, 31, '', NULL, 'F', 'crm:lead:delete',       1),
+  (42, '客户删除',     0, 32, '', NULL, 'F', 'crm:customer:delete',   1),
+  (43, '商机删除',     0, 33, '', NULL, 'F', 'crm:business:delete',   1),
+  (44, '合同删除',     0, 34, '', NULL, 'F', 'crm:contract:delete',   1),
+  (45, '回款删除',     0, 35, '', NULL, 'F', 'crm:receivable:delete', 1),
+  (46, '产品删除',     0, 36, '', NULL, 'F', 'crm:product:delete',    1),
+  (47, '用户新建',     0, 37, '', NULL, 'F', 'sys:user:add',         1),
+  (48, '用户删除',     0, 38, '', NULL, 'F', 'sys:user:delete',      1),
+  (49, '回款新建',     0, 39, '', NULL, 'F', 'crm:receivable:add',   1),
+-- 阶段六 commit 2:产品管理 2 条(id 50-51)
+  (50, '产品分类',     0, 24, '', NULL, 'F', 'crm:product:category:list', 1),
+  (51, '产品分类编辑', 0, 25, '', NULL, 'F', 'crm:product:category:edit', 1);
 
 -- 用户（6 个，密码统一 123456，BCrypt hash 由 backend-tools/crm-tools 生成）
 -- 当前 hash 是 123456 的一次有效编码；如需更换密码：mvn exec:java -Dexec.args="新密码"
@@ -416,6 +451,60 @@ INSERT INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES
   (4, 1), (4, 2), (4, 3), (4, 4), (4, 5), (4, 6), (4, 7), (4, 8), (4, 9), (4, 10), (4, 11), (4, 12), (4, 16), (4, 17), (4, 18), (4, 19), (4, 20), (4, 21), (4, 22), (4, 23),
   -- finance (合同list + 回款全 + 产品list + 报表中心;无业务/无共享/无公海/无跟进)
   (5, 11), (5, 13), (5, 15), (5, 17), (5, 23);
+
+-- 阶段六 commit 1 v0.6 + commit 1 v0.7:14 个 crm/sys 细粒度权限码(add/delete)
+-- 来源:phase6-add-perms.sql + phase6-add-delete.sql + phase6-add-extras-v2.sql
+-- 这些在阶段六 detail.vue 权限矩阵里有独立 checkbox(原本与 edit 共用 permCode,
+-- 视觉同步翻,拆开后独立可见/可勾)。
+--
+-- 14 条菜单:
+--   crm:lead:add / crm:customer:add / crm:business:add / crm:contract:add / crm:product:add
+--   crm:lead:delete / crm:customer:delete / crm:business:delete / crm:contract:delete / crm:receivable:delete / crm:product:delete
+--   sys:user:add / sys:user:delete / crm:receivable:add
+--
+-- 角色绑定规则:
+--   crm:*:add(4 条除 product) → roles 1, 2, 3, 4 (admin/director/lead/sales)
+--   crm:product:add            → roles 1, 2, 4    (admin/director/sales;无 lead/finance)
+--   crm:*:delete(6 条)         → roles 1, 2       (admin/director;新增的细化删除权限)
+--   sys:user:add/delete        → roles 1, 2       (admin/director;系统设置用户增删)
+--   crm:receivable:add         → roles 1, 2       (admin/director;回款新建)
+INSERT INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES
+  -- 4 个 crm:*:add(lead/customer/business/contract)绑 1/2/3/4 共 4 角色
+  (1, 36), (1, 37), (1, 38), (1, 39),  -- admin
+  (2, 36), (2, 37), (2, 38), (2, 39),  -- sales_director
+  (3, 36), (3, 37), (3, 38), (3, 39),  -- sales_lead
+  (4, 36), (4, 37), (4, 38), (4, 39),  -- sales
+  -- crm:product:add 绑 1/2/4 共 3 角色(无 lead)
+  (1, 40), (2, 40), (4, 40),
+  -- 6 个 crm:*:delete 绑 1/2 共 2 角色
+  (1, 41), (1, 42), (1, 43), (1, 44), (1, 45), (1, 46),
+  (2, 41), (2, 42), (2, 43), (2, 44), (2, 45), (2, 46),
+  -- sys:user:add/delete + crm:receivable:add 绑 1/2 共 2 角色
+  (1, 47), (1, 48), (1, 49),
+  (2, 47), (2, 48), (2, 49);
+
+-- 阶段六 commit 1:系统设置 10 条 — admin + sales_director
+INSERT INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES
+  -- admin (1) 绑 10 条
+  (1, 24), (1, 25), (1, 26), (1, 27), (1, 28), (1, 29), (1, 30), (1, 31), (1, 32), (1, 33),
+  -- sales_director (2) 绑 10 条(D3:v0.2 修订,admin+销售总监 2 角色可见)
+  (2, 24), (2, 25), (2, 26), (2, 27), (2, 28), (2, 29), (2, 30), (2, 31), (2, 32), (2, 33);
+
+-- 阶段六 commit 2:产品分类 2 条 — 5 角色全员(D7 v0.4:产品/分类全员可见)
+-- 注:产品分类菜单 id = 50 / 51(已分配给 crm:product:category:list / edit)
+INSERT INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES
+  (1, 50), (1, 51),  -- admin
+  (2, 50), (2, 51),  -- sales_director
+  (3, 50), (3, 51),  -- sales_lead
+  (4, 50), (4, 51),  -- sales
+  (5, 50), (5, 51);  -- finance
+
+-- 阶段六 commit 2:产品分类种子数据(4 个顶级分类,SaaS 场景)
+INSERT INTO `crm_product_category` (`id`, `parent_id`, `category_name`, `create_by`) VALUES
+  (1, 0, '核心产品', 'admin'),  -- SaaS 主线 / 基础/专业/旗舰
+  (2, 0, '功能模块', 'admin'),  -- 可插拔的增值模块
+  (3, 0, '服务类',   'admin'),  -- 实施/培训/咨询等一次性服务
+  (4, 0, '增值包',   'admin');  -- 定制/API 接入/高级支持
 
 -- =====================================================================
 --  阶段五(commit 1) · 跟进中心 + commit 2 · 报表中心

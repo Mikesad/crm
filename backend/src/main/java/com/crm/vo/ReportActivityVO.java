@@ -8,7 +8,8 @@ import java.io.Serializable;
 /**
  * 客户活跃度单元(报表 Tab ②)
  *
- * <p>定义:活跃 = last_follow_time 在 [now-30d, now];沉睡 = 超过 30d;
+ * <p>定义:活跃 = last_follow_time 在 [now-30d, now];沉睡 = 超过 {@code dormantDays} 天无跟进
+ * (默认与公海池阈值一致,取 yml {@code crm.customer.public-pool-days});
  * 公海 = is_public=1;总数 = 全部有效(is_deleted=0)。</p>
  */
 @Data
@@ -23,8 +24,11 @@ public class ReportActivityVO implements Serializable {
     /** 活跃数(近 30 天有跟进) */
     private Long active;
 
-    /** 沉睡数(超 30 天无跟进) */
+    /** 沉睡数(超过 {@code dormantDays} 天无跟进) */
     private Long dormant;
+
+    /** 沉睡阈值(天),与公海回收配置一致,前端可据此展示「沉睡 = 超 N 天未跟进」 */
+    private Integer dormantDays;
 
     /** 公海数(is_public=1) */
     private Long publicPool;

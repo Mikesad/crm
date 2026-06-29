@@ -23,7 +23,20 @@ const props = defineProps({
 const chartRef = ref(null)
 let chart = null
 
-const COLORS = ['#166534', '#4ade80', '#86efac', '#bbf7d0', '#22c55e', '#16a34a', '#15803d']
+// 调色板:森林绿为主色 + 互补色相(青/琥珀/紫/粉/蓝/红)
+// 与 ChartDonut 保持一致,类别多了也能区分
+const COLORS = [
+  '#166534', // 森林绿(品牌主色)
+  '#0891b2', // 青
+  '#d97706', // 琥珀
+  '#7c3aed', // 紫
+  '#db2777', // 粉
+  '#2563eb', // 蓝
+  '#65a30d', // 草绿
+  '#dc2626', // 红
+  '#0e7490', // 深青
+  '#a16207'  // 暗黄
+]
 
 const AXIS_LABEL = { color: 'var(--muted)', fontSize: 10.5, fontFamily: 'Inter' }
 const SPLIT_LINE = { lineStyle: { color: 'var(--hairline)', type: 'dashed' } }

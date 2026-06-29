@@ -73,7 +73,16 @@ public class CustomerService {
             // 这里显式排除公海,让私海 Tab 不混入公海客户
             wrapper.eq(CrmCustomer::getIsPublic, 0);
         }
-        wrapper.orderByDesc(CrmCustomer::getCreateTime);
+        // v0.16:支持前端 sortBy + order 控制升降序(默认 lastFollowTime desc)
+        boolean asc = "asc".equalsIgnoreCase(query.getOrder());
+        switch (query.getSortBy() == null ? "" : query.getSortBy()) {
+            case "lastFollowTime":
+                if (asc) wrapper.orderByAsc(CrmCustomer::getLastFollowTime);
+                else wrapper.orderByDesc(CrmCustomer::getLastFollowTime);
+                break;
+            default:
+                wrapper.orderByDesc(CrmCustomer::getLastFollowTime);
+        }
         IPage<CrmCustomer> result = customerMapper.selectPage(page, wrapper);
 
         Map<Long, String> ownerNameMap = buildOwnerNameMap(result.getRecords());

@@ -9,6 +9,13 @@
 - **数据权限**：**无**（产品为公共资源，无 `owner_user_id`，不进入 `CrmDataPermissionHandler.MANAGED_TABLES`）
 - **逻辑删除**：删除即更新 `is_deleted=1`
 
+> 阶段六 commit 2 变更日志：
+> - 列表 VO 新增 `categoryName`（批量填充）
+> - 创建/更新支持传 `categoryId`
+> - 分类独立管理见 `product-category.md`
+>
+> v0.7 变更日志：**撤回 `productLine` / `billingCycle` 2 字段**（撤销 D4 中度 SaaS 升级），产品库回到阶段三原版。
+
 ---
 
 ## 1.1 分页查询产品
@@ -37,17 +44,18 @@
       {
         "id": 1,
         "categoryId": 1,
-        "productCode": "P-CRM-001",
-        "productName": "ZenCRM 企业版 (50 席位)",
-        "spec": "50 用户 / 1 年",
-        "price": 128000.00,
+        "categoryName": "核心产品",
+        "productCode": "P-CRM-PRO-01",
+        "productName": "ZenCRM 专业版",
+        "spec": "30 用户 / 含自动化 + API",
+        "price": 29800.00,
         "unit": "套",
         "status": 1,
         "statusText": "上架",
         "createTime": "2026-06-25T10:00:00"
       }
     ],
-    "total": 5,
+    "total": 8,
     "current": 1,
     "size": 10
   }
@@ -84,10 +92,11 @@ curl -X GET 'http://localhost:8080/api/crm/product/page?keyword=CRM&status=1&pag
   "data": {
     "id": 1,
     "categoryId": 1,
-    "productCode": "P-CRM-001",
-    "productName": "ZenCRM 企业版 (50 席位)",
-    "spec": "50 用户 / 1 年",
-    "price": 128000.00,
+    "categoryName": "核心产品",
+    "productCode": "P-CRM-PRO-01",
+    "productName": "ZenCRM 专业版",
+    "spec": "30 用户 / 含自动化 + API",
+    "price": 29800.00,
     "unit": "套",
     "status": 1,
     "statusText": "上架",
@@ -118,7 +127,7 @@ curl -X GET 'http://localhost:8080/api/crm/product/page?keyword=CRM&status=1&pag
 
 | 字段 | 类型 | 必填 | 说明 | 示例 |
 |:---|:---|:---|:---|:---|
-| categoryId | long | 否 | 产品分类 ID | 1 |
+| categoryId | long | 否 | 产品分类 ID（须存在） | 1 |
 | productCode | string | 是 | 产品编码,全局唯一,最长 50 字符 | P-CRM-001 |
 | productName | string | 是 | 产品名称,最长 100 字符 | ZenCRM 企业版 (50 席位) |
 | spec | string | 否 | 规格型号,最长 100 字符 | 50 用户 / 1 年 |
@@ -140,10 +149,10 @@ curl -X POST 'http://localhost:8080/api/crm/product' \
   -H 'Content-Type: application/json' \
   -d '{
     "categoryId": 1,
-    "productCode": "P-CRM-001",
-    "productName": "ZenCRM 企业版 (50 席位)",
-    "spec": "50 用户 / 1 年",
-    "price": 128000.00,
+    "productCode": "P-CRM-PRO-01",
+    "productName": "ZenCRM 专业版",
+    "spec": "30 用户 / 含自动化 + API",
+    "price": 29800.00,
     "unit": "套",
     "status": 1
   }'
@@ -156,6 +165,7 @@ curl -X POST 'http://localhost:8080/api/crm/product' \
 | 200 | 成功 |
 | 1001 | 参数校验失败 (code 名称/价格 等校验) |
 | 1002 | 产品编码已存在 |
+| 1003 | 产品分类不存在 |
 | 403 | 无 `crm:product:edit` 权限 |
 
 ---
@@ -172,7 +182,13 @@ curl -X POST 'http://localhost:8080/api/crm/product' \
 | 字段 | 类型 | 必填 | 说明 |
 |:---|:---|:---|:---|
 | id | long | 是 | 产品 ID |
-| 其他字段 | - | 否 | 任意子集,只更新非空字段 |
+| categoryId | long | 否 | 产品分类 ID（须存在） |
+| productCode | string | 否 | 产品编码,变更时校验唯一 |
+| productName | string | 否 | 产品名称 |
+| spec | string | 否 | 规格型号 |
+| price | decimal(12,2) | 否 | 标准售价 |
+| unit | string | 否 | 单位 |
+| status | int | 否 | 0 下架 / 1 上架 |
 
 **响应**
 
@@ -187,7 +203,7 @@ curl -X POST 'http://localhost:8080/api/crm/product' \
 | 200 | 成功 |
 | 1001 | 参数校验失败 |
 | 1002 | 编码变更为已存在的编码 |
-| 1003 | 产品不存在 |
+| 1003 | 产品不存在 / 产品分类不存在 |
 | 403 | 无 `crm:product:edit` 权限 |
 
 ---
@@ -227,3 +243,5 @@ curl -X POST 'http://localhost:8080/api/crm/product' \
 | 时间 | 变更 |
 |:---|:---|
 | 2026-06-27 | 阶段三首次发布,5 个标准 CRUD 接口 |
+| 2026-06-29 | 阶段六 commit 2:加 categoryName 批量填充 + 分类引用校验(1003 业务码) |
+| 2026-06-29 | 阶段六 v0.7:**移除 productLine / billingCycle 2 字段**(撤销 D4 中度 SaaS 升级),产品库回到阶段三原版 |
