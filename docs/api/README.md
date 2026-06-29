@@ -24,6 +24,7 @@
 | 13 系统 - 用户 | [sys-user.md](./sys-user.md) | 8 | stable | 2026-06-29 |
 | 14 系统 - 角色 | [sys-role.md](./sys-role.md) | 6 | stable | 2026-06-29 |
 | 15 系统 - 菜单 | [sys-menu.md](./sys-menu.md) | 5 | stable | 2026-06-29 |
+| 16 系统 - 部门 | [sys-dept.md](./sys-dept.md) | 7 | stable | 2026-06-29 |
 | 数据字典 | dict.md | 待补 | planned | - |
 
 ## 公共约定

@@ -409,7 +409,10 @@ INSERT INTO `sys_menu` (`id`, `menu_name`, `parent_id`, `order_num`, `path`, `co
   (49, '回款新建',     0, 39, '', NULL, 'F', 'crm:receivable:add',   1),
 -- 阶段六 commit 2:产品管理 2 条(id 50-51)
   (50, '产品分类',     0, 24, '', NULL, 'F', 'crm:product:category:list', 1),
-  (51, '产品分类编辑', 0, 25, '', NULL, 'F', 'crm:product:category:edit', 1);
+  (51, '产品分类编辑', 0, 25, '', NULL, 'F', 'crm:product:category:edit', 1),
+-- 阶段七 commit:部门管理 2 条(id 52-53)
+  (52, '部门管理',     24, 11, 'system/dept', 'system/dept/index', 'C', 'sys:dept:list', 1),
+  (53, '部门编辑',     24, 12, '', NULL, 'F', 'sys:dept:edit', 1);
 
 -- 用户（6 个，密码统一 123456，BCrypt hash 由 backend-tools/crm-tools 生成）
 -- 当前 hash 是 123456 的一次有效编码；如需更换密码：mvn exec:java -Dexec.args="新密码"
@@ -488,7 +491,10 @@ INSERT INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES
   -- admin (1) 绑 10 条
   (1, 24), (1, 25), (1, 26), (1, 27), (1, 28), (1, 29), (1, 30), (1, 31), (1, 32), (1, 33),
   -- sales_director (2) 绑 10 条(D3:v0.2 修订,admin+销售总监 2 角色可见)
-  (2, 24), (2, 25), (2, 26), (2, 27), (2, 28), (2, 29), (2, 30), (2, 31), (2, 32), (2, 33);
+  (2, 24), (2, 25), (2, 26), (2, 27), (2, 28), (2, 29), (2, 30), (2, 31), (2, 32), (2, 33),
+  -- 阶段七 commit:部门管理 2 条 — admin + sales_director 共 2 角色
+  (1, 52), (1, 53),
+  (2, 52), (2, 53);
 
 -- 阶段六 commit 2:产品分类 2 条 — 5 角色全员(D7 v0.4:产品/分类全员可见)
 -- 注:产品分类菜单 id = 50 / 51(已分配给 crm:product:category:list / edit)

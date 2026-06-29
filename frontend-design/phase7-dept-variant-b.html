@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<!--
+  phase7-dept-variant-b.html
+  阶段七 · 部门管理 · 变体 B:el-tree 完整树形
+    - 左侧 280px 树形(el-tree 风格,可展开/收起/选中高亮)
+    - 右侧主区:选中部门的"详情卡 + 操作区 + 用户列表"
+    - 节点图标按层级区分:🏢 顶级 / 🏛 一级 / 📂 二级
+    - 右侧顶部:所选部门信息 + 操作(编辑 / 启停用 / 删除 / 新建子部门)
+    - 底部:该部门的"下属用户"表
+
+  适用接口:GET /api/sys/dept/tree(全量树,前端按需展开) +
+          GET /api/sys/dept/{id}(详情)+ GET /api/sys/user/page?deptId=子节点id(用户列表)
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>部门管理 · 变体 B · ZenCRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #fafaf9; --bg-warm: #ffffff;
+      --ink: #18181b; --ink-soft: #3f3f46; --muted: #71717a; --subtle: #a1a1aa;
+      --hairline: #e4e4e7; --hairline-soft: #f4f4f5; --surface: #ffffff;
+      --accent: #166534; --accent-soft: #dcfce7; --accent-pale: #f0fdf4; --accent-ring: rgba(22,101,52,0.12);
+      --info: #1e40af; --info-soft: #dbeafe;
+      --warn: #b45309; --warn-soft: #fef3c7;
+      --danger: #b91c1c; --danger-soft: #fee2e2;
+      --font-sans: 'Inter','Noto Sans SC',-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;
+      --font-mono: 'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
+      --radius: 6px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: var(--font-sans); font-size: 14px; line-height: 1.5; color: var(--ink); background: var(--bg); margin: 0; -webkit-font-smoothing: antialiased; }
+    .mono { font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
+    .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+
+    /* sidebar (同 Variant A,精简) */
+    .sidebar { background: var(--bg-warm); border-right: 1px solid var(--hairline); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; }
+    .sidebar-top { padding: 20px 20px 16px; }
+    .wordmark { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+    .wordmark-glyph { width: 18px; height: 18px; background: var(--accent); border-radius: 4px; }
+    .nav { padding: 8px 12px; flex: 1; overflow-y: auto; }
+    .nav-group { margin-bottom: 16px; }
+    .nav-label { padding: 6px 8px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--subtle); font-weight: 500; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: var(--radius); color: var(--ink-soft); cursor: pointer; font-size: 13.5px; }
+    .nav-item:hover { background: var(--bg); color: var(--ink); }
+    .nav-item.active { background: var(--accent-ring); color: var(--accent); font-weight: 500; }
+    .user-card { margin: 0 12px 16px; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: var(--radius); display: flex; align-items: center; gap: 10px; }
+    .user-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+    .user-info { flex: 1; line-height: 1.3; min-width: 0; }
+    .user-name { font-size: 13px; font-weight: 500; }
+    .user-role { font-size: 11.5px; color: var(--muted); }
+
+    /* main */
+    .main { padding: 32px 32px 48px; min-width: 0; }
+    .breadcrumb { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+    .breadcrumb .sep { margin: 0 6px; color: var(--subtle); }
+    .breadcrumb .current { color: var(--ink); }
+    .page-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; }
+    .page-title { font-size: 24px; font-weight: 600; letter-spacing: -0.015em; }
+    .page-sub { color: var(--muted); font-size: 13.5px; margin-top: 4px; }
+    .actions { display: flex; gap: 8px; }
+
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; border: 1px solid var(--hairline); background: var(--surface); border-radius: var(--radius); font-size: 13px; font-weight: 500; color: var(--ink-soft); cursor: pointer; font-family: inherit; transition: all 0.12s; }
+    .btn:hover { background: var(--bg); color: var(--ink); }
+    .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+    .btn-primary:hover { background: #14532d; border-color: #14532d; }
+    .btn-link { background: none; border: none; padding: 4px 6px; color: var(--accent); cursor: pointer; font-size: 13px; }
+    .btn-link:hover { text-decoration: underline; }
+    .btn-link-danger { color: var(--danger); }
+
+    /* dual column */
+    .layout { display: grid; grid-template-columns: 280px 1fr; gap: 16px; min-height: 540px; }
+
+    /* tree panel */
+    .tree-panel { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); overflow: hidden; display: flex; flex-direction: column; }
+    .tree-header { padding: 12px 16px; border-bottom: 1px solid var(--hairline); background: var(--bg); display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+    .tree-search { padding: 10px 12px; border-bottom: 1px solid var(--hairline-soft); }
+    .tree-search input { width: 100%; height: 30px; padding: 0 10px; border: 1px solid var(--hairline); border-radius: var(--radius); font-size: 12.5px; font-family: inherit; }
+    .tree-search input:focus { outline: none; border-color: var(--accent); }
+    .tree-body { padding: 6px 0; flex: 1; overflow-y: auto; }
+    .tree-node { padding: 6px 12px; display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 13px; color: var(--ink-soft); border-radius: 4px; margin: 1px 6px; }
+    .tree-node:hover { background: var(--accent-pale); color: var(--ink); }
+    .tree-node.selected { background: var(--accent-ring); color: var(--accent); font-weight: 500; }
+    .tree-node.disabled { color: var(--subtle); }
+    .tree-arrow { width: 14px; text-align: center; font-size: 9px; color: var(--subtle); flex-shrink: 0; }
+    .tree-arrow.expanded { transform: rotate(90deg); }
+    .tree-arrow.empty { visibility: hidden; }
+    .tree-icon { width: 18px; height: 18px; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
+    .tree-name { flex: 1; }
+    .tree-count { font-size: 11px; color: var(--subtle); font-family: var(--font-mono); padding: 0 4px; background: var(--hairline-soft); border-radius: 3px; min-width: 18px; text-align: center; }
+    .tree-node.selected .tree-count { background: var(--accent-soft); color: var(--accent); }
+
+    /* detail panel */
+    .detail-panel { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); overflow: hidden; }
+    .detail-header { padding: 18px 24px; border-bottom: 1px solid var(--hairline); display: flex; align-items: center; justify-content: space-between; }
+    .detail-title { font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+    .detail-title .crumb { color: var(--muted); font-weight: 400; font-size: 13px; }
+    .detail-meta { display: flex; gap: 16px; margin-top: 6px; color: var(--muted); font-size: 12.5px; }
+    .detail-meta span strong { color: var(--ink); font-weight: 500; font-family: var(--font-mono); }
+
+    .info-card { padding: 18px 24px; border-bottom: 1px solid var(--hairline); background: var(--bg); display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+    .info-cell .k { color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+    .info-cell .v { color: var(--ink); font-weight: 500; }
+
+    .tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; font-size: 11.5px; border-radius: 3px; font-weight: 500; line-height: 1.6; }
+    .tag-on { background: var(--accent-pale); color: var(--accent); }
+    .tag-off { background: var(--hairline-soft); color: var(--muted); }
+
+    /* users table */
+    .user-section { padding: 16px 24px 24px; }
+    .user-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .user-section-title { font-size: 14px; font-weight: 600; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .data-table thead th { text-align: left; font-weight: 500; color: var(--muted); padding: 8px 12px; font-size: 12px; background: var(--bg); border-bottom: 1px solid var(--hairline); }
+    .data-table tbody td { padding: 10px 12px; border-bottom: 1px solid var(--hairline-soft); vertical-align: middle; }
+    .data-table tbody tr:last-child td { border-bottom: none; }
+    .data-table tbody tr:hover { background: var(--accent-pale); }
+    .badge { display: inline-block; padding: 1px 7px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+    .badge-admin { background: var(--accent-soft); color: var(--accent); }
+
+    /* new button bar at top of detail */
+    .quick-actions { display: flex; gap: 6px; }
+
+    .variant-tag { position: fixed; top: 12px; right: 12px; background: var(--accent); color: white; padding: 4px 10px; border-radius: 4px; font-size: 11.5px; font-weight: 500; font-family: var(--font-mono); z-index: 20; box-shadow: 0 2px 8px rgba(0,0,0,0.12); }
+  </style>
+</head>
+<body>
+  <div class="variant-tag">Variant B · 完整树形 + 详情侧</div>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="sidebar-top"><div class="wordmark"><span class="wordmark-glyph"></span>ZenCRM</div></div>
+      <nav class="nav">
+        <div class="nav-group"><div class="nav-label">工作台</div>
+          <div class="nav-item"><span>◇</span><span>仪表盘</span></div>
+          <div class="nav-item"><span>↻</span><span>跟进中心</span></div>
+        </div>
+        <div class="nav-group"><div class="nav-label">业务</div>
+          <div class="nav-item"><span>◐</span><span>线索</span></div>
+          <div class="nav-item"><span>◑</span><span>客户</span></div>
+        </div>
+        <div class="nav-group"><div class="nav-label">交易</div>
+          <div class="nav-item"><span>◓</span><span>商机</span></div>
+          <div class="nav-item"><span>◔</span><span>合同</span></div>
+          <div class="nav-item"><span>▣</span><span>产品</span></div>
+        </div>
+        <div class="nav-group"><div class="nav-label">系统设置</div>
+          <div class="nav-item"><span>▢</span><span>用户管理</span></div>
+          <div class="nav-item"><span>▣</span><span>角色管理</span></div>
+          <div class="nav-item"><span>▤</span><span>菜单权限</span></div>
+          <div class="nav-item active"><span>▥</span><span>部门管理</span></div>
+        </div>
+      </nav>
+      <div class="user-card"><div class="user-avatar">A</div><div class="user-info"><div class="user-name">admin</div><div class="user-role">系统管理员</div></div></div>
+    </aside>
+
+    <main class="main">
+      <div class="breadcrumb">系统设置 <span class="sep">/</span> <span class="current">部门管理</span></div>
+      <div class="page-header">
+        <div>
+          <div class="page-title">部门管理</div>
+          <div class="page-sub">组织架构维护 · 选中左侧节点查看详情</div>
+        </div>
+        <div class="actions">
+          <button class="btn">展开 / 折叠</button>
+          <button class="btn btn-primary">＋ 新建顶级部门</button>
+        </div>
+      </div>
+
+      <div class="layout">
+        <!-- 左:部门树 -->
+        <div class="tree-panel">
+          <div class="tree-header">部门树 <span class="mono" style="color:var(--subtle)">· 7 节点</span></div>
+          <div class="tree-search"><input placeholder="筛选部门..." /></div>
+          <div class="tree-body">
+            <!-- 总公司 顶层 -->
+            <div class="tree-node">
+              <span class="tree-arrow empty"></span>
+              <span class="tree-icon" style="background:var(--accent);color:white">🏢</span>
+              <span class="tree-name">总公司</span>
+              <span class="tree-count">3</span>
+            </div>
+
+            <!-- 华东销售部 展开 -->
+            <div class="tree-node selected">
+              <span class="tree-arrow expanded">▶</span>
+              <span class="tree-icon" style="background:var(--info-soft);color:var(--info)">🏛</span>
+              <span class="tree-name">华东销售部</span>
+              <span class="tree-count">3</span>
+            </div>
+            <div class="tree-node" style="padding-left:42px">
+              <span class="tree-arrow empty"></span>
+              <span class="tree-icon" style="background:var(--hairline-soft);color:var(--ink-soft)">📂</span>
+              <span class="tree-name">华东-企业客户组</span>
+              <span class="tree-count">2</span>
+            </div>
+            <div class="tree-node disabled" style="padding-left:42px">
+              <span class="tree-arrow empty"></span>
+              <span class="tree-icon" style="background:var(--hairline-soft);color:var(--subtle)">📂</span>
+              <span class="tree-name">华东-中小企业组</span>
+              <span class="tree-count">0</span>
+            </div>
+
+            <!-- 华南销售部 折叠 -->
+            <div class="tree-node">
+              <span class="tree-arrow">▶</span>
+              <span class="tree-icon" style="background:var(--info-soft);color:var(--info)">🏛</span>
+              <span class="tree-name">华南销售部</span>
+              <span class="tree-count">2</span>
+            </div>
+
+            <!-- 财务部 折叠 -->
+            <div class="tree-node">
+              <span class="tree-arrow">▶</span>
+              <span class="tree-icon" style="background:var(--warn-soft);color:var(--warn)">💰</span>
+              <span class="tree-name">财务部</span>
+              <span class="tree-count">1</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右:选中节点详情 -->
+        <div class="detail-panel">
+          <div class="detail-header">
+            <div>
+              <div class="detail-title">
+                🏛 华东销售部
+                <span class="crumb">上级:总公司</span>
+                <span class="tag tag-on">● 正常</span>
+              </div>
+              <div class="detail-meta">
+                <span>ancestors: <strong>0,1</strong></span>
+                <span>orderNum: <strong>2</strong></span>
+                <span>用户数 <strong>3</strong></span>
+                <span>创建于 <strong>2026-06-22</strong></span>
+              </div>
+            </div>
+            <div class="quick-actions">
+              <button class="btn">＋ 新建子部门</button>
+              <button class="btn">编辑</button>
+              <button class="btn btn-link-danger" style="background:none;border:1px solid var(--danger-soft);color:var(--danger)">删除</button>
+            </div>
+          </div>
+
+          <div class="info-card">
+            <div class="info-cell"><div class="k">部门 ID</div><div class="v mono">2</div></div>
+            <div class="info-cell"><div class="k">部门名称</div><div class="v">华东销售部</div></div>
+            <div class="info-cell"><div class="k">排序</div><div class="v mono">2</div></div>
+            <div class="info-cell"><div class="k">状态</div><div class="v"><span class="tag tag-on">● 正常</span></div></div>
+            <div class="info-cell"><div class="k">直接子部门</div><div class="v">华东-企业客户组 / 中小企业组</div></div>
+            <div class="info-cell"><div class="k">用户数(含子部门)</div><div class="v mono">3</div></div>
+            <div class="info-cell"><div class="k">创建</div><div class="v">admin · 2026-06-22</div></div>
+            <div class="info-cell"><div class="k">最近更新</div><div class="v">admin · 2026-06-22</div></div>
+          </div>
+
+          <!-- 下属用户 -->
+          <div class="user-section">
+            <div class="user-section-header">
+              <div class="user-section-title">部门下用户 <span class="mono" style="color:var(--muted);margin-left:6px">3 人</span></div>
+              <button class="btn">调岗 / 查看全部</button>
+            </div>
+            <div style="border:1px solid var(--hairline);border-radius:6px;overflow:hidden">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>账号</th><th>昵称</th><th>角色</th><th>状态</th><th>手机</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td><span class="mono">lead_wang</span></td><td>王主管</td><td><span class="badge badge-admin">销售主管</span></td><td><span class="tag tag-on">正常</span></td><td class="mono">13900000001</td></tr>
+                  <tr><td><span class="mono">sales_li</span></td><td>李销售</td><td><span class="badge" style="background:var(--info-soft);color:var(--info)">普通销售</span></td><td><span class="tag tag-on">正常</span></td><td class="mono">13900000002</td></tr>
+                  <tr><td><span class="mono">sales_chen</span></td><td>陈销售</td><td><span class="badge" style="background:var(--info-soft);color:var(--info)">普通销售</span></td><td><span class="tag tag-on">正常</span></td><td class="mono">13900000003</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div style="margin-top:14px;color:var(--muted);font-size:12.5px;line-height:1.6">
+              ▎ 树形全量加载(7 节点,首屏可承受)或树形懒加载(展开时请求子节点)— V1 全量即可。<br/>
+              ▎ 选中节点后右侧渲染详情 + 用户列表;删除/启停用/新建子部门都在右上 quick-actions。<br/>
+              ▎ <span style="color:var(--accent)">规模</span>:组件代码 ~350 行(el-tree + 右栏双区),如果用户量级到 50+ 部门,树形易拖拽编排;6 人公司 4 部门用不全。
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

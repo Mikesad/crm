@@ -209,6 +209,13 @@ const routes = [
         name: 'RoleDetail',
         component: () => import('@/views/system/role/detail.vue'),
         meta: { title: '角色详情', permissions: ['sys:role:list'], hidden: true }
+      },
+      {
+        // 阶段七 commit:部门管理(left tree + right detail)
+        path: 'dept',
+        name: 'DeptHome',
+        component: () => import('@/views/system/dept/index.vue'),
+        meta: { title: '部门管理', permissions: ['sys:dept:list'] }
       }
     ]
   },

@@ -10,8 +10,10 @@ import com.crm.common.exception.BusinessException;
 import com.crm.common.result.ResultCode;
 import com.crm.dto.SysUserCreateRequest;
 import com.crm.dto.SysUserUpdateRequest;
+import com.crm.entity.SysDept;
 import com.crm.entity.SysRole;
 import com.crm.entity.SysUser;
+import com.crm.mapper.SysDeptMapper;
 import com.crm.mapper.SysRoleMapper;
 import com.crm.mapper.SysUserMapper;
 import com.crm.mapper.SysUserRoleMapper;
@@ -49,6 +51,7 @@ public class SysUserService {
     private final SysUserMapper userMapper;
     private final SysUserRoleMapper userRoleMapper;
     private final SysRoleMapper roleMapper;
+    private final SysDeptMapper deptMapper;
     private final BCryptPasswordEncoder passwordEncoder;
 
     private static final Set<String> PROTECTED_KEYS = Set.of("admin");
@@ -73,12 +76,14 @@ public class SysUserService {
         IPage<SysUser> result = userMapper.selectPage(page, wrapper);
         IPage<SysUserVO> voPage = result.convert(this::toVO);
         // v0.11:补 roleIds + roleNames 填充(原 page 漏掉,导致前端列表全显示"未分配")
+        // 阶段七 commit:v0.12 补 deptName 填充
         List<SysUserVO> records = voPage.getRecords();
         if (!records.isEmpty()) {
             for (SysUserVO vo : records) {
                 vo.setRoleIds(userRoleMapper.selectRoleIdsByUserId(vo.getId()));
             }
             fillRoleNames(records);
+            fillDeptNames(records);
         }
         return voPage;
     }
@@ -91,6 +96,7 @@ public class SysUserService {
         SysUserVO vo = toVO(user);
         vo.setRoleIds(userRoleMapper.selectRoleIdsByUserId(id));
         fillRoleNames(Collections.singletonList(vo));
+        fillDeptNames(Collections.singletonList(vo));
         return vo;
     }
 
@@ -250,7 +256,6 @@ public class SysUserService {
         SysUserVO vo = BeanUtil.copyProperties(user, SysUserVO.class);
         vo.setSexText(user.getSex() == null ? "未知" : (user.getSex() == 0 ? "男" : (user.getSex() == 1 ? "女" : "未知")));
         vo.setStatusText(user.getStatus() != null && user.getStatus() == 1 ? "正常" : "停用");
-        // v0.3:部门管理模块撤回,deptName 留空(前端显示"— 未分配 —")
         return vo;
     }
 
@@ -269,6 +274,30 @@ public class SysUserService {
                     .filter(java.util.Objects::nonNull)
                     .toList();
             vo.setRoleNames(names);
+        }
+    }
+
+    /**
+     * 阶段七 commit:批量填充 {@code deptName}
+     *
+     * <p>从 vos 中收集非空 deptId,走 {@code SysDeptMapper.selectBatchIds} 一次取回,
+     * 避免 N+1。模式与 {@link #fillRoleNames} 一致。
+     * deptId 为空的用户保持 deptName = null(前端显示"— 未分配 —")。</p>
+     */
+    private void fillDeptNames(List<SysUserVO> vos) {
+        if (vos.isEmpty()) return;
+        List<Long> allDeptIds = vos.stream()
+                .map(SysUserVO::getDeptId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
+        if (allDeptIds.isEmpty()) return;
+        Map<Long, String> deptNameMap = deptMapper.selectBatchIds(allDeptIds).stream()
+                .collect(Collectors.toMap(SysDept::getId, SysDept::getDeptName, (a, b) -> a));
+        for (SysUserVO vo : vos) {
+            if (vo.getDeptId() != null) {
+                vo.setDeptName(deptNameMap.get(vo.getDeptId()));
+            }
         }
     }
 }
