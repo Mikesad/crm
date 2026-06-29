@@ -91,10 +91,10 @@ const menuGroups = [
   {
     label: '系统设置',
     children: [
-      // 角色管理 - admin + 销售总监(D3 v0.2)
-      { path: '/system/role', title: '角色管理', icon: 'Avatar', perm: 'sys:user:list', requiresRole: ['admin', 'sales_director'] },
+      // 角色 - admin + 销售总监(D3 v0.2)
+      { path: '/system/role', title: '角色', icon: 'Avatar', perm: 'sys:user:list', requiresRole: ['admin', 'sales_director'] },
       // 阶段七 commit:部门管理 - admin + 销售总监(左侧部门树 + 右侧详情卡)
-      { path: '/system/dept', title: '部门管理', icon: 'OfficeBuilding', perm: 'sys:dept:list', requiresRole: ['admin', 'sales_director'] },
+      { path: '/system/dept', title: '部门', icon: 'OfficeBuilding', perm: 'sys:dept:list', requiresRole: ['admin', 'sales_director'] },
       // 产品 - 全员(D7 v0.4 全员可见)
       // v0.5:产品分类已整合为产品库 Tab,不再单独是菜单项
       // v0.7:产品图标从 Goods 改成 Box(包装盒,SaaS 产品更直观)

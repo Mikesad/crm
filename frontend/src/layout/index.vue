@@ -9,12 +9,6 @@
         </div>
       </div>
       <SidebarMenu class="sidebar-menu" />
-      <div class="user-card">
-        <div class="user-info">
-          <div class="user-name">{{ userStore.nickname || userStore.username || '' }}</div>
-          <div class="user-role">{{ roleLabel }}</div>
-        </div>
-      </div>
     </aside>
 
     <!-- 右侧主区 -->
@@ -32,26 +26,8 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
 import SidebarMenu from './components/SidebarMenu.vue'
 import HeaderBar from './components/HeaderBar.vue'
-import { useUserStore } from '@/store/user'
-
-const userStore = useUserStore()
-
-const roleLabel = computed(() => {
-  const keys = userStore.roleKeys || []
-  if (keys.length === 0) return ''
-  // 简化映射：取第一个 role key 翻译成中文
-  const map = {
-    admin: '系统管理员',
-    sales_director: '销售总监',
-    sales_lead: '销售主管',
-    sales: '销售',
-    finance: '财务'
-  }
-  return map[keys[0]] || keys[0]
-})
 </script>
 
 <style lang="scss" scoped>
@@ -97,44 +73,6 @@ const roleLabel = computed(() => {
   overflow-y: auto;
   padding: 0 12px;
   min-height: 0;
-}
-
-.user-card {
-  margin: 0 12px 16px;
-  padding: 10px 12px;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-}
-.user-avatar {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-.user-info {
-  flex: 1;
-  line-height: 1.3;
-  min-width: 0;
-}
-.user-name {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--ink);
-}
-.user-role {
-  font-size: 11.5px;
-  color: var(--muted);
 }
 
 .main-wrap {

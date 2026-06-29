@@ -31,17 +31,16 @@
         </el-table-column>
         <el-table-column label="角色" min-width="160">
           <template #default="{ row }">
-            <template v-if="row.roleNames && row.roleNames.length">
+            <span v-if="row.roleNames && row.roleNames.length" class="role-chips">
               <el-tag v-for="rn in row.roleNames" :key="rn" :type="rn === '系统管理员' ? 'warning' : 'success'"
                        effect="light" size="small" class="role-chip">{{ rn }}</el-tag>
-            </template>
+            </span>
             <span v-else class="text-muted">— 未分配 —</span>
           </template>
         </el-table-column>
-        <el-table-column label="状态" width="110" align="center" :cell-style="{ paddingRight: '16px' }">
+        <el-table-column label="状态" width="90" align="center">
           <template #default="{ row }">
-            <el-tag v-if="row.status === 1" type="success" effect="light">● 正常</el-tag>
-            <el-tag v-else effect="plain">● 停用</el-tag>
+            <span :class="['status-text', row.status === 1 ? 'on' : 'off']">{{ row.status === 1 ? '正常' : '停用' }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="创建时间" width="160" :cell-style="{ paddingLeft: '16px' }">
@@ -76,14 +75,13 @@
       />
     </el-card>
 
-    <!-- 新建/编辑 Dialog -->
+    <!-- 新建/编辑 Dialog(阶段七 v0.4:加部门字段,删 2 个提示字样) -->
     <el-dialog v-model="editVisible" :title="editing.id ? '编辑用户' : '新建用户'" width="640px" :close-on-click-modal="false" @closed="resetEditForm">
       <el-form ref="editFormRef" :model="editing" :rules="editRules" label-position="top">
         <el-row :gutter="12">
           <el-col :span="12">
             <el-form-item label="账号" prop="username">
               <el-input v-model="editing.username" placeholder="如 sales_zhao" :disabled="!!editing.id" />
-              <div class="help">全局唯一,创建后不可修改</div>
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -94,6 +92,12 @@
         </el-row>
         <el-row :gutter="12">
           <el-col :span="12">
+            <el-form-item label="部门" prop="deptPath" required>
+              <el-cascader v-model="editing.deptPath" :options="deptTreeOptions" :props="deptCascaderProps"
+                            placeholder="点击选择部门" class="dept-cascader" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
             <el-form-item label="性别">
               <el-radio-group v-model="editing.sex">
                 <el-radio :value="0">男</el-radio>
@@ -102,21 +106,19 @@
               </el-radio-group>
             </el-form-item>
           </el-col>
-          <el-col :span="12">
-            <el-form-item label="手机号"><el-input v-model="editing.phone" placeholder="11 位手机号" /></el-form-item>
-          </el-col>
         </el-row>
         <el-row :gutter="12">
           <el-col :span="12">
+            <el-form-item label="手机号"><el-input v-model="editing.phone" placeholder="11 位手机号" /></el-form-item>
+          </el-col>
+          <el-col :span="12">
             <el-form-item label="邮箱"><el-input v-model="editing.email" placeholder="user@zencrm.local" /></el-form-item>
           </el-col>
-          <el-col :span="12" />
         </el-row>
         <el-form-item label="角色" prop="roleIds">
           <el-select v-model="editing.roleIds" multiple collapse-tags collapse-tags-tooltip placeholder="点击选择角色(可多选)" style="width: 100%">
             <el-option v-for="r in allRoles" :key="r.id" :label="r.roleName" :value="r.id" />
           </el-select>
-          <div class="help">admin 至少 1 人 — 当前 admin 启用人 {{ adminCount }}</div>
         </el-form-item>
         <el-form-item v-if="!editing.id" label="初始密码">
           <el-input v-model="editing.password" placeholder="默认 123456" />
@@ -182,6 +184,7 @@ import {
   resetPassword, toggleStatus, assignRoles
 } from '@/api/sys-user'
 import { listAllRoles } from '@/api/sys-role'
+import { listAllDept } from '@/api/sys-dept'
 import { useUserStore } from '@/store/user'
 import { useAuth } from '@/composables/useAuth'
 
@@ -198,6 +201,31 @@ const total = ref(0)
 const loading = ref(false)
 const allRoles = ref([])
 const adminCount = ref(0)
+const allDepts = ref([])             // 平铺全量部门(供 cascader 构造树)
+const deptCascaderProps = {
+  value: 'id', label: 'deptName', children: 'children',
+  checkStrictly: true, emitPath: true
+}
+
+// 部门树形构造(顶级 parentId = 0,不是 null;见 [[crm-sysdept-parent-pitfall]])
+function buildDeptTree(list, parentId) {
+  return list
+    .filter(d => d.parentId === parentId)
+    .sort((a, b) => (a.orderNum ?? 0) - (b.orderNum ?? 0))
+    .map(d => {
+      const children = buildDeptTree(list, d.id)
+      return { ...d, children: children.length ? children : undefined }
+    })
+}
+const deptTreeOptions = computed(() => buildDeptTree(allDepts.value, 0))
+
+// 根据部门 id 递归向上构造 cascader 路径数组
+function buildDeptPath(id, list = allDepts.value) {
+  if (!id || id === 0) return []
+  const cur = list.find(d => d.id === id)
+  if (!cur) return [id]
+  return [...buildDeptPath(cur.parentId, list), cur.id]
+}
 
 // ---------- 加载 ----------
 async function loadList() {
@@ -223,6 +251,15 @@ async function loadRoles() {
   adminCount.value = allRoles.value.filter((r) => r.roleKey === 'admin').length
 }
 
+async function loadDepts() {
+  try {
+    const res = await listAllDept()
+    allDepts.value = res.data || []
+  } catch {
+    allDepts.value = []
+  }
+}
+
 function handleSearch() { query.pageNum = 1; loadList() }
 function handleReset() { query.keyword = ''; query.status = null; query.pageNum = 1; loadList() }
 
@@ -230,33 +267,52 @@ function handleReset() { query.keyword = ''; query.status = null; query.pageNum 
 const editVisible = ref(false)
 const saving = ref(false)
 const editFormRef = ref(null)
-const editing = reactive({ id: null, username: '', nickname: '', phone: '', email: '', sex: 0, status: 1, password: '123456', roleIds: [] })
+const editing = reactive({
+  id: null, username: '', nickname: '', phone: '', email: '',
+  sex: 0, status: 1, password: '123456', roleIds: [],
+  deptPath: []   // cascader emitPath:true → 数组路径
+})
 const editRules = {
   username: [{ required: true, message: '请输入账号', trigger: 'blur' }],
   nickname: [{ required: true, message: '请输入昵称', trigger: 'blur' }],
+  // 部门必填(部门级数据统计需求;cascader 数组 emitPath:true)
+  deptPath: [{
+    validator: (rule, value, cb) => {
+      if (!Array.isArray(value) || value.length === 0) {
+        return cb(new Error('部门必选,用于部门数据统计'))
+      }
+      cb()
+    },
+    trigger: 'change'
+  }],
   roleIds: [{ required: true, type: 'array', min: 1, message: '至少分配一个角色', trigger: 'change' }]
 }
 function resetEditForm() {
   editing.id = null; editing.username = ''; editing.nickname = ''
   editing.phone = ''; editing.email = ''; editing.sex = 0; editing.status = 1
-  editing.password = '123456'; editing.roleIds = []
+  editing.password = '123456'; editing.roleIds = []; editing.deptPath = []
   editFormRef.value?.clearValidate()
 }
 function handleCreate() { resetEditForm(); editVisible.value = true }
 async function handleEdit(row) {
   resetEditForm(); Object.assign(editing, row); editing.password = ''
+  if (row.deptId) editing.deptPath = buildDeptPath(row.deptId)
   editVisible.value = true
 }
 async function handleSave() {
   await editFormRef.value.validate()
   saving.value = true
   try {
+    // cascader 数组 → 后端单值:取最后一项(顶级=[]表示不分配)
+    const deptId = Array.isArray(editing.deptPath)
+      ? (editing.deptPath[editing.deptPath.length - 1] || null)
+      : (editing.deptPath || null)
     if (editing.id) {
       await updateUser({ id: editing.id, nickname: editing.nickname,
-        phone: editing.phone, email: editing.email, sex: editing.sex, status: editing.status, roleIds: editing.roleIds })
+        phone: editing.phone, email: editing.email, sex: editing.sex, status: editing.status, roleIds: editing.roleIds, deptId })
       ElMessage.success('已更新')
     } else {
-      const payload = { ...editing }
+      const payload = { ...editing, deptId }
       if (!payload.password) delete payload.password
       await addUser(payload)
       ElMessage.success('已创建')
@@ -316,7 +372,7 @@ async function confirmAssignRole() {
   } finally { assigning_loading.value = false }
 }
 
-onMounted(() => { loadRoles(); loadList() })
+onMounted(() => { loadRoles(); loadDepts(); loadList() })
 </script>
 
 <style lang="scss" scoped>
@@ -333,8 +389,14 @@ onMounted(() => { loadRoles(); loadList() })
 .name-block .sub { font-size: 11.5px; color: var(--muted); }
 .mono { font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
 .mono.accent { color: var(--accent); }
-.role-chip { margin-right: 4px; }
+.role-chips { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.role-chip { margin-right: 0; }
 .text-muted { color: var(--subtle); }
+
+/* 状态列 — 纯中文文字 + 颜色,不包 el-tag(避免 cell 内被当块状) */
+.status-text { font-size: 13px; font-weight: 500; display: inline-block; }
+.status-text.on { color: var(--accent); }
+.status-text.off { color: var(--subtle); }
 
 /* 操作列紧凑样式:不换行 + 白名单按钮紧凑 padding */
 .row-actions {
@@ -357,4 +419,6 @@ onMounted(() => { loadRoles(); loadList() })
 
 .help { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
 .help.warn { color: var(--warn); }
+.dept-cascader { width: 100%; }
+.dept-cascader :deep(.el-cascader) { width: 100%; }
 </style>

@@ -30,8 +30,7 @@
         </el-table-column>
         <el-table-column label="状态" width="90" align="center">
           <template #default="{ row }">
-            <el-tag v-if="row.status === 1" type="success" effect="light">● 正常</el-tag>
-            <el-tag v-else effect="plain">● 停用</el-tag>
+            <span :class="['status-text', row.status === 1 ? 'on' : 'off']">{{ row.status === 1 ? '正常' : '停用' }}</span>
           </template>
         </el-table-column>
         <el-table-column label="用户数" width="90" align="center">
@@ -197,6 +196,11 @@ onMounted(loadList)
 .builtin-tag { margin-left: 4px; }
 .mono { font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
 .user-num { font-weight: 600; color: var(--ink); }
+
+/* 状态列 — 纯中文文字 + 颜色 */
+.status-text { font-size: 13px; font-weight: 500; display: inline-block; }
+.status-text.on { color: var(--accent); }
+.status-text.off { color: var(--subtle); }
 
 .action-link { padding: 0 6px; }
 .action-link.danger { color: var(--danger); }

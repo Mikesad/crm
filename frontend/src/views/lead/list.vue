@@ -621,7 +621,7 @@ onMounted(() => {
   margin-bottom: 16px;
   flex-wrap: wrap;
 }
-.search { width: 240px; }
+.search { width: 320px; }
 .filter { width: 140px; }
 .filter.sort { width: 130px; }
 .spacer { flex: 1; }

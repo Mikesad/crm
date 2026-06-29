@@ -1,7 +1,7 @@
 <template>
   <div class="page" v-loading="loadingRole">
     <div class="breadcrumb">
-      <router-link to="/system/role">角色管理</router-link>
+      <router-link to="/system/role">角色</router-link>
       <span class="sep">/</span>
       <span>{{ role?.roleName || '...' }}</span>
     </div>
@@ -201,6 +201,10 @@ const MATRIX_GROUPS = [
         { label: '查看', code: 'sys:role:list' },
         { label: '编辑', code: 'sys:role:edit' },
         { label: '分配菜单', code: 'sys:role:assign_menu' }
+      ] },
+      { objectName: '部门管理', actions: [
+        { label: '查看', code: 'sys:dept:list' },
+        { label: '编辑', code: 'sys:dept:edit' }
       ] },
       { objectName: '菜单权限', actions: [
         { label: '查看', code: 'sys:menu:list' },

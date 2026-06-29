@@ -194,14 +194,14 @@ const routes = [
   {
     path: '/system',
     component: () => import('@/layout/index.vue'),
-    meta: { title: '角色管理', icon: 'Setting', roles: ['admin', 'sales_director'] },
+    meta: { title: '系统设置', icon: 'Setting', roles: ['admin', 'sales_director'] },
     children: [
       {
         // v0.3:角色管理含 2 个 tab(用户管理 / 权限管理)
         path: 'role',
         name: 'RoleHome',
         component: () => import('@/views/system/role/index.vue'),
-        meta: { title: '角色管理', permissions: ['sys:user:list'] }
+        meta: { title: '角色', permissions: ['sys:user:list'] }
       },
       {
         // 必须放在 role 之后,否则 :id 会捕获 /system/role
@@ -215,7 +215,7 @@ const routes = [
         path: 'dept',
         name: 'DeptHome',
         component: () => import('@/views/system/dept/index.vue'),
-        meta: { title: '部门管理', permissions: ['sys:dept:list'] }
+        meta: { title: '部门', permissions: ['sys:dept:list'] }
       }
     ]
   },

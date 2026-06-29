@@ -1,11 +1,11 @@
 <template>
   <div class="page">
     <!-- 顶部面包屑 + 标题 + actions -->
-    <div class="breadcrumb">系统设置 <span class="sep">/</span> <span class="current">部门管理</span></div>
+    <div class="breadcrumb">系统设置 <span class="sep">/</span> <span class="current">部门</span></div>
 
     <div class="page-header">
       <div>
-        <div class="page-title">部门管理</div>
+        <div class="page-title">部门</div>
         <div class="page-sub">
           组织架构维护 · 共 <span class="mono">{{ depts.length }}</span> 个部门
           <span class="dot">·</span>
@@ -44,7 +44,7 @@
           >
             <template #default="{ node, data }">
               <div :class="['tree-row', { selected: selectedId === data.id }]">
-                <span class="tree-icon" :style="iconStyle(data)">{{ icon(data) }}</span>
+                <span class="tree-icon" :style="iconStyle(data)" v-html="iconSvg(data)"></span>
                 <span :class="['tree-name', { disabled: data.status === 0 }]">{{ data.deptName }}</span>
                 <span v-if="data.userCount" class="tree-count">{{ data.userCount }}</span>
               </div>
@@ -67,7 +67,7 @@
           <div class="detail-header">
             <div>
               <div class="detail-title">
-                <span class="tree-icon" :style="iconStyle(detail)">{{ icon(detail) }}</span>
+                <span class="tree-icon" :style="iconStyle(detail)" v-html="iconSvg(detail)"></span>
                 {{ detail.deptName }}
                 <el-tag v-if="detail.status === 1" type="success" size="small" effect="light">● 正常</el-tag>
                 <el-tag v-else size="small" effect="plain">○ 停用</el-tag>
@@ -92,7 +92,7 @@
             </div>
           </div>
 
-          <!-- 4 格信息卡 -->
+          <!-- 2 格信息卡(创建/最近更新已移除,见 v0.3 简化) -->
           <div class="info-card">
             <div class="info-cell">
               <div class="k">直接子部门</div>
@@ -101,20 +101,6 @@
             <div class="info-cell">
               <div class="k">启用用户数</div>
               <div class="v mono">{{ detail.userCount }}</div>
-            </div>
-            <div class="info-cell">
-              <div class="k">创建</div>
-              <div class="v">
-                {{ detail.createBy || 'system' }}
-                <span class="time mono">{{ formatTime(detail.createTime) }}</span>
-              </div>
-            </div>
-            <div class="info-cell">
-              <div class="k">最近更新</div>
-              <div class="v">
-                {{ detail.updateBy || 'system' }}
-                <span class="time mono">{{ formatTime(detail.updateTime) }}</span>
-              </div>
             </div>
           </div>
 
@@ -241,7 +227,9 @@ const treeProps = {
 }
 
 // ========== 树形构造 ==========
-const treeData = computed(() => buildTree(depts.value, null))
+// 注意:sys_dept 表约定顶级 parent_id = 0(crm_full.sql DEFAULT 0),不是 null
+// filter 条件 `d.parentId === 0` 才能捞到顶级部门;用 null 会导致 treeData = []
+const treeData = computed(() => buildTree(depts.value, 0))
 
 function buildTree(list, parentId) {
   const subset = list
@@ -298,21 +286,43 @@ function collectAllIds(nodes, acc = []) {
 }
 
 // 节点视觉
+// level 算法:ancestors 字段以 ',' 分隔,但顶级 ancestors='0' 长度为 1,所以减 1 得到真实深度
+//   顶级(ancestors='0'):level=0 → 大号实心六边形
+//   一级(ancestors='0,1'):level=1 → 中号描边六边形
+//   二级(ancestors='0,1,2'):level=2 → 小描边六边形
+// 财务部:任何层级都用 warn 棕色调(在 iconStyle 中判定)
 function level(data) {
   const anc = (data.ancestors || '').split(',').filter(Boolean)
-  return anc.length
+  return Math.max(0, anc.length - 1)  // 减 1 是因为顶级 ancestors='0' 长度为 1
 }
-function icon(data) {
+
+// 阶段七 v0.3:d 六边形 SVG(用户从 6 个备选中拍板)
+// 见 frontend-design/phase7-dept-icons-preview.html 变体 D
+function iconSvg(data) {
   const lv = level(data)
-  if (lv <= 1) return lv === 0 ? '🏢' : '🏛'
-  if (data.deptName && data.deptName.includes('财务')) return '💰'
-  return '📂'
+  if (lv === 0) {
+    // 顶级:大实心六边形
+    return '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><polygon points="12,2 22,7 22,17 12,22 2,17 2,7"/></svg>'
+  }
+  if (lv === 1) {
+    // 一级:中描边六边形
+    return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,3 21,7.5 21,16.5 12,21 3,16.5 3,7.5"/></svg>'
+  }
+  if (lv === 2) {
+    // 二级:小描边六边形
+    return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12,4 19,8 19,16 12,20 5,16 5,8"/></svg>'
+  }
+  // 三级及以上:微型实心六边形(叶子)
+  return '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="12,5 18,8 18,14 12,17 6,14 6,8"/></svg>'
 }
 function iconStyle(data) {
+  // 财务部 warn 棕色调优先级最高(覆盖层级默认色)
+  if (data.deptName && data.deptName.includes('财务')) {
+    return 'background:var(--warn-soft);color:var(--warn)'
+  }
   const lv = level(data)
   if (lv === 0) return 'background:var(--accent);color:white'
   if (lv === 1) return 'background:var(--info-soft);color:var(--info)'
-  if (data.deptName && data.deptName.includes('财务')) return 'background:var(--warn-soft);color:var(--warn)'
   return 'background:var(--hairline-soft);color:var(--ink-soft)'
 }
 
@@ -373,26 +383,45 @@ const editForm = reactive({
 })
 const editRules = {
   deptName: [{ required: true, message: '部门名称不能为空', trigger: 'blur' }],
-  parentId: [{ required: true, message: '上级部门不能为空', trigger: 'change' }],
+  // parentId 现在是数组(emitPath:true),空数组 = 未选,需要校验
+  parentId: [{
+    validator: (rule, value, cb) => {
+      if (!Array.isArray(value) || value.length === 0) {
+        return cb(new Error('上级部门不能为空'))
+      }
+      cb()
+    },
+    trigger: 'change'
+  }],
   orderNum: [{ required: true, message: '排序不能为空', trigger: 'blur' }],
   status: [{ required: true, message: '状态不能为空', trigger: 'change' }]
 }
 
 // cascader 父级选项:剔除自己和自己的后代
+// 关键:v0.3 修复之前 line 400 写 buildTree(depts.value, null) 的 bug
+// sys_dept 顶级 parent_id = 0(crm_full.sql DEFAULT 0),不是 null
 const cascaderProps = {
   value: 'id',
   label: 'deptName',
   children: 'children',
   checkStrictly: true,
-  emitPath: false
+  emitPath: true   // 关键:返回数组路径(让用户看到完整上级链路)
 }
 const parentCascaderOptions = computed(() => {
-  const all = buildTree(depts.value, null)
-  if (!editForm.id) return all  // 新建模式:全量可选(V1 走校验,后端阻止顶级)
+  const all = buildTree(depts.value, 0)   // ← 顶级参数 0(非 null,见 [[crm-dept-icon-design]])
+  if (!editForm.id) return all  // 新建模式:全量可选(V1 后端阻止顶级)
   // 编辑模式:剔除自己 + 自己所有后代
-  const blocked = collectAllIds([depts.value.find(d => d.id === editForm.id)]).concat([editForm.id])
-  return filterTree(all, blocked)
+  const blocked = new Set([editForm.id])
+  const collect = (n) => { for (const c of (n.children || [])) { blocked.add(c.id); collect(c) } }
+  const selfTree = buildTree(depts.value.filter(d => d.id === editForm.id), editForm.id)
+  collect({ children: selfTree })
+  return filterTreeById(all, blocked)
 })
+function filterTreeById(nodes, blocked) {
+  return nodes
+    .filter(n => !blocked.has(n.id))
+    .map(n => ({ ...n, children: n.children ? filterTreeById(n.children, blocked) : undefined }))
+}
 function filterTree(nodes, blocked) {
   return nodes
     .filter(n => !blocked.includes(n.id))
@@ -409,7 +438,8 @@ function handleAddChild() {
     return
   }
   resetEditForm()
-  editForm.parentId = detail.value.id
+  // cascader emitPath:true 需要数组路径:[总公司] 或 [总公司, 华东销售部]
+  editForm.parentId = buildParentPath(detail.value.id)
   editForm.orderNum = (depts.value.filter(d => d.parentId === detail.value.id).length || 0) + 1
   editVisible.value = true
 }
@@ -423,16 +453,26 @@ function handleEdit() {
   Object.assign(editForm, {
     id: detail.value.id,
     deptName: detail.value.deptName,
-    parentId: detail.value.parentId,
+    parentId: buildParentPath(detail.value.parentId),
     orderNum: detail.value.orderNum,
     status: detail.value.status
   })
   editVisible.value = true
 }
+
+// 根据部门 id 构造 cascader 路径数组
+// 返回如 []/[总公司]/[总公司, 华东销售部]
+function buildParentPath(id) {
+  if (!id || id === 0) return []
+  const cur = depts.value.find(d => d.id === id)
+  if (!cur) return [id]
+  // 递归向上
+  return [...buildParentPath(cur.parentId), cur.id]
+}
 function resetEditForm() {
   editFormRef.value?.resetFields()
   Object.assign(editForm, {
-    id: null, deptName: '', parentId: null, orderNum: 1, status: 1
+    id: null, deptName: '', parentId: [], orderNum: 1, status: 1
   })
 }
 
@@ -440,11 +480,15 @@ async function submitEdit() {
   await editFormRef.value.validate()
   submitting.value = true
   try {
+    // cascader emitPath:true → 数组;后端要的是单值 parentId(顶级=0)
+    const parentId = Array.isArray(editForm.parentId)
+      ? (editForm.parentId[editForm.parentId.length - 1] || 0)
+      : (editForm.parentId || 0)
     if (editForm.id) {
       await updateDept({
         id: editForm.id,
         deptName: editForm.deptName,
-        parentId: editForm.parentId,
+        parentId,
         orderNum: editForm.orderNum,
         status: editForm.status
       })
@@ -452,7 +496,7 @@ async function submitEdit() {
     } else {
       await addDept({
         deptName: editForm.deptName,
-        parentId: editForm.parentId,
+        parentId,
         orderNum: editForm.orderNum,
         status: editForm.status
       })
@@ -575,7 +619,7 @@ onMounted(loadDepts)
 .crumb-link:hover { text-decoration: underline; }
 .quick-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 
-.info-card { padding: 14px 24px; border-bottom: 1px solid var(--hairline); background: var(--bg); display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.info-card { padding: 14px 24px; border-bottom: 1px solid var(--hairline); background: var(--bg); display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
 .info-cell .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
 .info-cell .v { color: var(--ink); font-weight: 500; font-size: 14px; }
 .info-cell .time { font-size: 12px; color: var(--muted); margin-left: 4px; }
