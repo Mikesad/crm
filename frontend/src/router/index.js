@@ -193,31 +193,21 @@ const routes = [
   {
     path: '/system',
     component: () => import('@/layout/index.vue'),
-    meta: { title: '系统管理', icon: 'Setting', roles: ['admin'] },
+    meta: { title: '角色管理', icon: 'Setting', roles: ['admin', 'sales_director'] },
     children: [
       {
-        path: 'user',
-        name: 'UserList',
-        component: () => import('@/views/system/user.vue'),
-        meta: { title: '用户管理', permissions: ['sys:user:list'] }
-      },
-      {
+        // v0.3:角色管理含 2 个 tab(用户管理 / 权限管理)
         path: 'role',
-        name: 'RoleList',
-        component: () => import('@/views/system/role.vue'),
-        meta: { title: '角色管理', permissions: ['sys:role:list'] }
+        name: 'RoleHome',
+        component: () => import('@/views/system/role/index.vue'),
+        meta: { title: '角色管理', permissions: ['sys:user:list'] }
       },
       {
-        path: 'menu',
-        name: 'MenuList',
-        component: () => import('@/views/system/menu.vue'),
-        meta: { title: '菜单权限', permissions: ['sys:menu:list'] }
-      },
-      {
-        path: 'dept',
-        name: 'DeptList',
-        component: () => import('@/views/system/dept.vue'),
-        meta: { title: '部门管理', permissions: ['sys:dept:list'] }
+        // 必须放在 role 之后,否则 :id 会捕获 /system/role
+        path: 'role/:id',
+        name: 'RoleDetail',
+        component: () => import('@/views/system/role/detail.vue'),
+        meta: { title: '角色详情', permissions: ['sys:role:list'], hidden: true }
       }
     ]
   },

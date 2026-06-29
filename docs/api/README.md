@@ -20,6 +20,9 @@
 | 10 回款计划 | [receivable-plan.md](./receivable-plan.md) | 5 | stable | 2026-06-27 |
 | 11 回款管理 | [receivable.md](./receivable.md) | 3 | stable | 2026-06-27 |
 | 12 报表中心 | [report.md](./report.md) | 13 | stable | 2026-06-28 |
+| 13 系统 - 用户 | [sys-user.md](./sys-user.md) | 8 | stable | 2026-06-29 |
+| 14 系统 - 角色 | [sys-role.md](./sys-role.md) | 6 | stable | 2026-06-29 |
+| 15 系统 - 菜单 | [sys-menu.md](./sys-menu.md) | 5 | stable | 2026-06-29 |
 | 数据字典 | dict.md | 待补 | planned | - |
 
 ## 公共约定
@@ -151,6 +154,25 @@ Authorization: <Sa-Token token>
 * **8 个聚合二级索引**：`crm_contract.idx_sign_date` / `crm_receivable.idx_actual_time` / `crm_business.idx_stage` + `idx_expected` / `crm_record.idx_create_time` + `idx_related` / `crm_customer.idx_industry` + `idx_last_follow`，全部走 `phase5_add_idx_if_missing` 存储过程幂等。
 * **前端 UI** 走"侧边栏 + Cockpit 驾驶舱密度"混合版（参考 `frontend-design/phase5-report-variant-b-cockpit.html` v2），不用顶栏横向导航（与 Dashboard / 跟进中心保持一致）。
 * **V1 简化**：KPI 同比字符串走 mock、地区分布用 industry 替代、团队 vs 全公司同值、应收 TopN 不分 series — 全部列入阶段六 TODO。
+
+## 阶段六 commit 1 新增权限码（角色管理）
+
+v0.3:仅"角色管理"模块（含用户/权限 2 个 tab），部门管理撤回。
+
+| 权限码 | 角色绑定 | 说明 |
+|:---|:---|:---|
+| `sys:system:view` | admin / sales_director | 管理组入口（M 目录） |
+| `sys:user:list` | admin / sales_director | 用户管理 Tab（C 菜单） |
+| `sys:user:edit` | admin / sales_director | 新建/编辑/删除/启停用 |
+| `sys:user:reset_pwd` | admin / sales_director | 重置密码 |
+| `sys:user:assign_role` | admin / sales_director | 分配角色 |
+| `sys:role:list` | admin / sales_director | 权限管理 Tab（角色 CRUD + 权限矩阵） |
+| `sys:role:edit` | admin / sales_director | 新建/编辑/删除角色 |
+| `sys:role:assign_menu` | admin / sales_director | 分配菜单（全量重绑 + 踢所有用户下线） |
+| `sys:menu:list` | admin / sales_director | 菜单权限（矩阵展示用只读） |
+| `sys:menu:edit` | admin / sales_director | （CRUD UI v0.3 暂不做） |
+
+**已初始化数据库的迁移**：见 `sql/migrations/phase6-system.sql`（10 个菜单幂等插入 + admin + sales_director 共 2 角色绑定 + 老 v0.2 阶段留下的 id 34/35 部门菜单兜底清理）。
 
 ### 阶段四重点：数据权限拦截器升级
 

@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<!--
+  phase6-role-permission.html
+  阶段六 commit 1 · 系统设置 · 角色详情 · 权限 Tab
+
+  配套后端: GET /api/sys/role/{id} + PUT /api/sys/role/{id}/menus
+  设计参考: frontend-design/UI/权限.png
+
+  关键设计:
+    1. 顶部 Tab:权限(本页面) / 成员
+    2. 数据权限:单选 radio 4 选 1(全部/本部门/仅本人/指定部门)
+    3. 功能权限矩阵:按"功能模块"分组,每行 = 1 个操作对象(C 菜单) + 多个动作复选框
+    4. 右侧启用 toggle,关闭后整行灰化
+    5. 底部:撤销更改 / 更新
+
+  Design Read: 与 phase4-customer-list 同一设计令牌
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>角色权限 · 销售总监 · ZenCRM</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:           #fafaf9;
+      --bg-warm:      #ffffff;
+      --ink:          #18181b;
+      --ink-soft:     #3f3f46;
+      --muted:        #71717a;
+      --subtle:       #a1a1aa;
+      --hairline:     #e4e4e7;
+      --hairline-soft:#f4f4f5;
+      --surface:      #ffffff;
+      --accent:       #166534;
+      --accent-soft:  #dcfce7;
+      --accent-pale:  #f0fdf4;
+      --accent-ring:  rgba(22, 101, 52, 0.12);
+      --info:         #1e40af;
+      --info-soft:    #dbeafe;
+      --warn:         #b45309;
+      --warn-soft:    #fef3c7;
+      --danger:       #b91c1c;
+      --danger-soft:  #fee2e2;
+      --teal:         #0d9488;
+      --teal-soft:    #ccfbf1;
+      --font-sans:    'Inter', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      --font-mono:    'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+      --radius:       6px;
+      --shadow-md:    0 4px 12px rgba(0,0,0,0.08);
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body { font-family: var(--font-sans); font-size: 14px; line-height: 1.5; color: var(--ink); background: var(--bg); margin: 0; -webkit-font-smoothing: antialiased; }
+    .mono { font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
+    .app { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+
+    /* sidebar */
+    .sidebar { background: var(--bg-warm); border-right: 1px solid var(--hairline); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; }
+    .sidebar-top { padding: 20px 20px 16px; }
+    .wordmark { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; }
+    .wordmark-glyph { width: 18px; height: 18px; background: var(--accent); border-radius: 4px; }
+    .nav { padding: 8px 12px; flex: 1; overflow-y: auto; }
+    .nav-group { margin-bottom: 16px; }
+    .nav-label { padding: 6px 8px 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--subtle); font-weight: 500; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: var(--radius); color: var(--ink-soft); cursor: pointer; font-size: 13.5px; text-decoration: none; transition: background 0.12s, color 0.12s; }
+    .nav-item:hover { background: var(--bg); color: var(--ink); }
+    .nav-item.active { background: var(--accent-ring); color: var(--accent); font-weight: 500; }
+    .nav-icon { font-size: 15px; }
+    .nav-text { flex: 1; }
+    .user-card { margin: 0 12px 16px; padding: 10px 12px; border: 1px solid var(--hairline); border-radius: var(--radius); display: flex; align-items: center; gap: 10px; }
+    .user-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+    .user-info { flex: 1; line-height: 1.3; min-width: 0; }
+    .user-name { font-size: 13px; font-weight: 500; }
+    .user-role { font-size: 11.5px; color: var(--muted); }
+
+    /* main */
+    .main { padding: 32px 32px 48px; min-width: 0; }
+    .breadcrumb { font-size: 12.5px; color: var(--muted); margin-bottom: 12px; }
+    .breadcrumb a { color: var(--muted); text-decoration: none; }
+    .breadcrumb .sep { margin: 0 6px; color: var(--subtle); }
+
+    .page-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; }
+    .page-title { font-size: 24px; font-weight: 600; letter-spacing: -0.015em; display: flex; align-items: center; gap: 10px; }
+    .page-title .role-key { font-size: 14px; font-weight: 400; color: var(--muted); font-family: var(--font-mono); }
+    .page-sub { color: var(--muted); font-size: 13.5px; margin-top: 4px; display: flex; align-items: center; gap: 8px; }
+
+    .chip { display: inline-flex; align-items: center; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 500; line-height: 18px; }
+    .chip-builtin { background: var(--warn-soft); color: var(--warn); border: 1px solid #fde68a; }
+    .chip-status-on { background: var(--accent-pale); color: var(--accent); }
+    .chip-scope { background: var(--info-soft); color: var(--info); }
+
+    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border: 1px solid var(--hairline); background: var(--surface); border-radius: var(--radius); font-size: 13px; font-weight: 500; color: var(--ink-soft); cursor: pointer; transition: all 0.12s; }
+    .btn:hover { background: var(--bg); color: var(--ink); }
+    .btn-primary { background: var(--accent); color: white; border-color: var(--accent); }
+    .btn-primary:hover { background: #14532d; color: white; }
+    .btn-link { background: none; border: none; padding: 4px 6px; color: var(--accent); cursor: pointer; font-size: 13px; }
+    .btn-link:hover { text-decoration: underline; }
+
+    /* tabs */
+    .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--hairline); margin-bottom: 24px; align-items: center; }
+    .tab { padding: 10px 16px; font-size: 14px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.12s; display: flex; align-items: center; gap: 6px; }
+    .tab:hover { color: var(--ink-soft); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
+    .tab .badge { font-size: 11px; padding: 1px 6px; background: var(--hairline); color: var(--muted); border-radius: 8px; font-family: var(--font-mono); }
+    .tab.active .badge { background: var(--accent-ring); color: var(--accent); }
+    .spacer { flex: 1; }
+    .tabs .right-action { padding: 0 0 8px; }
+
+    /* section */
+    .section { background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); padding: 20px 24px; margin-bottom: 20px; }
+    .section-title { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 12px; }
+    .section-help { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+    /* data scope radio */
+    .scope-options { display: flex; flex-wrap: wrap; gap: 24px; }
+    .scope-option { display: flex; align-items: center; gap: 6px; font-size: 13.5px; color: var(--ink-soft); cursor: pointer; }
+    .scope-option input[type=radio] { accent-color: var(--teal); }
+    .scope-option.disabled { color: var(--subtle); cursor: not-allowed; }
+
+    /* permission matrix */
+    .matrix { border: 1px solid var(--hairline); border-radius: var(--radius); overflow: hidden; }
+    .matrix table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .matrix thead th { padding: 10px 16px; text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; background: var(--bg); border-bottom: 1px solid var(--hairline); }
+    .matrix tbody td { padding: 12px 16px; border-bottom: 1px solid var(--hairline-soft); vertical-align: middle; }
+    .matrix tbody tr:last-child td { border-bottom: none; }
+    .matrix tbody tr:hover { background: var(--bg); }
+    .matrix tbody tr.disabled td { color: var(--subtle); }
+    .matrix tbody tr.disabled .perm-checkbox { pointer-events: none; }
+    .matrix tbody tr.group-header td { background: var(--accent-pale); font-weight: 600; color: var(--accent); font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.04em; padding: 8px 16px; }
+    .matrix .function-cell { color: var(--ink-soft); font-weight: 500; }
+    .matrix .object-cell { color: var(--ink); }
+    .matrix .object-sub { color: var(--subtle); font-size: 11.5px; margin-left: 6px; font-family: var(--font-mono); }
+
+    /* permission checkbox (per row) */
+    .perm-checkbox { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; padding: 2px 6px; border-radius: 4px; margin-right: 4px; font-size: 12.5px; color: var(--muted); transition: all 0.12s; }
+    .perm-checkbox:hover { background: var(--bg); }
+    .perm-checkbox .box { width: 12px; height: 12px; border: 1.5px solid var(--hairline); border-radius: 2px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--surface); }
+    .perm-checkbox.checked { color: var(--teal); }
+    .perm-checkbox.checked .box { background: var(--teal); border-color: var(--teal); color: white; font-size: 9px; line-height: 1; }
+
+    /* toggle switch (启用) */
+    .toggle { width: 30px; height: 16px; background: var(--hairline); border-radius: 8px; position: relative; cursor: pointer; transition: background 0.18s; flex-shrink: 0; }
+    .toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; background: white; border-radius: 50%; transition: left 0.18s; box-shadow: 0 1px 2px rgba(0,0,0,0.15); }
+    .toggle.on { background: var(--teal); }
+    .toggle.on::after { left: 16px; }
+
+    /* footer */
+    .footer-bar { display: flex; justify-content: flex-end; align-items: center; gap: 12px; padding-top: 12px; }
+    .footer-bar .help { color: var(--muted); font-size: 12.5px; }
+    .footer-bar .help.dirty { color: var(--warn); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-top">
+        <div class="wordmark">
+          <div class="wordmark-glyph"></div>
+          <span>ZenCRM</span>
+        </div>
+      </div>
+      <nav class="nav">
+        <div class="nav-group">
+          <div class="nav-label">工作台</div>
+          <a class="nav-item" href="#"><span class="nav-icon">🏠</span><span class="nav-text">仪表盘</span></a>
+          <a class="nav-item" href="#"><span class="nav-icon">🔔</span><span class="nav-text">跟进中心</span></a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">业务</div>
+          <a class="nav-item" href="#"><span class="nav-icon">◎</span><span class="nav-text">线索</span></a>
+          <a class="nav-item" href="#"><span class="nav-icon">👤</span><span class="nav-text">客户</span></a>
+          <a class="nav-item" href="#"><span class="nav-icon">📈</span><span class="nav-text">商机</span></a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">交易</div>
+          <a class="nav-item" href="#"><span class="nav-icon">📄</span><span class="nav-text">合同</span></a>
+          <a class="nav-item" href="#"><span class="nav-icon">💰</span><span class="nav-text">回款</span></a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">可视化</div>
+          <a class="nav-item" href="#"><span class="nav-icon">📊</span><span class="nav-text">报表</span></a>
+        </div>
+        <div class="nav-group">
+          <div class="nav-label">管理</div>
+          <a class="nav-item" href="#"><span class="nav-icon">👥</span><span class="nav-text">用户管理</span></a>
+          <a class="nav-item active" href="#"><span class="nav-icon">🛡️</span><span class="nav-text">角色管理</span></a>
+          <a class="nav-item" href="#"><span class="nav-icon">🗂️</span><span class="nav-text">菜单权限</span></a>
+          <a class="nav-item" href="#"><span class="nav-icon">🏢</span><span class="nav-text">部门管理</span></a>
+        </div>
+      </nav>
+      <div class="user-card">
+        <div class="user-avatar">超</div>
+        <div class="user-info">
+          <div class="user-name">超级管理员</div>
+          <div class="user-role">admin</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+      <div class="breadcrumb">
+        <a href="#">管理</a><span class="sep">/</span>
+        <a href="#">角色管理</a><span class="sep">/</span>
+        <span>销售总监</span>
+      </div>
+
+      <div class="page-header">
+        <div>
+          <div class="page-title">
+            销售总监 <span class="role-key">sales_director</span>
+            <span class="chip chip-builtin">内置</span>
+            <span class="chip chip-status-on">● 正常</span>
+          </div>
+          <div class="page-sub">
+            <span class="chip chip-scope">本部门及以下</span>
+            <span>·</span>
+            <span>用户数 <span class="mono" style="color:var(--ink)">1</span></span>
+            <span>·</span>
+            <span>创建于 2026-01-15</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <div class="tab active">权限 <span class="badge">18</span></div>
+        <a class="tab" href="#">成员 <span class="badge">1</span></a>
+        <div class="spacer"></div>
+        <div class="right-action">
+          <button class="btn-link">← 返回角色列表</button>
+        </div>
+      </div>
+
+      <!-- 数据权限 -->
+      <div class="section">
+        <div class="section-title">数据权限</div>
+        <div class="scope-options">
+          <label class="scope-option">
+            <input type="radio" name="scope" /> 全部数据
+          </label>
+          <label class="scope-option">
+            <input type="radio" name="scope" /> 本部门数据
+          </label>
+          <label class="scope-option">
+            <input type="radio" name="scope" checked /> 仅本人数据
+          </label>
+          <label class="scope-option disabled" title="V1 暂未启用">
+            <input type="radio" name="scope" disabled /> 指定部门数据
+          </label>
+        </div>
+        <div class="section-help">本角色用户登录后能"看到"的数据范围;与功能权限独立,组合生效。</div>
+      </div>
+
+      <!-- 功能权限 -->
+      <div class="section">
+        <div class="section-title">功能权限</div>
+        <div class="matrix">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:120px">功能</th>
+                <th style="width:180px">操作对象</th>
+                <th>权限</th>
+                <th style="width:80px;text-align:right">启用</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- ===== 工作台 ===== -->
+              <tr class="group-header"><td colspan="4">工作台</td></tr>
+              <tr>
+                <td class="function-cell">工作台</td>
+                <td class="object-cell">仪表盘</td>
+                <td>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>查看</span>
+                </td>
+                <td style="text-align:right"><div class="toggle on"></div></td>
+              </tr>
+              <tr>
+                <td class="function-cell">工作台</td>
+                <td class="object-cell">跟进中心 <span class="object-sub">crm:record:center</span></td>
+                <td>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>查看</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>添加跟进</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>标死线索</span>
+                </td>
+                <td style="text-align:right"><div class="toggle on"></div></td>
+              </tr>
+
+              <!-- ===== 业务 ===== -->
+              <tr class="group-header"><td colspan="4">业务</td></tr>
+              <tr>
+                <td class="function-cell">业务</td>
+                <td class="object-cell">线索 <span class="object-sub">crm:lead:*</span></td>
+                <td>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>查看</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>添加</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>编辑</span>
+                  <span class="perm-checkbox"><span class="box"></span>删除</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>标死</span>
+                  <span class="perm-checkbox"><span class="box"></span>导入</span>
+                  <span class="perm-checkbox"><span class="box"></span>导出</span>
+                </td>
+                <td style="text-align:right"><div class="toggle on"></div></td>
+              </tr>
+              <tr>
+                <td class="function-cell">业务</td>
+                <td class="object-cell">客户 <span class="object-sub">crm:customer:*</span></td>
+                <td>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>查看</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>添加</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>编辑</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>移入公海</span>
+                  <span class="perm-checkbox"><span class="box"></span>删除</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>共享</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>公海认领</span>
+                </td>
+                <td style="text-align:right"><div class="toggle on"></div></td>
+              </tr>
+              <tr>
+                <td class="function-cell">业务</td>
+                <td class="object-cell">公海池</td>
+                <td>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>查看</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>领取</span>
+                  <span class="perm-checkbox"><span class="box"></span>分配</span>
+                  <span class="perm-checkbox"><span class="box"></span>导出</span>
+                </td>
+                <td style="text-align:right"><div class="toggle on"></div></td>
+              </tr>
+              <tr>
+                <td class="function-cell">业务</td>
+                <td class="object-cell">商机 <span class="object-sub">crm:business:*</span></td>
+                <td>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>查看</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>添加</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>编辑</span>
+                  <span class="perm-checkbox"><span class="box"></span>删除</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>变更阶段</span>
+                </td>
+                <td style="text-align:right"><div class="toggle on"></div></td>
+              </tr>
+
+              <!-- ===== 交易 ===== -->
+              <tr class="group-header"><td colspan="4">交易</td></tr>
+              <tr>
+                <td class="function-cell">交易</td>
+                <td class="object-cell">合同 <span class="object-sub">crm:contract:*</span></td>
+                <td>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>查看</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>添加</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>编辑</span>
+                  <span class="perm-checkbox"><span class="box"></span>删除</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>审批</span>
+                </td>
+                <td style="text-align:right"><div class="toggle on"></div></td>
+              </tr>
+              <tr>
+                <td class="function-cell">交易</td>
+                <td class="object-cell">回款 <span class="object-sub">crm:receivable:*</span></td>
+                <td>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>查看</span>
+                  <span class="perm-checkbox"><span class="box"></span>添加</span>
+                  <span class="perm-checkbox"><span class="box"></span>编辑</span>
+                  <span class="perm-checkbox"><span class="box"></span>删除</span>
+                </td>
+                <td style="text-align:right"><div class="toggle on"></div></td>
+              </tr>
+              <tr>
+                <td class="function-cell">交易</td>
+                <td class="object-cell">产品 <span class="object-sub">crm:product:*</span></td>
+                <td>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>查看</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>添加</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>编辑</span>
+                  <span class="perm-checkbox"><span class="box"></span>删除</span>
+                </td>
+                <td style="text-align:right"><div class="toggle on"></div></td>
+              </tr>
+
+              <!-- ===== 可视化 ===== -->
+              <tr class="group-header"><td colspan="4">可视化</td></tr>
+              <tr>
+                <td class="function-cell">可视化</td>
+                <td class="object-cell">报表中心 <span class="object-sub">crm:report:view</span></td>
+                <td>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>查看</span>
+                </td>
+                <td style="text-align:right"><div class="toggle on"></div></td>
+              </tr>
+
+              <!-- ===== 管理 ===== -->
+              <tr class="group-header"><td colspan="4">管理</td></tr>
+              <tr>
+                <td class="function-cell">管理</td>
+                <td class="object-cell">用户管理 <span class="object-sub">sys:user:*</span></td>
+                <td>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>查看</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>添加</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>编辑</span>
+                  <span class="perm-checkbox"><span class="box"></span>删除</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>重置密码</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>分配角色</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>启停用</span>
+                </td>
+                <td style="text-align:right"><div class="toggle on"></div></td>
+              </tr>
+              <tr>
+                <td class="function-cell">管理</td>
+                <td class="object-cell">角色管理 <span class="object-sub">sys:role:*</span></td>
+                <td>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>查看</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>编辑</span>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>分配菜单</span>
+                </td>
+                <td style="text-align:right"><div class="toggle on"></div></td>
+              </tr>
+              <tr>
+                <td class="function-cell">管理</td>
+                <td class="object-cell">菜单权限 <span class="object-sub">sys:menu:*</span></td>
+                <td>
+                  <span class="perm-checkbox"><span class="box"></span>查看</span>
+                  <span class="perm-checkbox"><span class="box"></span>编辑</span>
+                </td>
+                <td style="text-align:right"><div class="toggle"></div></td>
+              </tr>
+              <tr>
+                <td class="function-cell">管理</td>
+                <td class="object-cell">部门管理 <span class="object-sub">sys:dept:*</span></td>
+                <td>
+                  <span class="perm-checkbox checked"><span class="box">✓</span>查看</span>
+                  <span class="perm-checkbox"><span class="box"></span>编辑</span>
+                </td>
+                <td style="text-align:right"><div class="toggle on"></div></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- footer -->
+      <div class="footer-bar">
+        <span class="help dirty">● 有 3 处更改未保存</span>
+        <div class="spacer" style="flex:1"></div>
+        <button class="btn">撤销更改</button>
+        <button class="btn btn-primary">更新</button>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

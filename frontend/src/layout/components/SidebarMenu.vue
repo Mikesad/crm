@@ -1,35 +1,38 @@
 <template>
   <nav class="nav">
-    <div v-for="group in menuGroups" :key="group.label || group.path" class="nav-group">
-      <div v-if="group.label" class="nav-label">{{ group.label }}</div>
+    <template v-for="group in menuGroups" :key="group.label || group.path">
+      <!-- v0.2:整组按 requiresRole 过滤(管理组:admin + sales_director) -->
+      <div v-if="hasGroupRole(group)" class="nav-group">
+        <div v-if="group.label" class="nav-label">{{ group.label }}</div>
 
-      <!-- 单级菜单项 -->
-      <router-link
-        v-if="!group.children && hasPerm(group)"
-        :to="group.path"
-        class="nav-item"
-        :class="{ active: isActive(group.path) }"
-      >
-        <el-icon v-if="group.icon" class="nav-icon"><component :is="group.icon" /></el-icon>
-        <span class="nav-text">{{ group.title }}</span>
-        <span v-if="group.badge" class="nav-badge">{{ group.badge }}</span>
-      </router-link>
-
-      <!-- 分组菜单（含子项） -->
-      <template v-else-if="group.children">
+        <!-- 单级菜单项 -->
         <router-link
-          v-for="child in group.children.filter(hasPerm)"
-          :key="child.path"
-          :to="child.path"
+          v-if="!group.children && hasPerm(group)"
+          :to="group.path"
           class="nav-item"
-          :class="{ active: isActive(child.path) }"
+          :class="{ active: isActive(group.path) }"
         >
-          <el-icon v-if="child.icon" class="nav-icon"><component :is="child.icon" /></el-icon>
-          <span class="nav-text">{{ child.title }}</span>
-          <span v-if="child.badge" class="nav-badge">{{ child.badge }}</span>
+          <el-icon v-if="group.icon" class="nav-icon"><component :is="group.icon" /></el-icon>
+          <span class="nav-text">{{ group.title }}</span>
+          <span v-if="group.badge" class="nav-badge">{{ group.badge }}</span>
         </router-link>
-      </template>
-    </div>
+
+        <!-- 分组菜单（含子项） -->
+        <template v-else-if="group.children">
+          <router-link
+            v-for="child in group.children.filter(hasPerm)"
+            :key="child.path"
+            :to="child.path"
+            class="nav-item"
+            :class="{ active: isActive(child.path) }"
+          >
+            <el-icon v-if="child.icon" class="nav-icon"><component :is="child.icon" /></el-icon>
+            <span class="nav-text">{{ child.title }}</span>
+            <span v-if="child.badge" class="nav-badge">{{ child.badge }}</span>
+          </router-link>
+        </template>
+      </div>
+    </template>
   </nav>
 </template>
 
@@ -42,10 +45,12 @@ const route = useRoute()
 const userStore = useUserStore()
 
 /**
- * 菜单定义（顺序：工作区 → 交易 → 协作）
+ * 菜单定义（顺序：工作台 → 业务 → 交易 → 可视化 → 系统设置）
+ * v0.3:"系统设置"组只保留"角色管理" 1 项(内含 用户/权限 2 tab)
  * icon 使用 Element Plus Icons（已在 main.js 全局注册）
  * perm 缺失则默认全部角色可见；存在则校验用户 permissions
- * badge 由业务模块通过 store 注入（阶段二先硬编码）
+ * requiresRole 限定可见角色（v0.2: admin + sales_director 才能看"系统设置"组）
+ * badge 由业务模块通过 store 注入
  */
 const menuGroups = [
   {
@@ -75,6 +80,14 @@ const menuGroups = [
     children: [
       { path: '/report', title: '报表', icon: 'DataLine' }
     ]
+  },
+  {
+    label: '系统设置',
+    requiresRole: ['admin', 'sales_director'],
+    children: [
+      // v0.3:仅"角色管理" 1 项,内含 用户/权限 2 个 tab
+      { path: '/system/role', title: '角色管理', icon: 'Avatar', perm: 'sys:user:list' }
+    ]
   }
 ]
 
@@ -88,6 +101,17 @@ function hasPerm(item) {
   if (!item.perm) return true
   const perms = userStore.permissions || []
   return perms.includes(item.perm)
+}
+
+/**
+ * 整组可见性判定(v0.2)
+ * - 未配置 requiresRole:整组可见
+ * - 配置了 requiresRole:当前用户的 roleKey 命中其一才可见
+ */
+function hasGroupRole(group) {
+  if (!group.requiresRole || group.requiresRole.length === 0) return true
+  const keys = userStore.roleKeys || []
+  return group.requiresRole.some((r) => keys.includes(r))
 }
 </script>
 

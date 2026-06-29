@@ -198,6 +198,147 @@
 
 ---
 
+### 4.7 系统设置模块（阶段六 commit 1 新增）
+
+#### 4.7.1 功能描述
+为系统管理员提供**用户、角色、菜单权限、部门**四类基础数据的管理入口。当前阶段一仅把这四张表用作登录态的读数据源，**没有任何写入口**，管理员无法新增员工、调整角色权限或维护组织架构。本模块将这些"运维通道"补齐，作为 CRM 系统可持续运营的基础设施。
+* **核心价值**：让 admin 可以在前台完成"开账号 / 调权限 / 改组织"等日常运维，不再依赖 SQL 直连数据库。
+* **访问边界**：**系统管理员（admin）+ 销售总监** 2 个角色可见可用；销售主管 / 销售 / 财务均**无权访问**。所有写操作都走 Sa-Token 鉴权（`sys:*:edit` 权限码）+ `@SaCheckRole({"admin","sales_director"})` 双层校验。
+    * **理由**：公司体量小，admin 忙不过来时销售总监需能顶岗（开账号 / 调权限 / 改组织），销售总监已有的"4-本部门及以下"数据范围已能查看下属所有客户，顺手管人/管权限合理。
+    * **不向销售主管/销售/财务开放**：避免越权（如销售自己改自己的 data_scope）。
+* **复用优先**：底层表 `sys_user` / `sys_role` / `sys_menu` / `sys_dept` / `sys_user_role` / `sys_role_menu` 全部已存在；本阶段**仅新增 Java 类（Dept / Role / Menu / User 的 Service+Controller）与前端页面**，不新增业务表。
+
+#### 4.7.2 用户管理（子模块 1）
+
+* **功能列表**：
+    * 列表分页（按 username/nickname 关键字、按部门过滤、按状态过滤）。
+    * 新建员工：必填 `username / nickname / dept_id / phone / email`，初始密码默认 `123456`（BCrypt 同步落库）。
+    * 编辑员工：所有字段可改（除 `username` 外，**`username` 不可改**，作为登录账号稳定不变）。
+    * **重置密码**：admin 点击"重置密码"按钮，弹 Dialog 输入新密码（或前端只点确认重置为默认 `123456`），调用 `POST /api/sys/user/{id}/resetPassword`，后端 BCrypt 重加密后 UPDATE。
+    * 启停用：`status` 切换 0/1，禁用用户立即踢下线（Sa-Token `StpUtil.logout(userId)`）。
+    * **分配角色**：编辑 Dialog 内嵌角色多选（`el-select` multiple 加载全量角色），保存时 `DELETE FROM sys_user_role WHERE user_id=?` + 批量 `INSERT`。
+* **安全约束**：
+    * admin 不能修改 / 禁用自己（前端按钮灰化 + 后端 `if (targetUserId == StpUtil.getLoginId()) throw 403`）。
+    * 至少保留 1 个 `admin` 角色的活跃用户（防误操作把系统锁死，校验 `SELECT count(*) FROM sys_user WHERE id IN (sys_user_role.user_id) AND role_id=1 AND status=1`）。
+* **数据权限**：不叠加 `DataPermissionHandler`（admin 天然全量）。
+
+#### 4.7.3 角色管理（子模块 2）
+
+* **功能列表**：
+    * 列表分页（按 role_name/role_key 模糊匹配）。
+    * 新建 / 编辑：`role_name`（如"销售总监"）、`role_key`（如 `sales_director`，**唯一不可改**）、`data_scope`（1-5 枚举）、`status`。
+    * **绑定菜单权限**：角色详情页或编辑 Dialog 内嵌 `el-tree` 复选树（懒加载全量菜单 + 类型 `M/C` 节点可选 + 类型 `F` 节点必选 + 父子联动勾选），保存时全量重绑 `sys_role_menu`。
+    * 删除：必须先校验**无用户绑定此角色**（`SELECT count(*) FROM sys_user_role WHERE role_id=?`），否则拒绝。
+* **内置角色保护**：`role_key IN ('admin','sales_director','sales_lead','sales','finance')` 这 5 个种子角色**不可删除**（仅可编辑 data_scope 与菜单），防误删导致登录失效。
+* **data_scope 说明**（沿用阶段一定义）：
+    | 取值 | 含义 | 关联效果 |
+    | :--- | :--- | :--- |
+    | 1 | 全部 | 不拼数据权限 |
+    | 2 | 自定义 | 预留扩展（V1 未启用） |
+    | 3 | 本部门 | 拼接 `owner_user_id IN (本部门用户ID列表)` |
+    | 4 | 本部门及以下 | 拼接 `owner_user_id IN (本部门及子部门用户ID列表)`，用 `sys_dept.ancestors` 路径解析 |
+    | 5 | 仅本人 | 拼接 `owner_user_id = 当前用户` |
+
+#### 4.7.4 菜单权限管理（子模块 3）
+
+* **功能列表**：
+    * 树形列表：按 `parent_id` 渲染，缩进 + 图标标识 `M/C/F` 三种类型。
+    * 新建 / 编辑：`menu_name` / `parent_id`（父菜单，0 为顶级）/ `order_num` / `path` / `component` / `menu_type` / `perms` / `status`。
+    * 删除：必须先校验**无子菜单**（`SELECT count(*) FROM sys_menu WHERE parent_id=?`）且**无角色绑定**（`SELECT count(*) FROM sys_role_menu WHERE menu_id=?`），否则拒绝。
+* **菜单类型校验**：
+    * `M`（目录）：`perms` 必为空，仅用作层级。
+    * `C`（菜单）：`path + component` 必填，关联前端路由。
+    * `F`（按钮）：`perms` 必填，关联 `@SaCheckPermission` 注解。
+* **核心价值**：让 admin 可以**动态新增功能**（如新加一个"数据看板"）而无需改代码 + 重新部署——`perms` 字段直接被 `StpInterfaceImpl` 加载到 Sa-Token 会话，新接口只需打上对应注解即生效。
+
+#### 4.7.5 部门管理（子模块 4）
+
+* **功能列表**：
+    * 树形列表（懒加载或平铺+缩进，参考阶段四公海池"平铺+父级缩进"风格）。
+    * 新建 / 编辑：`dept_name` / `parent_id` / `order_num` / `status`。
+    * 删除：必须先校验**无子部门**且**无用户归属**（`SELECT count(*) FROM sys_user WHERE dept_id=?`），否则拒绝。
+* **`ancestors` 自动维护**：新建/编辑时由 Service 层根据 `parent_id` 拼装 `ancestors`（如 `parent.ancestors + "," + parent.id`），与阶段四"crm_dept"约定一致。
+* **核心价值**：组织架构调整（如"华东销售部"改名"华东大客户部"）可在前台一键完成；新增部门立即影响 `data_scope=3/4` 的数据权限拼接。
+
+#### 4.7.6 接口与权限码
+* **新增 sys_menu 记录（系统设置 12 条 + 产品分类 2 条 = 14 条）**：
+    * **系统设置 12 条**（仅 admin + 销售总监绑）：`sys:system:view` / `sys:user:list` / `sys:user:edit` / `sys:user:reset_pwd` / `sys:user:assign_role` / `sys:role:list` / `sys:role:edit` / `sys:role:assign_menu` / `sys:menu:list` / `sys:menu:edit` / `sys:dept:list` / `sys:dept:edit`。
+    * **产品分类 2 条**（**全员 5 角色都绑**——产品分类是公共资源，销售总监/主管/销售/财务/admin 都能看）：`crm:product:category:list` / `crm:product:category:edit`。
+    * 详见开发计划"阶段六 commit 1（系统设置 12 条）"与"阶段六 commit 2（产品分类 2 条）"。
+* **接口归属**：
+    * `GET/POST/PUT/DELETE /api/sys/user` + `POST /api/sys/user/{id}/resetPassword` + `PUT /api/sys/user/{id}/roles`。
+    * `GET/POST/PUT/DELETE /api/sys/role` + `PUT /api/sys/role/{id}/menus`。
+    * `GET/POST/PUT/DELETE /api/sys/menu`（树形返回）。
+    * `GET/POST/PUT/DELETE /api/sys/dept`（树形返回）。
+* **既有读接口兼容**：阶段四新增的 `GET /api/sys/user/list`（被共享人下拉用）**保留**，复用 `sys:user:list` 权限码（admin + 销售总监通过 `@SaCheckRole({"admin","sales_director"})` 校验；其他角色通过 `sys:customer:share` 共享模块的鉴权链进入）。
+
+#### 4.7.7 本期不做
+* 字典管理（sys_dict）— 业务暂未用到。
+* 审计日志（操作流水 / 谁在什么时候改了谁）— 留待阶段七。
+* 登录日志 / 失败锁定 / 验证码 — 安全增强。
+* 批量导入导出 Excel — admin 体量小，手动更可控。
+
+---
+
+### 4.8 产品管理模块（阶段六 commit 2 新增/升级）
+
+#### 4.8.1 功能描述
+将阶段三已建好的"产品库"从**单层扁平**升级为**SaaS 多版本产品**结构，并补齐产品分类管理。产品为**公共资源**（无 `owner_user_id`），所有角色可读，仅 `crm:product:edit` 可写。
+* **核心价值**：让"我们卖的是 SaaS 软件"这件事在 CRM 里**可被建模**——CRM 必须能区分基础版/专业版/旗舰版，并知道每个版本按月/季/年计费。
+* **范围划分**：
+    * **升级现有**：`crm_product` 增加 `product_line`（套餐线）/ `billing_cycle`（计费周期）两字段；`crm_product_category` 表已存在，补齐 entity/mapper/service/controller。
+    * **新增前端**：产品分类页 `/product/category`（独立菜单或抽屉二选一）。
+    * **不动**：`/crm/product/*` 既有 5 个 CRUD 接口全部保留，**仅扩展**字段映射。
+
+#### 4.8.2 SaaS 字段升级（`crm_product` 表新增 2 字段）
+
+* **`product_line` VARCHAR(32) DEFAULT '基础版' COMMENT '套餐线'`**
+    * 取值枚举：`基础版` / `专业版` / `旗舰版`。
+    * 前端下拉单选 + 颜色 chip（基础=灰，专业=蓝，旗舰=金）。
+* **`billing_cycle` VARCHAR(16) DEFAULT '年' COMMENT '计费周期'`**
+    * 取值枚举：`月` / `季` / `年`。
+    * 仅展示，**不参与金额计算**（合同明细仍按 `price × count` 实时反推，阶段三逻辑不变）。
+* **数据迁移**：现有种子产品默认 `product_line='基础版'` / `billing_cycle='年'`，新增时由前端表单回填默认值。
+
+#### 4.8.3 产品分类管理（`crm_product_category` 表补齐）
+
+* **既有表结构**：`id / parent_id / category_name`，已建无 Java 类。
+* **本期补齐**：
+    * `CrmProductCategory` entity + `CrmProductCategoryMapper`。
+    * `ProductCategoryService` + `ProductCategoryController`（`GET/POST/PUT/DELETE /api/crm/product/category`）。
+    * 前端 `/product/category` 页面（平铺列表 + 父级缩进，参考阶段四 `crm_customer` 列表风格）。
+    * **接口语义**：分类为**平铺一级**（不支持子级），前端不做树形，简化心智。
+* **产品表单集成**：产品新建/编辑 Dialog 中"产品分类"字段从"按 ID 输入"升级为"下拉选择（来源 `GET /crm/product/category/list`）"。
+* **删除约束**：若某分类下有 `crm_product.category_id=此值` 的产品（无论上架/下架/逻辑删除），**禁止删除**（前端禁用 + 后端校验）。
+
+#### 4.8.4 产品列表页升级
+
+* **新增列**：`产品分类`（中文名，从 `categoryId` 联表查 `category_name`）/ `套餐线`（彩色 chip）/ `计费周期`。
+* **新增筛选**：按 `categoryId` / `productLine` / `billingCycle` 三个下拉过滤。
+* **导出预留**：产品列表右上角"导出"按钮位保留但**disabled + tooltip "暂未开放"**（与阶段五报表导出占位一致）。
+
+#### 4.8.5 交易侧边栏接入
+
+* **位置**：`交易` 分组下顺序为 `合同 / 回款 / 产品`（产品放最后，使用频次最低）。
+* **产品管理页面** `/product/list` 路由 + `crm:product:list` 权限码（已存在）— 既有，不动。
+* **产品分类页面** `/product/category` 路由 + 新增 `crm:product:category:list` / `crm:product:category:edit` 权限码。
+* **详情页**：产品暂不做独立 `/product/:id` 详情页（产品数量少，列表里点"编辑"够用）。
+
+#### 4.8.6 合同侧兼容性
+
+* **合同新建页（`/contract/submit`）**：产品下拉框**新增**"套餐线"列（如"ZenCRM 企业版（旗舰版 / 年）"），让销售签合同时一眼看到版本与计费周期。
+* **合同明细存储**：`crm_contract_product` 表**不新增字段**（产品版本/计费周期冗余风险大），明细的 `product_id` 关联回查 `crm_product` 即可。
+* **核心价值**：将来报表中心扩展"SaaS 订阅收入分析"（如"2026 年专业版年收入占比"）时，可以直接 `JOIN crm_contract_product + crm_product` 拿到 `product_line` 维度。
+
+#### 4.8.7 本期不做
+* 产品多档价格表（不同套餐线不同价）— V1 一个 product 一价够用。
+* 座位数 / 用户数上下限 — 合同侧控制。
+* 试用期产品（`is_trial`）— 与计费 SaaS 商务模式绑太紧，留待 V2。
+* 产品图片 / 富文本描述 — 内部销售用不到。
+* 产品 SKU 自动编码生成器 — 人工填 `product_code`，DB 唯一索引兜底。
+
+---
+
 ## 5. 非功能性需求与底层设计约束
 
 ### 5.1 数据安全与完整性

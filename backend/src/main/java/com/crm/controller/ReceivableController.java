@@ -43,7 +43,7 @@ public class ReceivableController {
 
     @Operation(summary = "录入回款",
         description = "校验合同 status=1, planId 可空(计划外回款),提交后 Spring Event 异步联动 plan/contract 状态")
-    @SaCheckPermission("crm:receivable:edit")
+    @SaCheckPermission("crm:receivable:add")
     @PostMapping
     public Result<Long> create(@Valid @RequestBody ReceivableCreateRequest req) {
         return Result.success(receivableService.create(req));
