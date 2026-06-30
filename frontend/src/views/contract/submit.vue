@@ -6,16 +6,84 @@
       <span class="current">新建合同</span>
     </div>
 
-    <div class="page-header">
-      <div>
-        <div class="page-title">新建合同</div>
-        <div class="page-sub">系统将按明细实时核算金额,折扣低于 8.5 折自动进入总监审批</div>
+    <!-- P12:借鉴 detail.vue 的 header-grid 4 列布局,实时联动表单输入 -->
+    <div class="detail-header">
+      <div class="header-grid">
+        <!-- 合同名称(主) -->
+        <div class="header-cell primary">
+          <div class="cell-label">合同名称</div>
+          <div class="cell-value-primary">{{ form.contractName || '— 待填写 —' }}</div>
+          <div class="mono text-muted cell-sub">{{ form.contractNum || '留空将自动生成 HT-YYYYMMDD-XXXX' }}</div>
+        </div>
+        <!-- 客户 -->
+        <div class="header-cell">
+          <div class="cell-label">客户</div>
+          <div class="cell-value">
+            <svg class="cell-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M3 21V9l9-6 9 6v12"/>
+              <path d="M9 21V12h6v9"/>
+            </svg>
+            {{ selectedCustomerName || '— 待选择 —' }}
+          </div>
+        </div>
+        <!-- 商机 -->
+        <div class="header-cell">
+          <div class="cell-label">商机</div>
+          <div class="cell-value">
+            <svg class="cell-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M3 17l6-6 4 4 8-8"/>
+              <path d="M14 7h7v7"/>
+            </svg>
+            {{ selectedBusinessName || '— 可选 —' }}
+          </div>
+        </div>
+        <!-- 合同总金额 -->
+        <div class="header-cell amount">
+          <div class="cell-label">合同总金额</div>
+          <div class="amount-value">¥ {{ totalAmount.toLocaleString() }}</div>
+          <div v-if="minDiscount < 8.5 && hasItems" class="amount-sub warn">折扣 {{ minDiscount.toFixed(1) }} 折 · 低于审批线</div>
+          <div v-else-if="hasItems" class="amount-sub ok">折扣合规</div>
+          <div v-else class="amount-sub">—</div>
+        </div>
       </div>
     </div>
 
-    <!-- 基础信息 -->
-    <el-card class="card">
-      <div class="card-title">基础信息</div>
+    <!-- P12:借鉴 detail.vue 的 summary 4 列卡(新建时回款数据全 0) -->
+    <div class="summary">
+      <div class="item highlight">
+        <div class="label">合同总额</div>
+        <div class="value">¥ {{ totalAmount.toLocaleString() }}</div>
+      </div>
+      <div class="item">
+        <div class="label">已实收</div>
+        <div class="value">¥ 0</div>
+        <div class="sub">回款记录 0 笔</div>
+      </div>
+      <div class="item">
+        <div class="label">待回款</div>
+        <div class="value">¥ {{ totalAmount.toLocaleString() }}</div>
+        <div class="sub">未收比例 100%</div>
+      </div>
+      <div class="item">
+        <div class="label">回款完成度</div>
+        <div class="value">0%</div>
+        <el-progress :percentage="0" :stroke-width="6" :show-text="false" style="margin-top: 8px;" />
+      </div>
+    </div>
+
+    <!-- Section 1: 基础信息(P12:借鉴 detail.vue section 风格 + icon) -->
+    <el-card class="section">
+      <div class="section-header">
+        <span class="section-title">
+          <svg class="title-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="4" width="18" height="18" rx="1"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+          </svg>
+          基础信息
+        </span>
+      </div>
       <el-form ref="baseFormRef" :model="form" :rules="baseRules" label-position="top">
         <div class="form-grid">
           <el-form-item label="客户" prop="customerId">
@@ -35,19 +103,26 @@
             <el-input v-model="form.contractNum" placeholder="留空将自动生成 HT-YYYYMMDD-XXXX" />
           </el-form-item>
           <el-form-item label="开始日期">
-            <el-date-picker v-model="form.startDate" type="date" value-format="YYYY-MM-DD" style="width: 200px" />
+            <el-date-picker v-model="form.startDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
           </el-form-item>
           <el-form-item label="结束日期">
-            <el-date-picker v-model="form.endDate" type="date" value-format="YYYY-MM-DD" style="width: 200px" />
+            <el-date-picker v-model="form.endDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
           </el-form-item>
         </div>
       </el-form>
     </el-card>
 
-    <!-- 商品明细 -->
-    <el-card class="card">
-      <div class="card-header">
-        <div class="card-title">商品明细</div>
+    <!-- Section 2: 商品明细(P12:借鉴 detail 风格 + icon) -->
+    <el-card class="section">
+      <div class="section-header">
+        <span class="section-title">
+          <svg class="title-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M3 7l9-4 9 4-9 4-9-4z"/>
+            <path d="M3 7v10l9 4 9-4V7"/>
+            <path d="M12 11v10"/>
+          </svg>
+          商品明细 · {{ form.items.filter(r => r.productId).length }} 项
+        </span>
         <el-button text class="add-link" @click="addItem">+ 添加一行</el-button>
       </div>
 
@@ -107,7 +182,7 @@
         <div class="total-value">¥ {{ totalAmount.toLocaleString() }}</div>
       </div>
 
-      <div v-if="minDiscount < 8.5" class="warn-banner">
+      <div v-if="minDiscount < 8.5 && hasItems" class="warn-banner">
         <span class="icon">⚠️</span>
         <div>
           <b>该合同最低折扣 {{ minDiscount.toFixed(1) }} 折,低于 8.5 折审批线</b><br>
@@ -120,19 +195,26 @@
       </div>
     </el-card>
 
-    <!-- v0.13:回款计划(可选,与合同同步创建) -->
-    <el-card class="card">
-      <div class="card-header">
-        <div>
-          <div class="card-title">📅 回款计划 <span class="text-muted micro" style="font-weight: normal;">(可选)</span></div>
-          <div v-if="minDiscount < 8.5" class="text-muted micro" style="margin-top: 4px;">
-            ⚠ 折扣低于 8.5 折,合同将进入审批;审批通过后再在详情页录入回款计划
-          </div>
-          <div v-else class="text-muted micro" style="margin-top: 4px;">
-            提交时同步创建;期数 period 不能重复,合计金额应等于合同总金额
-          </div>
-        </div>
+    <!-- Section 3: 回款计划(P12:借鉴 detail 风格 + icon) -->
+    <el-card class="section">
+      <div class="section-header">
+        <span class="section-title">
+          <svg class="title-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="4" width="18" height="18" rx="1"/>
+            <line x1="3" y1="10" x2="21" y2="10"/>
+            <line x1="8" y1="2" x2="8" y2="6"/>
+            <line x1="16" y1="2" x2="16" y2="6"/>
+          </svg>
+          回款计划 <span class="text-muted micro" style="font-weight: normal;">(可选)</span>
+        </span>
         <el-button text class="add-link" :disabled="minDiscount < 8.5" @click="addPlan">+ 添加分期</el-button>
+      </div>
+
+      <div v-if="minDiscount < 8.5" class="text-muted micro" style="margin-bottom: 12px;">
+        ⚠ 折扣低于 8.5 折,合同将进入审批;审批通过后再在详情页录入回款计划
+      </div>
+      <div v-else class="text-muted micro" style="margin-bottom: 12px;">
+        提交时同步创建;期数 period 不能重复,合计金额应等于合同总金额
       </div>
 
       <el-table v-if="form.plans.length" :data="form.plans" class="plans-table">
@@ -141,15 +223,20 @@
             <span class="mono accent">第 {{ row.period }} 期</span>
           </template>
         </el-table-column>
-        <el-table-column label="预计回款日" width="160">
+        <el-table-column label="预计回款日" width="170">
           <template #default="{ row }">
-            <el-date-picker v-model="row.expectedDate" type="date" value-format="YYYY-MM-DD" style="width: 150px;" />
+            <el-date-picker v-model="row.expectedDate" type="date" value-format="YYYY-MM-DD" style="width: 100%;" />
           </template>
         </el-table-column>
-        <el-table-column label="预计金额" min-width="220" align="right">
+        <el-table-column label="金额" min-width="220" align="left">
+          <template #header>
+            <div class="col-header-stack">
+              <span class="col-header-main">金额</span>
+              <span class="col-header-sub">(元)</span>
+            </div>
+          </template>
           <template #default="{ row }">
-            <el-input-number v-model="row.expectedAmount" :min="0.01" :precision="2" :step="1000" controls-position="right" style="width: 160px;" />
-            <span class="text-muted micro" style="margin-left: 6px;">元</span>
+            <el-input-number v-model="row.expectedAmount" :min="0.01" :precision="2" :step="1000" controls-position="right" style="width: 100%;" />
           </template>
         </el-table-column>
         <el-table-column label="备注" min-width="260">
@@ -206,7 +293,6 @@ const form = reactive({
   startDate: '',
   endDate: '',
   items: [{ productId: null, count: 1, discount: 10.0, standardPrice: 0 }],
-  // v0.13:回款计划(可选,折扣合规时同步创建)
   plans: []
 })
 
@@ -220,6 +306,18 @@ const submitting = ref(false)
 const productOptions = ref([])
 const customerOptions = ref([])
 const businessOptions = ref([])
+
+/* P12:header-grid 实时联动显示 */
+const selectedCustomerName = computed(() => {
+  if (!form.customerId) return null
+  const c = customerOptions.value.find(x => x.id === form.customerId)
+  return c ? c.name : null
+})
+const selectedBusinessName = computed(() => {
+  if (!form.businessId) return null
+  const b = businessOptions.value.find(x => x.id === form.businessId)
+  return b ? b.name : null
+})
 
 onMounted(async () => {
   await Promise.all([loadProducts(), loadCustomers(), loadBusinesses()])
@@ -248,7 +346,6 @@ const getProduct = (id) => productOptions.value.find(p => p.id === id) || {}
 function onProductChange(idx, pid) {
   const p = getProduct(pid)
   form.items[idx].standardPrice = p.price || 0
-  // 选中产品后默认给个常用折扣 10.0
   if (form.items[idx].discount == null) form.items[idx].discount = 10.0
   recalc()
 }
@@ -257,7 +354,7 @@ function computeSalesPrice(row) {
   if (!row.productId || !row.standardPrice) return 0
   const p = Number(row.standardPrice)
   const d = Number(row.discount || 0)
-  return Math.round(p * d * 10) / 100  // standardPrice * discount / 10,精度 2
+  return Math.round(p * d * 10) / 100
 }
 function computeSubtotal(row) {
   const c = Number(row.count || 0)
@@ -283,7 +380,6 @@ function removeItem(idx) {
   form.items.splice(idx, 1)
 }
 
-// v0.13:回款计划增删
 function addPlan() {
   form.plans.push({
     period: form.plans.length + 1,
@@ -294,7 +390,6 @@ function addPlan() {
 }
 function removePlan(idx) {
   form.plans.splice(idx, 1)
-  // 重新编号
   form.plans.forEach((p, i) => { p.period = i + 1 })
 }
 const plansTotal = computed(() => {
@@ -324,7 +419,6 @@ async function handleSubmit() {
     const res = await createContract(payload)
     const contractId = res.data
 
-    // v0.13:折扣合规 + 有回款计划 → 同步创建
     if (form.plans.length > 0 && minDiscount.value >= 8.5) {
       try {
         await createReceivablePlanBatch({
@@ -358,14 +452,73 @@ async function handleSubmit() {
 .breadcrumb a:hover { color: var(--accent); }
 .breadcrumb .current { color: var(--ink); }
 
-.page-header { margin-bottom: 20px; }
-.page-title { font-size: 22px; font-weight: 600; letter-spacing: -0.015em; color: var(--ink); }
-.page-sub { margin-top: 4px; font-size: 13.5px; color: var(--muted); }
+/* P12:借鉴 detail.vue 的 detail-header 风格 */
+.detail-header {
+  background: #fff; border-radius: var(--radius);
+  border: 1px solid var(--hairline);
+  padding: 20px 24px; margin-bottom: 16px;
+}
+.mono { font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
+.mono.accent { color: var(--accent); }
+.text-muted { color: var(--subtle); }
+.text-muted.micro { font-size: 12px; }
 
-.card { margin-bottom: 16px; }
-.card-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
-.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.add-link { color: var(--accent); }
+.header-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr 220px;
+  gap: 18px;
+  align-items: start;
+}
+.header-cell { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.header-cell.primary { padding-right: 16px; border-right: 1px solid var(--hairline-soft); }
+.cell-label {
+  font-size: 11.5px; color: var(--subtle);
+  font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.cell-value {
+  font-size: 15px; font-weight: 600; color: var(--ink);
+  display: flex; align-items: center; gap: 6px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.cell-value-primary {
+  font-size: 18px; font-weight: 600; color: var(--ink);
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  line-height: 1.3;
+}
+.cell-sub { font-size: 12px; }
+.cell-icon { color: var(--ink-soft); flex-shrink: 0; }
+.header-cell.amount { text-align: right; align-items: flex-end; }
+.header-cell.amount .amount-value {
+  font-size: 24px; font-weight: 700; color: var(--accent);
+  font-family: var(--font-mono); font-feature-settings: 'tnum' 1;
+}
+.amount-sub { font-size: 11.5px; margin-top: 4px; color: var(--subtle); }
+.amount-sub.warn { color: var(--warn); font-weight: 500; }
+.amount-sub.ok { color: var(--accent); font-weight: 500; }
+
+@media (max-width: 960px) {
+  .header-grid { grid-template-columns: 1fr 1fr; }
+  .header-cell.primary { grid-column: span 2; border-right: none; padding-bottom: 14px; border-bottom: 1px solid var(--hairline-soft); }
+  .header-cell.amount { text-align: left; align-items: flex-start; }
+}
+
+/* P12:借鉴 detail.vue 的 summary 卡片 */
+.summary {
+  background: #fff; border-radius: var(--radius);
+  border: 1px solid var(--hairline);
+  padding: 16px 20px; margin-bottom: 16px;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+}
+.summary .item .label { font-size: 12px; color: var(--subtle); margin-bottom: 6px; }
+.summary .item .value { font-size: 20px; font-weight: 600; font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
+.summary .item .sub { font-size: 11px; color: var(--subtle); margin-top: 2px; }
+.summary .item.highlight .value { color: var(--accent); }
+
+/* P12:section 风格(借鉴 detail.vue) */
+.section { margin-bottom: 16px; }
+.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.section-title { font-size: 15px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+.title-icon { color: var(--ink); flex-shrink: 0; }
 
 .form-grid {
   display: grid;
@@ -375,8 +528,6 @@ async function handleSubmit() {
 
 .items-table { border-radius: 0; }
 .items-table :deep(.el-input-number .el-input__inner) { text-align: center; }
-.text-muted { color: var(--subtle); }
-.text-muted.micro { font-size: 12px; }
 .final { font-weight: 600; color: var(--ink); font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
 
 .total-bar {
@@ -395,9 +546,19 @@ async function handleSubmit() {
   b { color: #78350f; }
 }
 
-/* v0.13:回款计划 */
 .plans-table { border-radius: 0; }
 .plans-table :deep(.el-input-number .el-input__inner) { text-align: center; }
+.plans-table :deep(.cell) { padding: 6px 8px; }
+
+/* 列 header 上下排版(用于"金额"列 + "(元)" 副标题) */
+.col-header-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.2;
+}
+.col-header-main { font-weight: 600; }
+.col-header-sub { font-size: 10.5px; color: var(--muted); font-weight: normal; }
 .plan-summary {
   margin-top: 12px; padding: 8px 12px;
   background: #f9fafb; border-radius: var(--radius);
@@ -410,6 +571,8 @@ async function handleSubmit() {
   padding: 12px 16px; margin-top: 16px;
   display: flex; gap: 10px; align-items: center; font-size: 13px; color: var(--accent);
 }
+
+.add-link { color: var(--accent); }
 
 .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
 </style>

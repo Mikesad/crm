@@ -1,12 +1,14 @@
 package com.crm.service;
 
-import com.crm.entity.SysUser;
 import com.crm.mapper.CrmBusinessMapper;
+import com.crm.mapper.CrmContractMapper;
+import com.crm.mapper.CrmCustomerMapper;
 import com.crm.mapper.CrmLeadMapper;
 import com.crm.mapper.CrmRecordMapper;
-import com.crm.mapper.SysUserMapper;
+import com.crm.mapper.SysDeptMapper;
 import com.crm.util.ReportUtils;
-import com.crm.vo.ReportConversionCompareVO;
+import com.crm.vo.ReportConversionMetricsVO;
+import com.crm.vo.ReportConversionMetricsVO.ConversionMetric;
 import com.crm.vo.ReportConversionVO;
 import com.crm.vo.ReportDistItemVO;
 import com.crm.vo.ReportFunnelStageVO;
@@ -22,6 +24,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -32,10 +35,10 @@ import java.util.stream.Collectors;
  * <p>聚合维度:</p>
  * <ul>
  *   <li>4 KPI(跟进总数 / 平均转化率 / 日均跟进 / 高频跟进人数)</li>
+ *   <li>4 个切换指标(阶段八 commit 4):跟进率 / 客户转换率 / 商机转换率 / 合同转换率</li>
  *   <li>5 阶段转化漏斗(基于 crm_business.stage,同 Tab ① 漏斗)</li>
  *   <li>跟进方式分布(电话/微信/拜访/邮件/其他)</li>
  *   <li>高频跟进人榜 TOP N(按 crm_record.create_by 分组)</li>
- *   <li>团队 vs 全公司 转化率对比(V1 简化为只展示全公司,team 字段填同值,V2 增强)</li>
  *   <li>6 月跟进频次趋势(按月统计)</li>
  * </ul>
  */
@@ -50,7 +53,9 @@ public class ReportConversionService {
     private final CrmRecordMapper recordMapper;
     private final CrmBusinessMapper businessMapper;
     private final CrmLeadMapper leadMapper;
-    private final SysUserMapper sysUserMapper;
+    private final CrmContractMapper contractMapper;
+    private final CrmCustomerMapper customerMapper;
+    private final SysDeptMapper sysDeptMapper;
 
     public ReportConversionVO buildConversionReport(String range, String startDate, String endDate,
                                                      Long deptId, Long userId, int topN) {
@@ -65,46 +70,48 @@ public class ReportConversionService {
         LocalDateTime start = r[0], end = r[1];
 
         ReportConversionVO vo = new ReportConversionVO();
-        vo.setKpis(buildKpis(start, end, ownerIds));
+        vo.setKpis(buildKpis(start, end, ownerIds, deptId));
+        vo.setMetrics(buildMetrics(start, end, ownerIds, deptId));
         vo.setStageFunnel(buildFunnel(start, end, ownerIds));
         vo.setFollowTypeDist(buildFollowType(start, end));
         vo.setTopPerformers(buildTopPerformers(start, end, topN));
-        vo.setTeamVsCompany(buildCompare(start, end, ownerIds));
         vo.setTrend(buildTrend(start, end));
         return vo;
     }
 
-    private List<ReportKpiVO> buildKpis(LocalDateTime start, LocalDateTime end, List<Long> ownerIds) {
+    private List<ReportKpiVO> buildKpis(LocalDateTime start, LocalDateTime end, List<Long> ownerIds, Long deptId) {
+        // 阶段八 commit 6 调整:3 KPI 紧凑展示(跟进总数 + 2 个转换率),删"合同转换率"
+        //   客户转换率: 期内该部门内新增客户数 / 期内全公司新增线索数
+        //   商机转换率: 期内该部门内新增商机数 / 期内该部门内新增客户数(同 create_by 部门链口径)
         long totalRecord = recordMapper.countByRange(start, end);
-        long days = Math.max(1L, ChronoUnit.DAYS.between(start, end) + 1);
-        BigDecimal dailyAvg = new BigDecimal(totalRecord).divide(new BigDecimal(days), 1, RoundingMode.HALF_UP);
 
-        long allBiz = businessMapper.countAllByRange(start, end, ownerIds);
-        long winBiz = businessMapper.winCountByRange(start, end, ownerIds);
-        String convRate = allBiz > 0
-                ? new BigDecimal(winBiz * 100).divide(new BigDecimal(allBiz), 1, RoundingMode.HALF_UP).toPlainString() + "%"
-                : "0%";
+        ReportConversionMetricsVO metrics = buildMetrics(start, end, ownerIds, deptId);
 
-        long performers = recordMapper.groupByCreateBy(start, end, 50).size();
+        List<ReportKpiVO> kpis = new ArrayList<>(3);
 
-        List<ReportKpiVO> kpis = new ArrayList<>(4);
+        // 1) 跟进总数
         ReportKpiVO k1 = new ReportKpiVO();
         k1.setKey("totalRecord"); k1.setLabel("跟进总数");
         k1.setValue(String.valueOf(totalRecord)); k1.setUnit("条");
         kpis.add(k1);
-        ReportKpiVO k2 = new ReportKpiVO();
-        k2.setKey("convRate"); k2.setLabel("平均转化率");
-        k2.setValue(convRate);
-        kpis.add(k2);
-        ReportKpiVO k3 = new ReportKpiVO();
-        k3.setKey("dailyAvg"); k3.setLabel("日均跟进");
-        k3.setValue(dailyAvg.toPlainString()); k3.setUnit("条");
-        kpis.add(k3);
-        ReportKpiVO k4 = new ReportKpiVO();
-        k4.setKey("performers"); k4.setLabel("活跃跟进人数");
-        k4.setValue(String.valueOf(performers));
-        kpis.add(k4);
+
+        // 2) 客户转换率(value 带 "%" 后缀,unit=null 让 KpiStrip 紧凑显示)
+        addKpiFromMetric(kpis, "leadToCustomerRate", "客户转换率", metrics.getLeadToCustomerRate());
+        // 3) 商机转换率
+        addKpiFromMetric(kpis, "leadToBusinessRate", "商机转换率", metrics.getLeadToBusinessRate());
+
         return kpis;
+    }
+
+    /** 把单个指标灌进 KPI 列表(value="88.9%", unit=null,KpiStrip 直接紧凑显示) */
+    private void addKpiFromMetric(List<ReportKpiVO> kpis, String key, String label, ConversionMetric m) {
+        if (m == null) return;
+        ReportKpiVO k = new ReportKpiVO();
+        k.setKey(key);
+        k.setLabel(label);
+        k.setValue(m.getRate());
+        k.setUnit(null);
+        kpis.add(k);
     }
 
     private List<ReportFunnelStageVO> buildFunnel(LocalDateTime start, LocalDateTime end, List<Long> ownerIds) {
@@ -166,38 +173,6 @@ public class ReportConversionService {
         return out;
     }
 
-    private List<ReportConversionCompareVO> buildCompare(LocalDateTime start, LocalDateTime end, List<Long> ownerIds) {
-        // V1 简化:团队 = 当前 deptId 下的 ownerIds,公司 = 全部
-        // 复用 buildFunnel 的 5 阶段数,组装到 2 个 VO
-        String[] names = {"新建线索", "需求分析", "方案报价", "商务谈判", "赢单"};
-        String[] bizStages = {null, CrmBusinessMapper.STAGE_ANALYSIS, CrmBusinessMapper.STAGE_QUOTE,
-                              CrmBusinessMapper.STAGE_NEGOTIATE, CrmBusinessMapper.STAGE_WIN};
-        Long[] counts = new Long[5];
-        counts[0] = leadMapper.countInFunnel(start, end, ownerIds);
-        for (int i = 1; i < 5; i++) {
-            counts[i] = businessMapper.countByStage(bizStages[i], start, end, ownerIds);
-        }
-        long base = counts[0] == 0 ? 1 : counts[0];
-        ReportConversionCompareVO team = new ReportConversionCompareVO();
-        team.setGroup("team");
-        team.setStage1Lead("100%");
-        team.setStage2Analysis(pct(counts[1], base));
-        team.setStage3Quote(pct(counts[2], base));
-        team.setStage4Negotiate(pct(counts[3], base));
-        team.setStage5Win(pct(counts[4], base));
-
-        // V1 占位:全公司数与 team 相同(无独立 sys_user 全量,后续用全公司聚合补)
-        ReportConversionCompareVO company = new ReportConversionCompareVO();
-        company.setGroup("company");
-        company.setStage1Lead(team.getStage1Lead());
-        company.setStage2Analysis(team.getStage2Analysis());
-        company.setStage3Quote(team.getStage3Quote());
-        company.setStage4Negotiate(team.getStage4Negotiate());
-        company.setStage5Win(team.getStage5Win());
-
-        return List.of(team, company);
-    }
-
     private List<ReportTrendPointVO> buildTrend(LocalDateTime start, LocalDateTime end) {
         List<Map<String, Object>> rows = recordMapper.groupByMonth(start, end);
         return rows.stream().map(r -> {
@@ -208,9 +183,85 @@ public class ReportConversionService {
         }).collect(Collectors.toList());
     }
 
-    private String pct(long part, long base) {
-        if (base == 0) return "0%";
-        BigDecimal p = new BigDecimal(part * 100).divide(new BigDecimal(base), 1, RoundingMode.HALF_UP);
-        return p.toPlainString() + "%";
+    /**
+     * 4 个切换指标(阶段八 commit 4·2026-06-30)
+     * <p>全部接受 ownerIds 参数,自动支持部门维度(ownerIds 由 ReportQueryHelper.resolveOwnerIds 解出);
+     * start/end 由 ReportQueryHelper.resolveRange 解出,支持页面时间维度。</p>
+     *
+     * <p>阶段八 commit 5(2026-06-30)调整:
+     * 客户转换率 公式改为 "期内新增客户数 / 期内新增线索数"(产出/投入 比,语义更直观);
+     * 部门维度 改为 "客户 create_by → sys_user.dept_id" 链路(反映销售员产出,而不是当前客户归属)。</p>
+     */
+    private ReportConversionMetricsVO buildMetrics(LocalDateTime start, LocalDateTime end, List<Long> ownerIds, Long deptId) {
+        ReportConversionMetricsVO m = new ReportConversionMetricsVO();
+
+        // 1) 跟进率:期内 last_follow_time ∈ [start,end] 的客户数 / 全量在管客户数
+        long followed = customerMapper.countFollowedInRange(start, end, ownerIds);
+        long totalCustomers = customerMapper.countByOwner(ownerIds);
+        m.setFollowRate(metric("followRate",
+                followed, "期内被跟进客户数",
+                totalCustomers, "在管客户总数",
+                "客户的最近一次跟进时间落在所选时间区间内 / 全量在管客户数"));
+
+        // 2) 客户转换率(线索 → 客户):期内新增客户数 / 期内新增线索数
+        //    部门维度:分子按 crm_customer.create_by → sys_user.dept_id(销售员产出);
+        //    分母 全公司(用户反馈:分母保持全公司口径)
+        //    注意:deptId==null 时走 countNewCustomers(null) 全公司路径,
+        //          必须避开 countNewCustomersByDeptIds 的 default(null → 0) 截断
+        long customerNew;
+        String departmentDesc;
+        if (deptId == null) {
+            customerNew = customerMapper.countNewCustomers(start, end, null);
+            departmentDesc = "全公司(crm_customer.create_time 区间)";
+        } else {
+            List<Long> deptIdsForCustomer = sysDeptMapper.selectDescendantIds(deptId);
+            customerNew = customerMapper.countNewCustomersByDeptIds(start, end, deptIdsForCustomer);
+            departmentDesc = "create_by 部门维度(deptId=" + deptId + ")";
+        }
+        long leadTotal = leadMapper.countAllByRange(start, end);
+        m.setLeadToCustomerRate(metric("leadToCustomerRate",
+                customerNew, "期内新增客户数",
+                leadTotal, "期内新增线索数",
+                "期内新增客户数 / 期内新增线索数 · 分子" + departmentDesc + ",分母全公司"));
+
+        // 3) 商机转换率(阶段八 commit 6·2026-06-30 重构):期内新增商机数 / 期内新增客户数
+        //    口径:分子 + 分母 都按 crm_*.create_by → sys_user.dept_id 链(同口径)
+        //    deptId==null → 全公司(无部门过滤)
+        //    deptId!=null → 部门下创建人产生的商机/客户
+        long businessNew;
+        if (deptId == null) {
+            businessNew = businessMapper.countAllByRangeByCreateByDeptIds(start, end, null);
+        } else {
+            List<Long> deptIdsForBusiness = sysDeptMapper.selectDescendantIds(deptId);
+            businessNew = businessMapper.countAllByRangeByCreateByDeptIds(start, end, deptIdsForBusiness);
+        }
+        m.setLeadToBusinessRate(metric("leadToBusinessRate",
+                businessNew, "期内新增商机数",
+                customerNew, "期内新增客户数",
+                "期内新增商机数 / 期内新增客户数(同 create_by 部门链口径) · " + departmentDesc));
+
+        return m;
+    }
+
+    /** 构造单指标 VO(分子 / 分母 / 比率 / 标签) */
+    private ConversionMetric metric(String key,
+                                    long num, String numLabel,
+                                    long den, String denLabel,
+                                    String description) {
+        ConversionMetric m = new ConversionMetric();
+        m.setKey(key);
+        m.setNumerator(num);
+        m.setNumeratorLabel(numLabel);
+        m.setDenominator(den);
+        m.setDenominatorLabel(denLabel);
+        m.setDescription(description);
+        if (den > 0) {
+            BigDecimal rate = new BigDecimal(num * 100)
+                    .divide(new BigDecimal(den), 1, RoundingMode.HALF_UP);
+            m.setRate(rate.toPlainString() + "%");
+        } else {
+            m.setRate("0%");
+        }
+        return m;
     }
 }

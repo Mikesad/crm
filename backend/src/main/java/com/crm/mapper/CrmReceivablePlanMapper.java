@@ -9,6 +9,7 @@ import org.apache.ibatis.annotations.Mapper;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -73,5 +74,40 @@ public interface CrmReceivablePlanMapper extends BaseMapper<CrmReceivablePlan> {
         QueryWrapper<CrmReceivablePlan> w = new QueryWrapper<>();
         w.eq("status", status);
         return ReportUtils.toLong(selectCount(w));
+    }
+
+    /**
+     * 6 月理应回款趋势(阶段八 commit 3·2026-06-30,给"实际 vs 理应"对比图用)
+     * <p>按 {@code expected_date} 月份分桶 SUM(expected_amount),
+     * 过滤 {@code is_deleted=0} + 所有 status(未到期 / 催款中 / 已回款 都算理应回款基准)。</p>
+     *
+     * @return [{month:'2026-01', sum:1200000.00}, ...] 按 month 升序
+     */
+    @InterceptorIgnore(dataPermission = "true")
+    default List<Map<String, Object>> sumExpectedByMonth(LocalDateTime start, LocalDateTime end) {
+        QueryWrapper<CrmReceivablePlan> w = new QueryWrapper<>();
+        w.select("DATE_FORMAT(expected_date,'%Y-%m') AS month", "COALESCE(SUM(expected_amount),0) AS sum");
+        w.ge("expected_date", start);
+        w.le("expected_date", end);
+        w.eq("is_deleted", 0);
+        w.groupBy("DATE_FORMAT(expected_date,'%Y-%m')");
+        w.orderByAsc("month");
+        return selectMaps(w);
+    }
+
+    /**
+     * 理应回款总额(阶段八 commit 4·2026-06-30,给 Tab ④ 饼图"实际 vs 应回未回"用)
+     * <p>按 {@code expected_date} 区间 SUM(expected_amount),
+     * 过滤 {@code is_deleted=0}(逻辑删除过滤,见 CLAUDE.md 字段规范)。</p>
+     */
+    @InterceptorIgnore(dataPermission = "true")
+    default BigDecimal sumExpectedByRange(LocalDateTime start, LocalDateTime end) {
+        QueryWrapper<CrmReceivablePlan> w = new QueryWrapper<>();
+        w.select("COALESCE(SUM(expected_amount),0) AS total");
+        w.ge("expected_date", start);
+        w.le("expected_date", end);
+        w.eq("is_deleted", 0);
+        List<Map<String, Object>> rows = selectMaps(w);
+        return ReportUtils.toBigDecimal(rows.isEmpty() ? null : rows.get(0).get("total"));
     }
 }

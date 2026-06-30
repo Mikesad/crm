@@ -2,14 +2,18 @@ package com.crm.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.crm.common.UserContext;
+import com.crm.entity.SysDept;
 import com.crm.entity.SysUser;
+import com.crm.mapper.SysDeptMapper;
 import com.crm.mapper.SysUserMapper;
 import com.crm.util.ReportUtils;
+import com.crm.vo.ReportFilterOptionVO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -27,12 +31,17 @@ import java.util.stream.Collectors;
  * </ol>
  *
  * <p>不涉及 SQL,纯 Java 逻辑,不进缓存。</p>
+ *
+ * <p>阶段八 commit 2 扩展:resolveOwnerIds 认子部门(走 ancestors 后代);新增
+ * {@link #loadFilterDepts()} / {@link #loadFilterUsers(Long)} 接 sys_dept / sys_user 真表,
+ * 替代 V1 mock。</p>
  */
 @Component
 @RequiredArgsConstructor
 public class ReportQueryHelper {
 
     private final SysUserMapper sysUserMapper;
+    private final SysDeptMapper sysDeptMapper;
 
     /**
      * 把 range 字符串转成 [start, end] 闭区间,Service 层据此切片。
@@ -88,7 +97,7 @@ public class ReportQueryHelper {
      * <p>规则:</p>
      * <ul>
      *   <li>userId 优先:返回 [userId](单元素)</li>
-     *   <li>deptId 选中:查 sys_user.dept_id=?,返回所有 user.id</li>
+     *   <li>deptId 选中:先查 deptId + 所有后代部门 id,再查这些部门下所有 user.id(阶段八 commit 2 升级)</li>
      *   <li>都为空:返回 null(代表"全部",由 Mapper 走无条件)</li>
      * </ul>
      *
@@ -101,10 +110,10 @@ public class ReportQueryHelper {
             return List.of(userId);
         }
         if (deptId != null) {
-            List<SysUser> users = sysUserMapper.selectList(
-                    new QueryWrapper<SysUser>().select("id").eq("dept_id", deptId).eq("status", 1));
-            if (users.isEmpty()) return Collections.emptyList();
-            return users.stream().map(SysUser::getId).collect(Collectors.toList());
+            // C2-D6:认子部门,deptId → 后代部门 id 列表 → user.id 列表
+            List<Long> deptIds = sysDeptMapper.selectDescendantIds(deptId);
+            if (deptIds.isEmpty()) return Collections.emptyList();
+            return sysUserMapper.selectIdByDeptIds(deptIds);
         }
         return null;   // null = 全部
     }
@@ -150,5 +159,63 @@ public class ReportQueryHelper {
      */
     public static String str(java.math.BigDecimal v) {
         return ReportUtils.toPlainString(v);
+    }
+
+    /**
+     * 部门下拉(P20·2026-06-30:只显示 1 级节点)
+     * <p>只查 {@code parent_id = 顶级 id} 的部门,即"总公司直属子部门",
+     * 排除总公司本身(顶级)和嵌套子部门(如华东一组等),用于报表"业务部门横向对比"。
+     * 排序按 ancestors / order_num。</p>
+     */
+    public List<ReportFilterOptionVO> loadFilterDepts() {
+        // 1) 找顶级部门(parent_id = 0)
+        SysDept root = sysDeptMapper.selectList(
+                new QueryWrapper<SysDept>().select("id").eq("parent_id", 0)
+                        .eq("status", 1).eq("is_deleted", 0).orderByAsc("id").last("LIMIT 1")
+        ).stream().findFirst().orElse(null);
+        if (root == null) return Collections.emptyList();
+        // 2) 查 root 的直属子部门
+        List<SysDept> depts = sysDeptMapper.selectList(
+                new QueryWrapper<SysDept>()
+                        .select("id", "dept_name")
+                        .eq("parent_id", root.getId())
+                        .eq("status", 1).eq("is_deleted", 0)
+                        .orderByAsc("ancestors", "order_num"));
+        List<ReportFilterOptionVO> out = new ArrayList<>(depts.size());
+        for (SysDept d : depts) {
+            ReportFilterOptionVO o = new ReportFilterOptionVO();
+            o.setId(d.getId());
+            o.setName(d.getDeptName());
+            out.add(o);
+        }
+        return out;
+    }
+
+    /**
+     * 人员下拉(阶段八 commit 2·C2-5):返回启用账号,按 deptId 过滤(自动含子部门)。
+     * <p>deptId 为空时返回全部销售(排除无部门用户);非空时返回该部门及所有后代部门下所有启用账号。</p>
+     */
+    public List<ReportFilterOptionVO> loadFilterUsers(Long deptId) {
+        List<Long> deptIds = null;
+        if (deptId != null) {
+            deptIds = sysDeptMapper.selectDescendantIds(deptId);
+            if (deptIds.isEmpty()) return Collections.emptyList();
+        }
+        QueryWrapper<SysUser> w = new QueryWrapper<SysUser>()
+                .select("id", "nickname AS name")
+                .eq("status", 1)
+                .eq("is_deleted", 0)
+                .in(deptIds != null, "dept_id", deptIds)
+                .isNotNull(deptId == null, "dept_id")  // 全部时排除无部门用户
+                .orderByAsc("nickname");
+        List<SysUser> users = sysUserMapper.selectList(w);
+        List<ReportFilterOptionVO> out = new ArrayList<>(users.size());
+        for (SysUser u : users) {
+            ReportFilterOptionVO o = new ReportFilterOptionVO();
+            o.setId(u.getId());
+            o.setName(u.getNickname());
+            out.add(o);
+        }
+        return out;
     }
 }

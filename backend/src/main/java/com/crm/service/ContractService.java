@@ -76,7 +76,11 @@ public class ContractService {
         // DataPermissionHandler 自动追加 owner_user_id 条件
         IPage<CrmContract> result = contractMapper.selectPage(page, wrapper);
         // 批量查 customerName + ownerName(避免每行单独查询,N+1)
-        java.util.Map<Long, String> nameMap = buildNameMap(result.getRecords());
+        // ⚠ 2026-06-29 修 bug:原 buildNameMap 用单 Map<Long,String> 拼接 "[cust]"/"[owner]" 前缀,
+        // 当 crm_customer.id == sys_user.id 时(测试数据 customer.id=7, owner=8 等撞车),
+        // 后 put 的 owner 会覆盖先 put 的 customer,导致列表中合同 customerName 丢失。
+        // detail 走 List.of(contract) 单条无冲突,所以一直正常 — 这正是用户报的现象。
+        NameMap nameMap = buildNameMap(result.getRecords());
         return result.convert(c -> toVO(c, nameMap));
     }
 
@@ -86,7 +90,7 @@ public class ContractService {
             throw new BusinessException(ResultCode.DATA_NOT_FOUND, "合同不存在");
         }
         // 查 customer + owner 单条
-        java.util.Map<Long, String> nameMap = buildNameMap(java.util.List.of(contract));
+        NameMap nameMap = buildNameMap(java.util.List.of(contract));
         ContractVO vo = toVO(contract, nameMap);
         // 加载明细
         List<CrmContractProduct> items = contractProductMapper.selectList(
@@ -96,18 +100,20 @@ public class ContractService {
     }
 
     /**
-     * 批量查 customerName + ownerName,组成 id → 展示名 map(避免 N+1)
+     * 批量查 customerName + ownerName,组成两个独立 Map(避免 N+1 + namespace 撞车)
+     * <p>2026-06-29 改造:从 {@code Map<Long,String>} 单 namespace 拆成
+     * {@link NameMap} 双 Map,消除 customer.id == owner_user_id 时的覆盖 bug。</p>
      */
-    private java.util.Map<Long, String> buildNameMap(List<CrmContract> contracts) {
-        java.util.Map<Long, String> nameMap = new java.util.HashMap<>();
-        if (contracts == null || contracts.isEmpty()) return nameMap;
+    private NameMap buildNameMap(List<CrmContract> contracts) {
+        NameMap nm = new NameMap();
+        if (contracts == null || contracts.isEmpty()) return nm;
         // 收集 customerIds
         java.util.Set<Long> customerIds = contracts.stream()
                 .map(CrmContract::getCustomerId).filter(java.util.Objects::nonNull)
                 .collect(Collectors.toSet());
         if (!customerIds.isEmpty()) {
             customerMapper.selectBatchIds(customerIds).forEach(c ->
-                    nameMap.put(c.getId(), "[cust]" + c.getCustomerName()));
+                    nm.customerNames.put(c.getId(), c.getCustomerName()));
         }
         // 收集 ownerUserIds
         java.util.Set<Long> ownerIds = contracts.stream()
@@ -115,9 +121,17 @@ public class ContractService {
                 .collect(Collectors.toSet());
         if (!ownerIds.isEmpty()) {
             sysUserMapper.selectBatchIds(ownerIds).forEach(u ->
-                    nameMap.put(u.getId(), "[owner]" + u.getNickname()));
+                    nm.ownerNames.put(u.getId(), u.getNickname()));
         }
-        return nameMap;
+        return nm;
+    }
+
+    /**
+     * 名称映射(客户名 + 业主名分开两个 Map,避免 Long id 撞车)
+     */
+    private static class NameMap {
+        final java.util.Map<Long, String> customerNames = new java.util.HashMap<>();
+        final java.util.Map<Long, String> ownerNames = new java.util.HashMap<>();
     }
 
     @Transactional
@@ -243,18 +257,16 @@ public class ContractService {
         return String.format("HT-%s-%06d", date, System.currentTimeMillis() % 1000000);
     }
 
-    private ContractVO toVO(CrmContract c, java.util.Map<Long, String> nameMap) {
+    private ContractVO toVO(CrmContract c, NameMap nameMap) {
         ContractVO vo = new ContractVO();
         BeanUtils.copyProperties(c, vo);
         vo.setStatusText(statusText(c.getStatus()));
         if (nameMap != null) {
             if (c.getCustomerId() != null) {
-                String n = nameMap.get(c.getCustomerId());
-                if (n != null && n.startsWith("[cust]")) vo.setCustomerName(n.substring(6));
+                vo.setCustomerName(nameMap.customerNames.get(c.getCustomerId()));
             }
             if (c.getOwnerUserId() != null) {
-                String n = nameMap.get(c.getOwnerUserId());
-                if (n != null && n.startsWith("[owner]")) vo.setOwnerName(n.substring(7));
+                vo.setOwnerName(nameMap.ownerNames.get(c.getOwnerUserId()));
             }
         }
         return vo;

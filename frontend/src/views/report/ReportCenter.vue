@@ -2,7 +2,7 @@
   <div class="report-center">
     <!-- 面包屑条(替代了原 48px 顶栏,只 40px) -->
     <div class="crumb-bar">
-      <div class="crumbs">可视化 <span class="sep">›</span> <span class="current">报表中心</span></div>
+      <div class="crumbs">可视化</div>
       <div class="crumb-right">
         <span class="updated">数据更新于 {{ updatedLabel }}</span>
         <button class="btn-link" @click="onClearCache" :disabled="clearing">↻ 刷新缓存</button>
@@ -10,16 +10,15 @@
     </div>
 
     <div class="main">
-      <!-- Page header -->
+      <!-- Page header(阶段八 commit 7,对齐其他模块的 page-title 醒目标题风格) -->
       <div class="page-header">
         <div>
-          <h1 class="page-title">报表中心</h1>
-          <div class="page-sub">数据实时聚合 · 5 分钟自动刷新缓存</div>
+          <div class="page-title">报表中心</div>
+          <div class="page-sub">{{ nowLabel }} · 销售漏斗 + 客户分布 + 跟进与转化率 + 回款/财务</div>
         </div>
-        <div class="page-meta mono">{{ nowLabel }}</div>
       </div>
 
-      <!-- Filterbar -->
+      <!-- Filterbar(P20:去掉"全部销售"下拉,只保留时间范围 + 部门) -->
       <div class="filterbar">
         <div class="range-tabs">
           <button
@@ -33,10 +32,6 @@
         <select v-model="filters.deptId" class="filter-select" @change="onFilterChange">
           <option :value="null">全部部门</option>
           <option v-for="d in depts" :key="d.id" :value="d.id">{{ d.name }}</option>
-        </select>
-        <select v-model="filters.userId" class="filter-select" @change="onFilterChange">
-          <option :value="null">全部销售</option>
-          <option v-for="u in users" :key="u.id" :value="u.id">{{ u.name }}</option>
         </select>
         <div class="filter-spacer"></div>
         <div class="meta-info">下次刷新 <span class="mono">{{ nextRefreshLabel }}</span></div>

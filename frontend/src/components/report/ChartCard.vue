@@ -2,7 +2,10 @@
   <div class="chart-card">
     <div class="chart-card-head">
       <div class="chart-card-title">{{ title }}</div>
-      <div class="chart-card-meta">{{ meta }}</div>
+      <div class="chart-card-head-right">
+        <slot name="header-right" />
+        <div v-if="meta" class="chart-card-meta">{{ meta }}</div>
+      </div>
     </div>
     <div class="chart-slot">
       <slot />
@@ -16,6 +19,9 @@
  *
  * <p>沿用 phase5-report-variant-b-cockpit.html 第 323-352 行:
  * 标题(粗体 12.5px) + meta(灰色 10.5px) + chart 区域(默认 240px 高,可通过 class 调整)。</p>
+ *
+ * <p>阶段八 commit 2 扩展:新增 {@code <template #header-right>} slot,
+ * 用于部门业绩卡片放 chip tab 切换"合同业绩 / 实际回款"。</p>
  */
 defineProps({
   title: { type: String, required: true },
@@ -38,6 +44,12 @@ defineProps({
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
+}
+
+.chart-card-head-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .chart-card-title {

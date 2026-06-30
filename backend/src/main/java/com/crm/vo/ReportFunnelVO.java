@@ -34,6 +34,9 @@ public class ReportFunnelVO implements Serializable {
     /** 近 6 月销售趋势(粒度月;granularity=day 时返回近 30 天日数据) */
     private List<ReportTrendPointVO> trend;
 
+    /** 近 6 月实际回款趋势(阶段八 P6·2026-06-29 新增,与 trend 并列;前端 chip tab 切换"合同业绩/实际回款") */
+    private List<ReportTrendPointVO> trendReceived;
+
     /** 部门业绩(按销售总额排序) */
     private List<ReportDepartmentAmountVO> departmentPerformers;
 
@@ -42,4 +45,7 @@ public class ReportFunnelVO implements Serializable {
 
     /** 销售个人榜 TOP N */
     private List<ReportPerformerVO> topPerformers;
+
+    /** 销售个人榜回款口径(阶段八 P3·2026-06-29 新增,与 topPerformers 并列;前端 chip tab 切换"合同业绩/实际回款") */
+    private List<ReportPerformerVO> topPerformersReceived;
 }

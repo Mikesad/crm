@@ -88,7 +88,7 @@
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="240" fixed="right">
+            <el-table-column label="操作" width="300" fixed="right">
               <template #default="{ row }">
                 <el-button link class="action-link" @click.stop="handleView(row)">详情</el-button>
                 <el-button
@@ -98,9 +98,9 @@
                   @click.stop="handleEdit(row)"
                 >编辑</el-button>
                 <el-button
-                  v-if="isOwnerOnRow(row)"
                   link
                   class="action-link share-link"
+                  :disabled="!isOwnerOnRow(row)"
                   @click.stop="openShareDialog(row)"
                 >↗ 共享</el-button>
                 <el-button
@@ -109,6 +109,18 @@
                   class="action-link claim-link"
                   @click.stop="handleClaim(row)"
                 >认领</el-button>
+                <el-tooltip
+                  :content="deleteDisabledReason(row)"
+                  placement="top"
+                  :disabled="canDeleteCustomer(row)"
+                >
+                  <el-button
+                    link
+                    class="action-link danger"
+                    :disabled="!canDeleteCustomer(row)"
+                    @click.stop="handleDelete(row)"
+                  >删除</el-button>
+                </el-tooltip>
               </template>
             </el-table-column>
           </el-table>
@@ -236,7 +248,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { useUserStore } from '@/store/user'
-import { pageCustomer, addCustomer, updateCustomer, claimCustomer } from '@/api/customer'
+import { pageCustomer, addCustomer, updateCustomer, claimCustomer, deleteCustomer } from '@/api/customer'
 import CustomerShareDialog from './components/ShareDialog.vue'
 
 defineOptions({ name: 'CustomerList' })
@@ -305,6 +317,18 @@ const ownerBadgeClass = (row) => {
   return 'owner-badge shared'
 }
 const isOwnerOnRow = (row) => row.ownerUserId === myUserId.value
+/**
+ * P17:删除按钮始终显示,不能删除时灰化禁用
+ * <p>规则:仅当客户处于 mine / shared tab 且当前用户是 owner 时可删除;
+ * 公海池(tab=public)不允许删除(只能认领)。</p>
+ */
+const canDeleteCustomer = (row) =>
+  currentTab.value !== 'public' && isOwnerOnRow(row)
+function deleteDisabledReason(row) {
+  if (currentTab.value === 'public') return '公海客户不可删除,请先认领转私海'
+  if (!isOwnerOnRow(row)) return '仅客户所有者可删除,你是被共享方'
+  return ''
+}
 const isReadOnlyOnRow = (row) => {
   // 公海客户:可编辑元数据(行业/级别)
   if (row.isPublic === 1) return false
@@ -405,6 +429,9 @@ function onSharedOk() {
   loadTotals()
 }
 
+/**
+ * 认领按钮:仅在 public tab 显示(P18 修订),mine/shared tab 不渲染
+ */
 async function handleClaim(row) {
   try {
     await ElMessageBox.confirm(
@@ -416,6 +443,27 @@ async function handleClaim(row) {
   try {
     await claimCustomer(row.id)
     ElMessage.success('认领成功,客户已转为你的私海')
+    loadList()
+    loadTotals()
+  } catch (e) { /* 错误已全局提示 */ }
+}
+
+/**
+ * P15:删除客户
+ * <p>二次确认 → 调 deleteCustomer → 刷新列表与统计。
+ * 后端 {@code CrmCustomerService.delete} 走 @TableLogic 逻辑删除(is_deleted=1)。</p>
+ */
+async function handleDelete(row) {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除客户「${row.customerName}」?此操作不可恢复。`,
+      '删除客户',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消', confirmButtonClass: 'btn-zen-primary', customClass: 'msgbox-zen-confirm' }
+    )
+  } catch { return }
+  try {
+    await deleteCustomer(row.id)
+    ElMessage.success('客户已删除')
     loadList()
     loadTotals()
   } catch (e) { /* 错误已全局提示 */ }

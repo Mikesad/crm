@@ -32,6 +32,9 @@ public class ReportPerformerVO implements Serializable {
     /** 金额(BigDecimal → toPlainString;销售榜为销售总额,客户榜为累计合同金额) */
     private String amount;
 
+    /** 实际回款金额(阶段八 P3·2026-06-29 新增,销售榜 chip tab 切换"实际回款"口径时使用) */
+    private String receivedAmount;
+
     /** 转化率(可空,仅销售榜) */
     private String convRate;
 

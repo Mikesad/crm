@@ -12,7 +12,9 @@
   - 4 个 Tab 各有 1 个"主接口"（funnel / customer / conversion / finance）一次性返回该 Tab 全部数据,前端默认按主接口渲染。
   - 每个 Tab 还有少量"局部刷新"接口（trend / performer / distribution / aging / funnel）,支持单独刷新某个 widget 而不重算整个 Tab。
   - 部门/人员下拉 `/filter/depts` / `/filter/users` 在 V1 简化为静态 mock,V2 接 `sys_dept` / `sys_user` 表。
+  - **阶段八 commit 2 升级**：`/filter/depts` 接 `sys_dept` 真表返回真实部门列表;`/filter/users` 接 `sys_user` 真表返回真实人员(按 deptId 过滤,**自动含子部门**);`/funnel` 的 `departmentPerformers` 拆 2 口径(合同业绩 + 实际回款),前端 chip tab 切换。
 - **阶段五 commit 2 新增**：本批 13 个接口 + 1 个权限码 `crm:report:view` + 8 个聚合索引 + 1 个新菜单(报表中心)。
+- **阶段八 commit 2 升级**:报表中心 7 项 V1 简化遗留已补(C2-D1~D6 + C2-4/5),**无新菜单 / 无新权限码 / 无 schema 变更**。
 
 ## 通用请求参数
 
@@ -83,10 +85,22 @@
     { "date": "2026-06", "value": "2468000", "seriesKey": null }
   ],
   "departmentPerformers": [
-    { "deptId": 1, "deptName": "部门 1", "amount": "1160000", "percent": "47.0%" },
-    { "deptId": 2, "deptName": "部门 2", "amount": "720000",  "percent": "29.1%" },
-    { "deptId": 3, "deptName": "部门 3", "amount": "408000",  "percent": "16.5%" },
-    { "deptId": 4, "deptName": "部门 4", "amount": "180000",  "percent": "7.3%" }
+    {
+      "deptId": 1,
+      "deptName": "销售部",
+      "amount": "1160000",
+      "percent": "47.0%",
+      "receivedAmount": "920000",
+      "receivedPercent": "49.4%"
+    },
+    {
+      "deptId": 2,
+      "deptName": "市场部",
+      "amount": "720000",
+      "percent": "29.1%",
+      "receivedAmount": "560000",
+      "receivedPercent": "30.1%"
+    }
   ],
   "sourceDistribution": [
     { "key": "官网咨询", "count": 142, "amount": null, "percent": "37.5%" },
@@ -322,10 +336,6 @@ curl -X GET 'http://localhost:8080/api/crm/report/customer?range=month&dim=indus
     { "rank": 2, "name": "王主管",   "subtitle": null, "count": 78, "amount": null, "convRate": null, "overdueAmount": null },
     { "rank": 3, "name": "陈销售",   "subtitle": null, "count": 65, "amount": null, "convRate": null, "overdueAmount": null }
   ],
-  "teamVsCompany": [
-    { "group": "team",    "stage1Lead": "100%", "stage2Analysis": "77.4%", "stage3Quote": "48.4%", "stage4Negotiate": "37.1%", "stage5Win": "17.7%" },
-    { "group": "company", "stage1Lead": "100%", "stage2Analysis": "77.4%", "stage3Quote": "48.4%", "stage4Negotiate": "37.1%", "stage5Win": "17.7%" }
-  ],
   "trend": [
     { "date": "2026-01", "value": "62",  "seriesKey": null },
     { "date": "2026-02", "value": "68",  "seriesKey": null },
@@ -341,7 +351,6 @@ curl -X GET 'http://localhost:8080/api/crm/report/customer?range=month&dim=indus
 
 - `stageFunnel[].amount` 留空(同 Tab ① 已用 funnel 接口返回)
 - `topPerformers[].name` = crm_record.create_by(销售昵称/账号,无 sys_user JOIN)
-- `teamVsCompany` V1 团队与全公司同值(deptId 未选时),V2 增强为真对比
 
 **业务码**：同 1.1
 
@@ -402,30 +411,11 @@ curl -X GET 'http://localhost:8080/api/crm/report/conversion?range=month&topN=10
     { "key": "unreceived",    "label": "未回款",     "value": "4560000",  "unit": "¥", "delta": null, "deltaDir": null, "footnote": null },
     { "key": "overdueRate",   "label": "逾期率",     "value": "4.3",      "unit": "%", "delta": null, "deltaDir": null, "footnote": null }
   ],
-  "trend": [
-    { "date": "2026-01", "value": "1200000", "seriesKey": "contract" },
-    { "date": "2026-01", "value": "980000",  "seriesKey": "received" },
-    { "date": "2026-02", "value": "1480000", "seriesKey": "contract" },
-    { "date": "2026-02", "value": "1180000", "seriesKey": "received" }
-  ],
-  "monthlyStacked": [
-    { "date": "2026-01", "value": "1200000", "seriesKey": "contract" }
-  ],
-  "agingBuckets": [
-    { "key": "0-30",  "label": "0-30 天",  "count": 12, "amount": "1200000", "percent": "60.0%" },
-    { "key": "31-60", "label": "31-60 天", "count": 5,  "amount": "560000",  "percent": "25.0%" },
-    { "key": "61-90", "label": "61-90 天", "count": 2,  "amount": "180000",  "percent": "10.0%" },
-    { "key": "90+",   "label": "90+ 天",   "count": 1,  "amount": "60000",   "percent": "5.0%" }
-  ],
-  "receivableMethod": [
-    { "key": "银行转账", "count": 18, "amount": "1480000", "percent": "60.0%" },
-    { "key": "微信",     "count": 8,  "amount": "320000",  "percent": "26.7%" },
-    { "key": "支付宝",   "count": 3,  "amount": "60000",   "percent": "10.0%" },
-    { "key": "现金",     "count": 1,  "amount": "20000",   "percent": "3.3%" }
-  ],
-  "topDebtors": [
-    { "rank": 1, "name": "杭州xx科技", "subtitle": null, "count": 3, "amount": "1420000", "convRate": null, "overdueAmount": null },
-    { "rank": 2, "name": "深圳yy电子", "subtitle": null, "count": 2, "amount": "980000",  "convRate": null, "overdueAmount": null }
+  "receivableCompare": [
+    { "date": "2026-01", "value": "1200000", "seriesKey": "actual" },
+    { "date": "2026-01", "value": "1800000", "seriesKey": "planned" },
+    { "date": "2026-02", "value": "1480000", "seriesKey": "actual" },
+    { "date": "2026-02", "value": "2000000", "seriesKey": "planned" }
   ]
 }
 ```
@@ -436,9 +426,10 @@ curl -X GET 'http://localhost:8080/api/crm/report/conversion?range=month&topN=10
 - `kpis[].received` 受 range 影响
 - `kpis[].unreceived` 来自 crm_receivable_plan.status != 2 的 expected_amount 累加
 - `kpis[].overdueRate` 分子=expected_date < today 的 plan 数,分母=全部未回款 plan 数
-- `agingBuckets` 按 DATEDIFF(today, expected_date) 分桶,V1 全量拉 plan 在 Service 端 Java Stream 分桶
-- `monthlyStacked` V1 复用 trend 数据,V2 拆 已回款/计划未回款
-- `topDebtors[].name` 由 crm_contract JOIN crm_customer 补全
+- `receivableCompare` 按月聚合,2 series:
+  - `seriesKey='actual'` 实际回款(按 `crm_receivable.return_date` 月份 SUM actual_amount)
+  - `seriesKey='planned'` 理应回款(按 `crm_receivable_plan.expected_date` 月份 SUM expected_amount,过滤 is_deleted=0)
+  - 月份序列为两侧并集(无数据侧补 0),按月升序
 
 **业务码**：同 1.1
 
@@ -451,37 +442,15 @@ curl -X GET 'http://localhost:8080/api/crm/report/finance?range=month&topN=10' \
 
 ---
 
-## 4.2 账龄分布（finance/aging）
+## 4.2 ~~账龄分布（finance/aging）~~
 
-**基本信息**
-- 方法：GET
-- 路径：`/api/crm/report/finance/aging`
-- 权限：`crm:report:view`
-
-**请求参数（query）**：无（range 固定 year,dept/user 暂不参与分桶计算）
-
-**响应**：`Result<List<ReportAgingBucketVO>>`,见 4.1 `agingBuckets` 字段。
-
-**业务码**：同 1.1
+> **2026-06-30 commit 3 已废弃**:Tab ④ 收敛为 4 KPI + 1 图(实际 vs 理应),前端不再调用。前端调用请改用 4.1 主接口的 `receivableCompare` 字段。
 
 ---
 
-## 4.3 应收 TopN（finance/performer）
+## 4.3 ~~应收 TopN（finance/performer）~~
 
-**基本信息**
-- 方法：GET
-- 路径：`/api/crm/report/finance/performer`
-- 权限：`crm:report:view`
-
-**请求参数（query）**
-
-| 字段 | 类型 | 必填 | 默认 | 说明 |
-|:---|:---|:---|:---|:---|
-| topN | int | 否 | 5 | 1-50 |
-
-**响应**：`Result<List<ReportPerformerVO>>`,见 4.1 `topDebtors` 字段。
-
-**业务码**：同 1.1
+> **2026-06-30 commit 3 已废弃**:同上。
 
 ---
 
@@ -502,15 +471,15 @@ curl -X GET 'http://localhost:8080/api/crm/report/finance?range=month&topN=10' \
 {
   "code": 200,
   "data": [
-    { "id": 1, "name": "销售一部" },
-    { "id": 2, "name": "销售二部" },
-    { "id": 3, "name": "销售三部" },
-    { "id": 4, "name": "销售四部" }
+    { "id": 2, "name": "销售部" },
+    { "id": 5, "name": "华东组" },
+    { "id": 6, "name": "华南组" },
+    { "id": 7, "name": "市场部" }
   ]
 }
 ```
 
-**V1 说明**：返回静态 mock 4 部门,V2 接 `sys_dept` 表后自动同步。
+**说明（阶段八 commit 2·C2-4 升级）**：返回 `sys_dept` 表中 `status=1` 且 `is_deleted=0` 的全部部门,按 `ancestors / order_num` 排序,展示部门真实名称（不再用 V1 mock）。
 
 **业务码**：同 1.1
 
@@ -527,18 +496,24 @@ curl -X GET 'http://localhost:8080/api/crm/report/finance?range=month&topN=10' \
 
 | 字段 | 类型 | 必填 | 说明 |
 |:---|:---|:---|:---|
-| deptId | long | 否 | 部门筛选,null=全部 |
+| deptId | long | 否 | 部门筛选(自动含子部门·C2-D6);null=全部启用账号(排除无部门用户) |
 
 **响应**
 
 ```json
 {
   "code": 200,
-  "data": []
+  "data": [
+    { "id": 12, "name": "张三" },
+    { "id": 13, "name": "李四" }
+  ]
 }
 ```
 
-**V1 说明**：返回空数组,前端顶部"销售"下拉用"全部销售"兜底。V2 接 `sys_user` 表后按 deptId/status 过滤。
+**说明（阶段八 commit 2·C2-5 升级）**：
+- `deptId` 非空时：返回该部门 + 所有后代部门下所有 `status=1` 启用账号
+- `deptId` 为空时：返回全部 `status=1` 且 `dept_id IS NOT NULL` 的用户
+- 排序按 `nickname`
 
 **业务码**：同 1.1
 
@@ -596,6 +571,19 @@ curl -X GET 'http://localhost:8080/api/crm/report/cache/clear' \
 
 ---
 
+- **2026-06-30 (阶段八 commit 3)**:
+  - **Tab ③ 删除** `"团队 vs 全公司"` 组件:`ReportConversionVO.teamVsCompany` 字段移除、`ReportConversionCompareVO` 文件删除、`ReportConversionService.buildCompare/pct` 移除、`SysUserMapper/SysUser` 引用清理
+  - **Tab ④ 删除** `"回款趋势"` 组件 + 重做 Tab ④:
+    - `ReportFinanceVO.trend / monthlyStacked / agingBuckets / receivableMethod / topDebtors` 全部移除
+    - `ReportFinanceService.buildMonthlyStacked/buildAging/buildMethod/buildTopDebtors` 全部移除,`CrmCustomer / CrmContract / ReportAgingBucketVO / ReportDistItemVO / ReportPerformerVO` import 清理
+    - 新增 `buildReceivableCompare`:按月聚合 actual(`crm_receivable.return_date`)/ planned(`crm_receivable_plan.expected_date`),内存外连接拼成 2 series
+    - `CrmReceivablePlanMapper.sumExpectedByMonth`:按月 SUM(expected_amount),过滤 is_deleted=0
+    - `ReportFinanceVO.receivableCompare`(新字段,`List<ReportTrendPointVO>`,seriesKey='actual'/'planned')
+    - `/finance/aging` `/finance/performer` 端点废弃,前端对应 import 注释清理
+    - 前端 `ReportFinance.vue`:1 个 ChartCard(ChartTrend 多 series)+ 4 KPI;前次 commit 中临时加的 4 图(账龄/回款方式/月度合同堆叠/应收 TopN)同次移除
+  - **0 schema 变更**:无新表 / 无新字段 / 无新菜单 / 无新权限码 / 无 SQL 迁移(全部用现有 crm_receivable.return_date + crm_receivable_plan.expected_date)
+  - **不做**:本批仅 UI 收敛 + 1 个新统计,后续可独立 V2 重做"团队对比 / 回款趋势对比"
+
 ## 更新日志
 
 - **2026-06-28 (commit 2)**:
@@ -606,6 +594,21 @@ curl -X GET 'http://localhost:8080/api/crm/report/cache/clear' \
   - 5 分钟内存缓存(TTL-based ConcurrentHashMap,不依赖 Caffeine)
   - 决策 B:报表不叠加数据权限拦截,Mapper `@InterceptorIgnore(dataPermission="true")`
   - 决策 B:本期不做 Excel 导出、邮件推送、报表订阅、数据权限分层
+- **2026-06-29 (阶段八 commit 2)**:
+  - **C2-D1** 部门业绩 `deptName` 接 `sys_dept.dept_name` 真名(原"部门 + id"写死)
+  - **C2-D2** 部门业绩接前端 `range`(原写死近 10 年)
+  - **C2-D3** 部门业绩接 `ownerIds`(sales 不再能看别人部门)
+  - **C2-D4** `departmentPerformers` 拆 2 口径:`amount`/`percent`(合同业绩)+ `receivedAmount`/`receivedPercent`(实际回款),前端 chip tab 切换
+  - **C2-D5** `crm_contract.status IN (1,2)` 过滤(排除审批中 0 / 已作废 3),影响所有合同金额聚合
+  - **C2-D6** `resolveOwnerIds(deptId)` 认子部门:走 `sys_dept.ancestors` LIKE 前缀匹配,自动含所有后代部门,影响全部 13 个接口
+  - **C2-4/5** `/filter/depts` 接 `sys_dept` 真表,`/filter/users` 接 `sys_user` 真表(按 deptId 过滤自动含子部门)
+  - **0 schema 变更**:无新表 / 无新字段 / 无新菜单 / 无新权限码
+  - **sql 脚本**:`sql/migrations/phase8-report.sql`(占位,跑两遍幂等) + `sql/crm_full.sql` 末尾追加 info select
+  - **关键决策**:
+    - D-A:拆 2 口径(合同业绩 + 实际回款)
+    - D-B:chip tab 来回切换(沿用阶段五 4 Tab 风格)
+    - D-C:合同 `status IN (1,2)`(只算执行中 + 已结束)
+  - **不做**:Excel 导出 / 同比实算 / monthlyStacked 拆 series / cache/clear 限 admin / 自定义时间范围 / 报表 dataScope 分层
 
 ## V1 简化与阶段六 TODO
 
@@ -613,7 +616,7 @@ curl -X GET 'http://localhost:8080/api/crm/report/cache/clear' \
 - [ ] `filter/users` 改接 `sys_user` 表(V1 空)
 - [ ] Tab ② `regionDistribution` 真正按地区(V1 用 industry 替代)
 - [ ] Tab ② `activityTrend` 支持历史回溯(V1 单点快照)
-- [ ] Tab ③ `teamVsCompany` 真正分别算(V1 同值)
+- [ ] Tab ③ `teamVsCompany` 真正分别算(已废弃,2026-06-30 阶段八删除该组件)
 - [ ] Tab ④ `monthlyStacked` 拆 已回款/计划未回款 2 series
 - [ ] Tab ① KPI 同比对比期计算(V1 mock 字符串)
 - [ ] Excel/CSV 导出

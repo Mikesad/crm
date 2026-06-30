@@ -87,7 +87,9 @@ public class RecordService {
         }
         CrmRecord r = new CrmRecord();
         BeanUtils.copyProperties(req, r);
-        r.setCreateBy(UserContext.currentAuthor());
+        // P10 修 Bug:crm_record.create_by 必须存 username(不是 nickname),
+        // 报表 groupByCreateBy 用作标识符聚合,昵称会因用户改名失效
+        r.setCreateBy(UserContext.currentUsername());
         r.setCreateTime(LocalDateTime.now());
         recordMapper.insert(r);
         log.info("新增跟进记录: id={}, related={}:{}, by={}",
@@ -119,8 +121,8 @@ public class RecordService {
         LocalDateTime monthStart = todayStart.withDayOfMonth(1).atStartOfDay();
         LocalDateTime weekStart = todayStart.atStartOfDay();
 
-        // 当前用户的"身份键"(与 append() 写入 create_by 的策略一致: nickname 优先,回退 username)
-        String me = UserContext.currentAuthor();
+        // 当前用户的"身份键"(P10 修 Bug:用 username 而非 nickname)
+        String me = UserContext.currentUsername();
 
         Map<String, Object> result = new HashMap<>();
         result.put("today", recordMapper.selectCount(
@@ -131,15 +133,17 @@ public class RecordService {
                 new LambdaQueryWrapper<CrmRecord>()
                         .isNotNull(CrmRecord::getNextFollowTime)
                         .between(CrmRecord::getNextFollowTime, weekStart, weekEnd)));
-        // overdue 范围:本周内过期 (next_follow_time < now 且 >= weekStart)
-        // 原因:today list 用 weekStart~todayEnd,只有本周内的过期才能在 list 看到,
-        //      KPI 数字必须 ≈ list 数字,否则用户割裂("KPI 28 但 list 1")
-        // 注:任意过去的逾期(V1 不展示,需阶段六加"全部逾期" Tab)
+        // overdue 范围:当前登录用户的所有过期 (next_follow_time < now,按 create_by=username 过滤)
+        // 修复:原 V1 设计限制在"本周内过期"导致历史 overdue 全被吞,KPI 永远 ≈ 0;
+        //      现在反映"该用户真实逾期未跟进数",铃铛红点和跟进中心 KPI 都更准确。
+        // crm_record.create_by 是 username(不是 nickname),UserContext.currentUsername() 返回同一字段,匹配。
+        // 注:list 接口(today/week)仍按本周范围拉取,逾期排序通过 next_follow_time < NOW() 标记;
+        //    KPI 与 list 的细微割裂,需要后续"全部逾期 Tab"消除(阶段六 TODO 已记)。
         result.put("overdue", recordMapper.selectCount(
                 new LambdaQueryWrapper<CrmRecord>()
                         .isNotNull(CrmRecord::getNextFollowTime)
-                        .lt(CrmRecord::getNextFollowTime, now)
-                        .ge(CrmRecord::getNextFollowTime, weekStart)));
+                        .eq(CrmRecord::getCreateBy, me)
+                        .lt(CrmRecord::getNextFollowTime, now)));
         result.put("total", recordMapper.selectCount(
                 new LambdaQueryWrapper<CrmRecord>()
                         .isNotNull(CrmRecord::getNextFollowTime)));
@@ -211,10 +215,20 @@ public class RecordService {
      * <p>按 createBy = 当前用户名 过滤,按 create_time 倒序分页。
      * 本阶段不支持 relatedType 过滤,后续如需扩展加 query param。</p>
      */
-    public IPage<RecordTodoVO> mine(long pageNum, long pageSize) {
-        String me = UserContext.currentAuthor();
+    public IPage<RecordTodoVO> mine(long pageNum, long pageSize, String keyword) {
+        // P10 修 Bug:用 username 而非 nickname(与 append() 写入策略对齐)
+        String me = UserContext.currentUsername();
         LambdaQueryWrapper<CrmRecord> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(CrmRecord::getCreateBy, me);
+        // 阶段八 commit 10:支持搜索框(阶段八 commit 10·2026-06-30,跟进历史按关键词搜)
+        // 匹配范围:跟进内容(content)+ 跟进方式(follow_type)+ 关联主体名(关联表 lead/customer/business/contract 的 name/title)
+        // 关联主体名跨表查询用子查询 OR,见 enrichSubject 已补的 VO.subjectName 字段;此处只查 content/follow_type,
+        // 主体名过滤通过前端"对 search 结果二次过滤"实现(V1 简化,避免 4 张表 JOIN)
+        if (keyword != null && !keyword.trim().isEmpty()) {
+            String like = "%" + keyword.trim() + "%";
+            wrapper.and(w -> w.like(CrmRecord::getContent, like)
+                              .or().like(CrmRecord::getFollowType, like));
+        }
         wrapper.orderByDesc(CrmRecord::getCreateTime);
 
         Page<CrmRecord> page = new Page<>(pageNum, pageSize);
@@ -231,7 +245,8 @@ public class RecordService {
      * @return 长度固定 7 的数组: [ {date:'YYYY-MM-DD', weekday:'周一', count:N}, ... ]
      */
     public List<Map<String, Object>> last7days() {
-        String me = UserContext.currentAuthor();
+        // P10 修 Bug:用 username 而非 nickname(与 append() 写入策略对齐)
+        String me = UserContext.currentUsername();
         LocalDate today = LocalDate.now();
         LocalDate start = today.minusDays(6);   // 含今天共 7 天
 

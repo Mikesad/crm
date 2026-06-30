@@ -39,7 +39,7 @@ export const getCustomerDistribution = (params) => request.get('/crm/report/cust
 // ================== Tab ③ 跟进与转化率 ==================
 
 /**
- * Tab ③ 主接口:4 KPI + 5 阶段转化漏斗 + 跟进方式 + 高频榜 + 团队 vs 全公司 + 6 月趋势
+ * Tab ③ 主接口:4 KPI + 5 阶段转化漏斗 + 跟进方式 + 高频榜 + 6 月跟进频次趋势
  * @param {{range?: string, deptId?: number, userId?: number, topN?: number}} params
  */
 export const getConversion = (params) => request.get('/crm/report/conversion', { params })
@@ -50,16 +50,12 @@ export const getConversionFunnel = (params) => request.get('/crm/report/conversi
 // ================== Tab ④ 回款 / 财务 ==================
 
 /**
- * Tab ④ 主接口:4 KPI + 3 series 趋势 + 账龄 4 桶 + 回款方式 + 应收 TopN
+ * Tab ④ 主接口:4 KPI + 实际回款 vs 理应回款 按月对比(2 series)
  * @param {{range?: string, deptId?: number, userId?: number, topN?: number}} params
  */
 export const getFinance = (params) => request.get('/crm/report/finance', { params })
 
-/** 账龄分布(单独刷新用) */
-export const getFinanceAging = () => request.get('/crm/report/finance/aging')
-
-/** 应收 TopN(单独刷新用) */
-export const getFinancePerformer = (params) => request.get('/crm/report/finance/performer', { params })
+// financeAging / financePerformer 已废弃(2026-06-30 commit 3,Tab ④ 收敛为 4 KPI + 1 图)
 
 // ================== 通用:筛选下拉 ==================
 

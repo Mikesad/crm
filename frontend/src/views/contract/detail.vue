@@ -7,8 +7,39 @@
     </div>
 
     <template v-if="contract">
-      <!-- 详情头 -->
-      <div class="detail-header">
+      <!-- P14:详情头(根据 mode 切换 view/edit) -->
+      <div v-if="mode === 'edit'" class="detail-header edit-header">
+        <div class="edit-header-top">
+          <div class="edit-title">编辑合同</div>
+          <div class="edit-actions">
+            <el-button @click="cancelEdit">取消</el-button>
+            <el-button class="btn-zen-primary" :loading="saving" @click="saveEdit">保存</el-button>
+          </div>
+        </div>
+        <el-form :model="editForm" label-position="top">
+          <div class="form-grid-edit">
+            <el-form-item label="合同名称">
+              <el-input v-model="editForm.contractName" placeholder="如: 蓝海科技 200 席位旗舰版" />
+            </el-form-item>
+            <el-form-item label="开始日期">
+              <el-date-picker v-model="editForm.startDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+            </el-form-item>
+            <el-form-item label="结束日期">
+              <el-date-picker v-model="editForm.endDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+            </el-form-item>
+          </div>
+        </el-form>
+        <div class="edit-hint">
+          <svg class="cell-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="9"/>
+            <line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12" y2="16"/>
+          </svg>
+          <span>V1 仅支持修改合同名称和起止日期,商品明细与回款计划不可编辑</span>
+        </div>
+      </div>
+
+      <div v-else class="detail-header">
         <div class="header-grid">
           <!-- 合同名称(主) -->
           <div class="header-cell primary">
@@ -19,6 +50,13 @@
               <span v-else-if="contract.status === 1" class="zen-status blue">执行中</span>
               <span v-else-if="contract.status === 2" class="zen-status ok">已结束</span>
               <span v-else class="zen-status gray">已作废</span>
+              <!-- P14:编辑按钮(view 模式) -->
+              <el-button
+                v-if="canEdit"
+                link
+                class="action-link edit-link"
+                @click="enterEdit"
+              >编辑</el-button>
             </div>
             <div class="mono text-muted cell-sub">{{ contract.contractNum }}</div>
           </div>
@@ -253,10 +291,10 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import dayjs from 'dayjs'
-import { getContract } from '@/api/contract'
+import { getContract, updateContract } from '@/api/contract'
 import { listReceivablePlan, createReceivablePlanBatch } from '@/api/receivable-plan'
 import { pageReceivable } from '@/api/receivable'
 import { useAuth } from '@/composables/useAuth'
@@ -264,7 +302,50 @@ import { useAuth } from '@/composables/useAuth'
 defineOptions({ name: 'ContractDetail' })
 
 const route = useRoute()
+const router = useRouter()
 const { hasPerm, isSales, isFinance } = useAuth()
+
+/* P14:编辑模式(view ↔ edit),从 ?edit=1 query 进入编辑 */
+const mode = ref('view')
+const editForm = reactive({ id: null, contractName: '', startDate: '', endDate: '' })
+const saving = ref(false)
+const canEdit = computed(() =>
+  hasPerm('crm:contract:edit') &&
+  contract.value && contract.value.status !== 2 && contract.value.status !== 3
+)
+
+function enterEdit() {
+  editForm.id = contract.value.id
+  editForm.contractName = contract.value.contractName
+  editForm.startDate = contract.value.startDate || ''
+  editForm.endDate = contract.value.endDate || ''
+  mode.value = 'edit'
+}
+function cancelEdit() {
+  mode.value = 'view'
+}
+async function saveEdit() {
+  if (!editForm.contractName || !editForm.contractName.trim()) {
+    ElMessage.warning('请填写合同名称')
+    return
+  }
+  saving.value = true
+  try {
+    await updateContract({
+      id: editForm.id,
+      contractName: editForm.contractName.trim(),
+      startDate: editForm.startDate || null,
+      endDate: editForm.endDate || null
+    })
+    ElMessage.success('合同已更新')
+    mode.value = 'view'
+    await loadDetail()
+  } catch (e) {
+    ElMessage.error(e?.message || '更新失败')
+  } finally {
+    saving.value = false
+  }
+}
 
 const contract = ref(null)
 const plans = ref([])
@@ -298,7 +379,7 @@ function planClass(p) {
 
 // ---- 新增回款计划 ----
 const addPlanVisible = ref(false)
-const saving = ref(false)
+// saving 与 P14 编辑模式共用(顶部已声明 const saving = ref(false))
 const newPlan = reactive({ period: 1, expectedAmount: 0, expectedDate: '', remark: '' })
 function openAddPlan() {
   newPlan.period = plans.value.length + 1
@@ -361,7 +442,18 @@ async function confirmAddRecv() {
   } finally { saving.value = false }
 }
 
-onMounted(loadDetail)
+onMounted(() => {
+  // P14:从 ?edit=1 进入自动进入编辑模式
+  if (route.query.edit === '1' && hasPerm('crm:contract:edit')) {
+    mode.value = 'edit-pending'   // 等 contract 加载完再正式进入 edit
+  }
+  loadDetail()
+})
+watch(() => contract.value, (c) => {
+  if (mode.value === 'edit-pending' && c) {
+    enterEdit()
+  }
+})
 </script>
 
 <style lang="scss" scoped>
@@ -493,6 +585,38 @@ onMounted(loadDetail)
 .recv-amount-value {
   font-size: 18px; font-weight: 600; color: var(--accent);
   font-family: var(--font-mono); font-feature-settings: 'tnum' 1;
+}
+
+/* P14:编辑模式 header */
+.edit-header {
+  padding: 20px 24px;
+}
+.edit-header-top {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px;
+}
+.edit-title {
+  font-size: 16px; font-weight: 600; color: var(--ink);
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.edit-actions { display: flex; gap: 8px; }
+.form-grid-edit {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 0 24px;
+  align-items: start;
+}
+.form-grid-edit .el-form-item { margin-bottom: 12px; }
+.form-grid-edit :deep(.el-form-item__label) { font-weight: normal; padding-bottom: 4px; }
+.edit-hint {
+  margin-top: 6px;
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11.5px; color: var(--muted);
+}
+.edit-hint .cell-icon { color: var(--subtle); flex-shrink: 0; }
+
+.action-link.edit-link {
+  font-size: 12.5px; padding: 0 6px; margin-left: 4px;
 }
 
 /* status badges */

@@ -92,7 +92,9 @@ public class BusinessService {
         }
         IPage<CrmBusiness> result = businessMapper.selectPage(page, wrapper);
         // 批量查 customerName + ownerName(避免 N+1)
-        java.util.Map<Long, String> nameMap = buildNameMap(result.getRecords());
+        // ⚠ 2026-06-29 修 bug:与 ContractService 同款,原 Map<Long,String> 单 namespace 会撞 id,
+        // 改为 NameMap 双 Map(详见 ContractService 注释)。
+        NameMap nameMap = buildNameMap(result.getRecords());
         return result.convert(b -> toVO(b, nameMap));
     }
 
@@ -101,32 +103,41 @@ public class BusinessService {
         if (b == null) {
             throw new BusinessException(ResultCode.DATA_NOT_FOUND, "商机不存在");
         }
-        java.util.Map<Long, String> nameMap = buildNameMap(java.util.List.of(b));
+        NameMap nameMap = buildNameMap(java.util.List.of(b));
         return toVO(b, nameMap);
     }
 
     /**
-     * 批量查 customerName + ownerName(避免每行单独查询,N+1)
-     * <p>用 [cust]/[owner] 前缀区分,避免 customer_id 和 owner_user_id 撞 id</p>
+     * 批量查 customerName + ownerName,组成两个独立 Map(避免 N+1 + namespace 撞车)
+     * <p>2026-06-29 改造:从 {@code Map<Long,String>} 单 namespace 拆成
+     * {@link NameMap} 双 Map,消除 customer.id == owner_user_id 时的覆盖 bug(同 ContractService)。</p>
      */
-    private java.util.Map<Long, String> buildNameMap(List<CrmBusiness> businesses) {
-        java.util.Map<Long, String> nameMap = new java.util.HashMap<>();
-        if (businesses == null || businesses.isEmpty()) return nameMap;
+    private NameMap buildNameMap(List<CrmBusiness> businesses) {
+        NameMap nm = new NameMap();
+        if (businesses == null || businesses.isEmpty()) return nm;
         java.util.Set<Long> customerIds = businesses.stream()
                 .map(CrmBusiness::getCustomerId).filter(java.util.Objects::nonNull)
                 .collect(Collectors.toSet());
         if (!customerIds.isEmpty()) {
             customerMapper.selectBatchIds(customerIds).forEach(c ->
-                    nameMap.put(c.getId(), "[cust]" + c.getCustomerName()));
+                    nm.customerNames.put(c.getId(), c.getCustomerName()));
         }
         java.util.Set<Long> ownerIds = businesses.stream()
                 .map(CrmBusiness::getOwnerUserId).filter(java.util.Objects::nonNull)
                 .collect(Collectors.toSet());
         if (!ownerIds.isEmpty()) {
             userMapper.selectBatchIds(ownerIds).forEach(u ->
-                    nameMap.put(u.getId(), "[owner]" + u.getNickname()));
+                    nm.ownerNames.put(u.getId(), u.getNickname()));
         }
-        return nameMap;
+        return nm;
+    }
+
+    /**
+     * 名称映射(客户名 + 业主名分开两个 Map,避免 Long id 撞车)
+     */
+    private static class NameMap {
+        final java.util.Map<Long, String> customerNames = new java.util.HashMap<>();
+        final java.util.Map<Long, String> ownerNames = new java.util.HashMap<>();
     }
 
     @Transactional
@@ -225,7 +236,8 @@ public class BusinessService {
                 + "」推进到「" + targetStage + "」" +
                 (StringUtils.hasText(req.getFollowContent()) ? "\n跟进内容：" + req.getFollowContent() : ""));
         record.setFollowType("系统");
-        record.setCreateBy(UserContext.currentAuthor());
+        // P10 修 Bug:用 username 而非 nickname(报表 groupByCreateBy 聚合需要稳定标识符)
+        record.setCreateBy(UserContext.currentUsername());
         record.setCreateTime(LocalDateTime.now());
         recordMapper.insert(record);
 
@@ -233,17 +245,15 @@ public class BusinessService {
                 b.getId(), currentStage, targetStage, UserContext.currentUsername());
     }
 
-    private BusinessVO toVO(CrmBusiness b, java.util.Map<Long, String> nameMap) {
+    private BusinessVO toVO(CrmBusiness b, NameMap nameMap) {
         BusinessVO vo = new BusinessVO();
         BeanUtils.copyProperties(b, vo);
         if (nameMap != null) {
             if (b.getCustomerId() != null) {
-                String n = nameMap.get(b.getCustomerId());
-                if (n != null && n.startsWith("[cust]")) vo.setCustomerName(n.substring(6));
+                vo.setCustomerName(nameMap.customerNames.get(b.getCustomerId()));
             }
             if (b.getOwnerUserId() != null) {
-                String n = nameMap.get(b.getOwnerUserId());
-                if (n != null && n.startsWith("[owner]")) vo.setOwnerName(n.substring(7));
+                vo.setOwnerName(nameMap.ownerNames.get(b.getOwnerUserId()));
             }
         }
         return vo;

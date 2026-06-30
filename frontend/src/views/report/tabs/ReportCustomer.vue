@@ -9,10 +9,11 @@
         <ChartBar
           :data="(data.distribution || []).map(d => ({ name: d.key, value: d.count }))"
           unit=""
+          format="raw"
           :height="280"
         />
       </ChartCard>
-      <ChartCard title="活跃度" meta="活跃 / 沉睡 / 公海 / 总数">
+      <ChartCard title="活跃度" meta="活跃 / 公海 / 总数 · 支持时间和部门维度">
         <div class="activity-block">
           <div class="activity-row" v-for="r in activityRows" :key="r.label">
             <span class="dot" :class="r.cls"></span>
@@ -60,10 +61,10 @@ const dimLabel = computed(() => {
 
 const activityRows = computed(() => {
   const a = props.data.activity || {}
+  // 阶段八 commit 8:只展示 总数 / 活跃 / 公海 三维
   return [
-    { label: '总数',   value: a.total || 0,  percent: '',        cls: 'total' },
+    { label: '总数',   value: a.total || 0,  percent: '',                  cls: 'total' },
     { label: '活跃',   value: a.active || 0, percent: a.activePercent || '', cls: 'active' },
-    { label: '沉睡',   value: a.dormant || 0, percent: a.dormantPercent || '', cls: 'dormant' },
     { label: '公海',   value: a.publicPool || 0, percent: a.publicPercent || '', cls: 'public' }
   ]
 })
@@ -91,7 +92,6 @@ const activityRows = computed(() => {
     background: var(--muted);
   }
   .dot.active   { background: var(--accent); }
-  .dot.dormant  { background: var(--warn); }
   .dot.public   { background: var(--info); }
   .dot.total    { background: var(--ink); }
 

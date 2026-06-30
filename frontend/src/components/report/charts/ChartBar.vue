@@ -10,12 +10,15 @@ import * as echarts from 'echarts'
  * 纵向柱状图(部门业绩 / 行业分布等)
  *
  * <p>data: [{ name, value, color? }] — color 可选,缺省用森林绿阶</p>
+ * <p>P16 新增 format prop:'k'(默认, 除 1000 + K, 适合金额)/ 'raw'(原值显示, 适合 count)</p>
  */
 const props = defineProps({
   data: { type: Array, required: true },
   height: { type: Number, default: 240 },
-  /** y 轴单位(用于 formatter) */
+  /** y 轴单位(用于 formatter);仅 format='k' 时生效 */
   unit: { type: String, default: '¥' },
+  /** 数据展示格式:'k' = 除 1000 + 'K'  |  'raw' = 原值显示(P16) */
+  format: { type: String, default: 'k' },
   /** 是否按 value 降序排列 */
   sortDesc: { type: Boolean, default: true }
 })
@@ -41,6 +44,17 @@ const COLORS = [
 const AXIS_LABEL = { color: 'var(--muted)', fontSize: 10.5, fontFamily: 'Inter' }
 const SPLIT_LINE = { lineStyle: { color: 'var(--hairline)', type: 'dashed' } }
 
+/**
+ * y 轴 / tooltip / 顶部数字 通用格式化(P16)
+ * <p>'k' 模式: 除以 1000 + 'K'(默认,适合金额)</p>
+ * <p>'raw' 模式: 原值显示(适合 count / 数量)</p>
+ */
+function fmtVal(v) {
+  const n = Number(v)
+  if (props.format === 'raw') return props.unit + n.toLocaleString('en-US')
+  return props.unit + (n / 1000) + 'K'
+}
+
 function render() {
   if (!chartRef.value) return
   if (!chart) chart = echarts.init(chartRef.value)
@@ -49,7 +63,7 @@ function render() {
     : props.data
   chart.setOption({
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-    grid: { left: 8, right: 8, top: 12, bottom: 8, containLabel: true },
+    grid: { left: 8, right: 8, top: 32, bottom: 8, containLabel: true },
     xAxis: {
       type: 'category',
       data: sorted.map(d => d.name),
@@ -60,7 +74,7 @@ function render() {
     yAxis: {
       type: 'value',
       axisLine: { show: false }, axisTick: { show: false },
-      axisLabel: { ...AXIS_LABEL, formatter: v => props.unit + (v / 1000) + 'K' },
+      axisLabel: { ...AXIS_LABEL, formatter: v => fmtVal(v) },
       splitLine: SPLIT_LINE
     },
     series: [{
@@ -72,7 +86,7 @@ function render() {
       })),
       label: {
         show: true, position: 'top', color: 'var(--ink)', fontSize: 10.5, fontWeight: 500,
-        formatter: p => props.unit + (p.value / 1000) + 'K'
+        formatter: p => fmtVal(p.value)
       }
     }]
   }, true)

@@ -3,48 +3,33 @@
     <!-- 4 KPI 密集条 -->
     <KpiStrip :kpis="data.kpis || []" />
 
-    <!-- 2x2 图表:回款趋势 / 月度堆叠 / 账龄 / 应收 TopN -->
-    <ChartGrid2x2>
-      <ChartCard title="回款趋势" meta="合同 / 已回款 / 预测(3 series)">
-        <ChartTrend
-          :data="data.trend || []"
-          :series="trendSeries"
-          unit="¥"
-          :height="280"
-        />
-      </ChartCard>
-      <ChartCard title="月度回款堆叠" meta="已回款 / 计划未回款">
-        <ChartStacked
-          :categories="stackedCategories"
-          :series="stackedSeries"
-          :height="280"
-        />
-      </ChartCard>
-      <ChartCard title="账龄分布" meta="0-30 / 31-60 / 61-90 / 90+ 天">
-        <ChartBarH
-          :data="(data.agingBuckets || []).map(b => ({
-            name: b.label,
-            value: b.count
-          }))"
-          :height="240"
-        />
-      </ChartCard>
-      <ReportDataTable
-        title="应收 Top N 客户"
-        meta="按未回款金额"
-        :columns="[
-          { key: 'rank',   title: '排名' },
-          { key: 'name',   title: '客户' },
-          { key: 'count',  title: '合同数', align: 'right' },
-          { key: 'amount', title: '未回款金额', align: 'right' }
-        ]"
-        :rows="data.topDebtors || []"
-      >
-        <template #cell-amount="{ row }">
-          <span class="mono">¥ {{ formatAmount(row.amount) }}</span>
-        </template>
-      </ReportDataTable>
-    </ChartGrid2x2>
+    <!-- 1 卡:实际回款 vs 理应回款 饼图 + 完成率 -->
+    <ChartCard title="实际回款 vs 理应回款" :meta="`完成率 ${data.receivableCompare?.completionRate || '0%'}`">
+      <div class="donut-wrap">
+        <ChartDonut :data="donutData" :height="260" :show-legend="false" />
+        <div class="donut-center">
+          <div class="donut-rate">{{ data.receivableCompare?.completionRate || '0%' }}</div>
+          <div class="donut-rate-sub">完成率</div>
+        </div>
+      </div>
+      <div class="donut-legend">
+        <div class="legend-item">
+          <span class="dot dot-actual"></span>
+          <span class="legend-label">实际回款</span>
+          <span class="legend-val">¥ {{ formatAmount(data.receivableCompare?.actualAmount) }}</span>
+        </div>
+        <div class="legend-item">
+          <span class="dot dot-gap"></span>
+          <span class="legend-label">应回未回</span>
+          <span class="legend-val">¥ {{ formatAmount(data.receivableCompare?.gapAmount) }}</span>
+        </div>
+        <div class="legend-item">
+          <span class="dot dot-planned"></span>
+          <span class="legend-label">理应回款</span>
+          <span class="legend-val">¥ {{ formatAmount(data.receivableCompare?.plannedAmount) }}</span>
+        </div>
+      </div>
+    </ChartCard>
   </div>
 </template>
 
@@ -52,55 +37,103 @@
 import { computed } from 'vue'
 import KpiStrip from '@/components/report/KpiStrip.vue'
 import ChartCard from '@/components/report/ChartCard.vue'
-import ChartGrid2x2 from '@/components/report/ChartGrid2x2.vue'
-import ReportDataTable from '@/components/report/ReportDataTable.vue'
-import ChartTrend from '@/components/report/charts/ChartTrend.vue'
-import ChartStacked from '@/components/report/charts/ChartStacked.vue'
-import ChartBarH from '@/components/report/charts/ChartBarH.vue'
+import ChartDonut from '@/components/report/charts/ChartDonut.vue'
 
 const props = defineProps({
   data: { type: Object, required: true }
 })
 
-const TREND_COLORS = { contract: '#166534', received: '#4ade80', predicted: '#bbf7d0' }
-const TREND_NAMES  = { contract: '合同', received: '已回款', predicted: '预测' }
+/** 饼图两块:实际回款(深绿) + 应回未回(琥珀);理应回款仅展示在底部 legend */
+const COLOR_ACTUAL  = '#166534' // 森林绿
+const COLOR_GAP     = '#d97706' // 琥珀
 
-const trendSeries = computed(() => {
-  const keys = [...new Set((props.data.trend || []).map(d => d.seriesKey).filter(Boolean))]
-  if (keys.length === 0) keys.push('contract')
-  return keys.map(k => ({
-    key: k,
-    name: TREND_NAMES[k] || k,
-    color: TREND_COLORS[k] || '#166534'
-  }))
-})
-
-const stackedCategories = computed(() => {
-  const months = [...new Set((props.data.trend || []).map(d => d.date))]
-  return months
-})
-
-const stackedSeries = computed(() => {
-  const months = stackedCategories.value
-  const seriesMap = {}
-  for (const d of props.data.trend || []) {
-    if (!seriesMap[d.seriesKey]) seriesMap[d.seriesKey] = new Array(months.length).fill(0)
-    const idx = months.indexOf(d.date)
-    if (idx >= 0) seriesMap[d.seriesKey][idx] = Number(d.value) || 0
+const donutData = computed(() => {
+  const c = props.data.receivableCompare || {}
+  const actual = Number(c.actualAmount || 0)
+  const gap = Math.max(0, Number(c.gapAmount || 0))
+  // 任一为 0 时仍渲染(避免空饼图)
+  if (actual === 0 && gap === 0) {
+    return [{ name: '暂无数据', value: 1, color: '#e5e7eb' }]
   }
-  return Object.entries(seriesMap).map(([k, data]) => ({
-    name: TREND_NAMES[k] || k,
-    data,
-    color: TREND_COLORS[k] || '#166534'
-  }))
+  return [
+    { name: '实际回款', value: actual, color: COLOR_ACTUAL },
+    { name: '应回未回', value: gap,    color: COLOR_GAP }
+  ].filter(d => d.value > 0)
 })
 
+/** 金额格式化:1200000 → "1,200,000" */
 function formatAmount(v) {
-  if (!v) return '0'
-  return Number(v).toLocaleString('en-US')
+  const n = Number(v || 0)
+  return n.toLocaleString('en-US')
 }
 </script>
 
 <style lang="scss" scoped>
 .tab-content { width: 100%; }
+
+/* 饼图 + 中心完成率叠加 */
+.donut-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.donut-center {
+  position: absolute;
+  top: 36%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  pointer-events: none;
+  transform: translateY(-50%);
+
+  .donut-rate {
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--ink);
+    font-family: var(--font-mono);
+    line-height: 1.2;
+  }
+  .donut-rate-sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+    letter-spacing: 0.04em;
+  }
+}
+
+/* 底部 3 行 legend(实际 / 应回未回 / 理应) */
+.donut-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline-soft);
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .dot-actual  { background: #166534; }
+  .dot-gap     { background: #d97706; }
+  .dot-planned { background: #6b7280; }
+  .legend-label {
+    color: var(--ink-soft);
+    flex: 1;
+  }
+  .legend-val {
+    color: var(--ink);
+    font-weight: 500;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}
 </style>

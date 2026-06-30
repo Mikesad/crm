@@ -52,6 +52,22 @@
     </div>
 
     <!-- 实体类型过滤栏(阶段五 v3:仅在 time-scope tab 下显示) -->
+    <div v-if="activeTab === 'mine'" class="filter-bar search-bar">
+      <el-input
+        v-model="keyword"
+        placeholder="搜索跟进内容 / 跟进方式(如「电话」「邮件」「报价」)"
+        class="search-input"
+        clearable
+        @keyup.enter="onSearch"
+        @clear="onSearch"
+      >
+        <template #prefix><el-icon><Search /></el-icon></template>
+      </el-input>
+      <el-button type="primary" class="btn-zen-primary" :icon="Search" @click="onSearch">搜索</el-button>
+      <span v-if="keyword" class="filter-clear" @click="onClearSearch">↻ 清空</span>
+      <div class="search-hint">{{ keyword ? `「${keyword}」匹配结果` : '按 Enter 搜索' }}</div>
+    </div>
+
     <div v-if="activeTab !== 'mine'" class="filter-bar">
       <span
         class="filter-chip"
@@ -238,7 +254,7 @@ import dayjs from 'dayjs'
 import { todoCount, todoList, myRecords, last7Days as fetchLast7Days } from '@/api/record'
 import { useTodoStore } from '@/store/todo'
 import AddRecordDialog from '@/components/AddRecordDialog.vue'
-import { Aim, User, TrendCharts, Document } from '@element-plus/icons-vue'
+import { Aim, User, TrendCharts, Document, Search } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const todoStore = useTodoStore()
@@ -250,6 +266,8 @@ const counts = reactive({
 })
 const rows = ref([])
 const mineTotal = ref(0)
+/** 阶段八 commit 10:跟进历史搜索关键词 */
+const keyword = ref('')
 const loading = ref(false)
 const quickCreateVisible = ref(false)
 const pageNum = ref(1)
@@ -384,7 +402,12 @@ const loadData = async () => {
   loading.value = true
   try {
     if (activeTab.value === 'mine') {
-      const { data } = await myRecords({ pageNum: pageNum.value, pageSize: pageSize.value })
+      const kw = keyword.value?.trim() || ''
+      const { data } = await myRecords({
+        pageNum: pageNum.value,
+        pageSize: pageSize.value,
+        keyword: kw || undefined
+      })
       rows.value = data.records || []
       mineTotal.value = data.total || 0
     } else {
@@ -407,6 +430,17 @@ const onSaved = async () => {
 const onKeepAdding = async () => {
   await refreshCounts()
   // 不重新 load,让用户继续在同一主体上写
+}
+
+/** 阶段八 commit 10:跟进历史搜索(关键词命中后回到第 1 页) */
+const onSearch = async () => {
+  pageNum.value = 1
+  await loadData()
+}
+const onClearSearch = async () => {
+  keyword.value = ''
+  pageNum.value = 1
+  await loadData()
 }
 
 const goDetail = (row, withRecord) => {
@@ -813,6 +847,23 @@ const sparkBars = computed(() => {
 .card-actions { display: flex; gap: 6px; }
 
 /* 实体类型过滤栏 */
+.search-bar { display: flex; align-items: center; gap: 10px; }
+
+.search-input { flex: 1; max-width: 460px; }
+
+.search-input :deep(.el-input__wrapper) {
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 2px 12px;
+}
+
+.search-hint {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
 .filter-bar {
   display: flex;
   align-items: center;

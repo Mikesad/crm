@@ -30,7 +30,8 @@ export const todoList = (params) => request.get('/crm/record/todo/list', { param
 
 /**
  * 我的历史(跟进中心"我的历史" Tab)
- * @param {{pageNum: number, pageSize: number}} params
+ * @param {{pageNum: number, pageSize: number, keyword?: string}} params
+ *   keyword:可选,匹配跟进内容(content)或跟进方式(follow_type)
  */
 export const myRecords = (params) => request.get('/crm/record/mine', { params })
 

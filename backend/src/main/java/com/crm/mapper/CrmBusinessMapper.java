@@ -6,6 +6,8 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.crm.entity.CrmBusiness;
 import com.crm.util.ReportUtils;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -100,5 +102,57 @@ public interface CrmBusinessMapper extends BaseMapper<CrmBusiness> {
     @InterceptorIgnore(dataPermission = "true")
     default Long winCountByRange(LocalDateTime start, LocalDateTime end, Collection<Long> ownerIds) {
         return countByStage(STAGE_WIN, start, end, ownerIds);
+    }
+
+    /**
+     * 期内新增商机总数(阶段八 commit 6·2026-06-30,Tab ③"商机转换率"分子)
+     * <p>JOIN sys_user 按 {@code crm_business.create_by → sys_user.dept_id} 链路过滤部门;
+     * 与 {@link #countAllByRange} 的 owner_user_id 维度不同 — 此处取"创建人部门"
+     * 以与 {@link CrmCustomerMapper#countNewCustomersByDeptIds} 的口径保持一致。</p>
+     *
+     * <p>典型 SQL:
+     * <pre>
+     * SELECT COUNT(*) FROM crm_business b
+     *   JOIN sys_user u ON u.username = b.create_by
+     *  WHERE b.create_time BETWEEN #{start} AND #{end}
+     *    AND b.is_deleted = 0
+     *    AND u.status = 1 AND u.is_deleted = 0
+     *    AND u.dept_id IN (...deptIds...)
+     * </pre>
+     * </p>
+     */
+    @Select("""
+            <script>
+            SELECT COUNT(*)
+              FROM crm_business b
+              JOIN sys_user u ON u.username = b.create_by
+             WHERE b.create_time BETWEEN #{start} AND #{end}
+               AND b.is_deleted = 0
+               AND u.status    = 1
+               AND u.is_deleted = 0
+               AND u.dept_id IN
+               <foreach collection="deptIds" item="id" open="(" separator="," close=")">
+                 #{id}
+               </foreach>
+            </script>
+            """)
+    @InterceptorIgnore(dataPermission = "true")
+    Long countAllByRangeByCreateByDeptIdsRaw(@Param("start") LocalDateTime start,
+                                              @Param("end") LocalDateTime end,
+                                              @Param("deptIds") Collection<Long> deptIds);
+
+    /**
+     * 包装方法:deptIds 为 null/空 时走全公司口径(走基类 countByTimeRange 路径),
+     * 否则走 create_by → dept_id JOIN 链路。
+     */
+    default Long countAllByRangeByCreateByDeptIds(LocalDateTime start, LocalDateTime end, Collection<Long> deptIds) {
+        if (deptIds == null || deptIds.isEmpty()) {
+            QueryWrapper<CrmBusiness> w = new QueryWrapper<>();
+            w.ge("create_time", start);
+            w.le("create_time", end);
+            w.eq("is_deleted", 0);
+            return ReportUtils.toLong(selectCount(w));
+        }
+        return countAllByRangeByCreateByDeptIdsRaw(start, end, deptIds);
     }
 }

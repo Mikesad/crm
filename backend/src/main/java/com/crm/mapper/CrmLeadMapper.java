@@ -6,6 +6,8 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.crm.entity.CrmLead;
 import com.crm.util.ReportUtils;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -88,5 +90,38 @@ public interface CrmLeadMapper extends BaseMapper<CrmLead> {
         w.le("create_time", end);
         if (ownerIds != null) w.in("owner_user_id", ownerIds);
         return ReportUtils.toLong(selectCount(w));
+    }
+
+    /**
+     * 期内新增线索数(阶段八 commit 5·2026-06-30,Tab ③"客户转换率"分母)
+     * <p>按 {@code crm_lead.create_by → sys_user.username → sys_user.dept_id} 链路过滤部门;
+     * 与 {@link #countAllByRange} 的 owner_user_id 维度不同 — 此处取"创建人部门"以与
+     * {@link CrmCustomerMapper#countNewCustomersByDeptIds} 的口径保持一致。</p>
+     */
+    @Select("""
+            <script>
+            SELECT COUNT(*)
+              FROM crm_lead l
+              JOIN sys_user u ON u.username = l.create_by
+             WHERE l.create_time BETWEEN #{start} AND #{end}
+               AND u.status    = 1
+               AND u.is_deleted = 0
+               AND u.dept_id IN
+               <foreach collection="deptIds" item="id" open="(" separator="," close=")">
+                 #{id}
+               </foreach>
+            </script>
+            """)
+    @InterceptorIgnore(dataPermission = "true")
+    Long countAllByRangeByDeptIdsRaw(@Param("start") LocalDateTime start,
+                                     @Param("end") LocalDateTime end,
+                                     @Param("deptIds") Collection<Long> deptIds);
+
+    /**
+     * 包装方法:deptIds 为空时返回 0
+     */
+    default Long countAllByRangeByDeptIds(LocalDateTime start, LocalDateTime end, Collection<Long> deptIds) {
+        if (deptIds == null || deptIds.isEmpty()) return 0L;
+        return countAllByRangeByDeptIdsRaw(start, end, deptIds);
     }
 }

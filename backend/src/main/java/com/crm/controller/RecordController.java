@@ -71,8 +71,9 @@ public class RecordController {
     @GetMapping("/mine")
     public Result<IPage<RecordTodoVO>> mine(
             @RequestParam(defaultValue = "1") long pageNum,
-            @RequestParam(defaultValue = "20") long pageSize) {
-        return Result.success(recordService.mine(pageNum, pageSize));
+            @RequestParam(defaultValue = "20") long pageSize,
+            @RequestParam(required = false) String keyword) {
+        return Result.success(recordService.mine(pageNum, pageSize, keyword));
     }
 
     @Operation(summary = "近 7 日跟进频次(跟进中心 sparkline)",

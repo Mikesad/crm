@@ -10,25 +10,8 @@
       </div>
     </div>
 
-    <!-- 统计卡 -->
-    <div class="summary">
-      <div class="item">
-        <div class="label">本月回款笔数</div>
-        <div class="value">{{ monthCount }}</div>
-      </div>
-      <div class="item highlight">
-        <div class="label">本月合计</div>
-        <div class="value">¥ {{ monthTotal.toLocaleString() }}</div>
-      </div>
-      <div class="item">
-        <div class="label">全部回款笔数</div>
-        <div class="value">{{ list.length }}</div>
-      </div>
-      <div class="item">
-        <div class="label">全部回款合计</div>
-        <div class="value">¥ {{ allTotal.toLocaleString() }}</div>
-      </div>
-    </div>
+    <!-- 阶段八 commit 11·2026-06-30:移除统计卡(本月回款笔数 / 本月合计 / 全部回款笔数 / 全部回款合计),
+         统计口径在报表中心 Tab ④ 已覆盖,这里不再重复展示 -->
 
     <!-- 逾期计划提醒 -->
     <div v-if="overduePlans.length" class="warn-banner">
@@ -168,16 +151,7 @@ const activeContracts = ref([])  // status=1
 const overduePlans = ref([])
 const formatTime = (t) => t ? dayjs(t).format('YYYY-MM-DD HH:mm') : '-'
 
-const monthCount = computed(() => {
-  const m = dayjs().format('YYYY-MM')
-  return list.value.filter(r => r.returnDate && dayjs(r.returnDate).format('YYYY-MM') === m).length
-})
-const monthTotal = computed(() => {
-  const m = dayjs().format('YYYY-MM')
-  return list.value.filter(r => r.returnDate && dayjs(r.returnDate).format('YYYY-MM') === m)
-    .reduce((s, r) => s + Number(r.actualAmount || 0), 0)
-})
-const allTotal = computed(() => list.value.reduce((s, r) => s + Number(r.actualAmount || 0), 0))
+// 阶段八 commit 11:移除 monthCount / monthTotal / allTotal 三个 computed(统计口径改走报表中心 Tab ④)
 
 async function loadList() {
   loading.value = true
@@ -306,15 +280,7 @@ onMounted(async () => {
 .page-title { font-size: 24px; font-weight: 600; letter-spacing: -0.015em; color: var(--ink); }
 .page-sub { margin-top: 4px; font-size: 13.5px; color: var(--muted); }
 
-.summary {
-  background: #fff; border-radius: var(--radius);
-  border: 1px solid var(--hairline);
-  padding: 16px 20px; margin-bottom: 16px;
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
-}
-.summary .item .label { font-size: 12px; color: var(--subtle); margin-bottom: 6px; }
-.summary .item .value { font-size: 20px; font-weight: 600; font-family: var(--font-mono); font-feature-settings: 'tnum' 1; }
-.summary .item.highlight .value { color: var(--accent); }
+/* 阶段八 commit 11:.summary / .item CSS 已随模板移除 */
 
 .warn-banner {
   background: #fffbeb; border: 1px solid #fcd34d; border-radius: var(--radius);

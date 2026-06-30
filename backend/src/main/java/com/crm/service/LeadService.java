@@ -254,7 +254,8 @@ public class LeadService {
         record.setRelatedId(lead.getId());
         record.setContent("线索已转化为客户「" + customer.getCustomerName() + "」");
         record.setFollowType("系统");
-        record.setCreateBy(UserContext.currentAuthor());
+        // P10 修 Bug:用 username 而非 nickname(报表 groupByCreateBy 聚合需要稳定标识符)
+        record.setCreateBy(UserContext.currentUsername());
         record.setCreateTime(LocalDateTime.now());
         recordMapper.insert(record);
 
@@ -309,7 +310,8 @@ public class LeadService {
                 ? "，原因：" + req.getDeadReason() : "";
         record.setContent("线索已标记为死线索" + reasonSuffix);
         record.setFollowType("系统");
-        record.setCreateBy(UserContext.currentAuthor());
+        // P10 修 Bug:用 username 而非 nickname(报表 groupByCreateBy 聚合需要稳定标识符)
+        record.setCreateBy(UserContext.currentUsername());
         record.setCreateTime(LocalDateTime.now());
         recordMapper.insert(record);
 

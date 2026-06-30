@@ -53,9 +53,21 @@
             <span class="text-muted">{{ formatTime(row.createTime) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="100" align="center" fixed="right">
+        <el-table-column label="操作" width="160" align="center" fixed="right">
           <template #default="{ row }">
             <el-button link class="action-link" @click="goDetail(row)">详情</el-button>
+            <el-tooltip
+              :content="editDisabledReason(row)"
+              placement="top"
+              :disabled="canEdit(row)"
+            >
+              <el-button
+                link
+                class="action-link"
+                :disabled="!canEdit(row)"
+                @click="goEdit(row)"
+              >编辑</el-button>
+            </el-tooltip>
           </template>
         </el-table-column>
       </el-table>
@@ -120,6 +132,26 @@ function handleSearch() { query.pageNum = 1; loadList() }
 function handleReset() { query.keyword = ''; query.status = null; query.pageNum = 1; loadList() }
 function goSubmit() { router.push('/contract/submit') }
 function goDetail(row) { router.push(`/contract/${row.id}`) }
+
+/**
+ * P14 + P17:合同编辑入口
+ * <p>P17 修订:编辑按钮始终显示,不可编辑时用 :disabled 灰化并显示 tooltip 原因。</p>
+ */
+function canEdit(row) {
+  if (!hasPerm('crm:contract:edit')) return false
+  if (row.status === 2 || row.status === 3) return false
+  return true
+}
+function editDisabledReason(row) {
+  if (!hasPerm('crm:contract:edit')) return '无合同编辑权限'
+  if (row.status === 2) return '已结束的合同不可编辑'
+  if (row.status === 3) return '已作废的合同不可编辑'
+  return ''
+}
+function goEdit(row) {
+  if (!canEdit(row)) return
+  router.push(`/contract/${row.id}?edit=1`)
+}
 
 onMounted(loadList)
 </script>

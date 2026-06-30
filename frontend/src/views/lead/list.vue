@@ -68,17 +68,28 @@
                 <span class="mono">{{ formatDate(row.createTime) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="200" fixed="right">
+            <el-table-column label="操作" width="220" fixed="right">
               <template #default="{ row }">
                 <el-button link class="action-link" @click.stop="goDetail(row)">详情</el-button>
                 <el-button link class="action-link" @click.stop="handleEdit(row)">编辑</el-button>
                 <el-button
-                  v-if="row.status !== 3"
+                  :disabled="row.status === 3 || row.status === 4"
                   link
                   class="action-link"
                   @click.stop="handleConvert(row)"
                 >转客户</el-button>
-                <el-button v-else link class="action-link danger" @click.stop="handleDelete(row)">删除</el-button>
+                <el-tooltip
+                  :content="deleteDisabledReason(row)"
+                  placement="top"
+                  :disabled="canDeleteLead(row)"
+                >
+                  <el-button
+                    link
+                    class="action-link danger"
+                    :disabled="!canDeleteLead(row)"
+                    @click.stop="handleDelete(row)"
+                  >删除</el-button>
+                </el-tooltip>
               </template>
             </el-table-column>
           </el-table>
@@ -456,6 +467,19 @@ async function handleSave() {
   } finally {
     saving.value = false
   }
+}
+
+/**
+ * P17:线索删除按钮始终显示
+ * <p>已转客户(status=3)或死线索(status=4)可删除;其他状态(status=1 未跟进 / 2 跟进中)灰化禁用。</p>
+ */
+function canDeleteLead(row) {
+  return row.status === 3 || row.status === 4
+}
+function deleteDisabledReason(row) {
+  if (row.status === 1) return '未跟进的线索不可删除,请先跟进或转客户'
+  if (row.status === 2) return '跟进中的线索不可删除,请先转客户或标记死线索'
+  return ''
 }
 
 async function handleDelete(row) {

@@ -6,12 +6,17 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.crm.entity.CrmContract;
 import com.crm.util.ReportUtils;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 合同 Mapper
@@ -19,6 +24,9 @@ import java.util.Map;
  * <p>有 owner_user_id,受 {@code CrmDataPermissionHandler} 拦截。
  * 报表聚合方法全部 {@code @InterceptorIgnore(dataPermission="true")} 绕过,
  * 与决策 B 保持一致(报表不叠加 owner 拦截,所有角色看全量)。</p>
+ *
+ * <p>阶段八 commit 2 升级:所有金额聚合加 {@code status IN (1,2)} 过滤(C2-D5);
+ * 新增 {@link #sumByDeptIds} 按部门聚合(crm_contract JOIN sys_user),给部门业绩卡片用(C2-D4)。</p>
  */
 @Mapper
 public interface CrmContractMapper extends BaseMapper<CrmContract> {
@@ -29,7 +37,7 @@ public interface CrmContractMapper extends BaseMapper<CrmContract> {
     // ================== 阶段五 commit 2:报表聚合(全部 bypass 数据权限) ==================
 
     /**
-     * 按签约日期区间 + ownerIds 过滤,累加合同总金额。
+     * 按签约日期区间 + ownerIds 过滤,累加合同总金额(只算 status IN (1,2)·阶段八 commit 2·C2-D5)
      * <p>ownerIds 为 null 表示不限人员(全部);空集合返回 ZERO(无数据)。</p>
      */
     @InterceptorIgnore(dataPermission = "true")
@@ -37,6 +45,7 @@ public interface CrmContractMapper extends BaseMapper<CrmContract> {
         if (ownerIds != null && ownerIds.isEmpty()) return BigDecimal.ZERO;
         QueryWrapper<CrmContract> w = new QueryWrapper<>();
         w.select("COALESCE(SUM(total_amount),0) AS total");
+        w.in("status", 1, 2);   // C2-D5:排除审批中(0)/已作废(3)
         w.ge("start_date", start);
         w.le("start_date", end);
         if (ownerIds != null) w.in("owner_user_id", ownerIds);
@@ -45,12 +54,13 @@ public interface CrmContractMapper extends BaseMapper<CrmContract> {
     }
 
     /**
-     * 合同数(同区间)
+     * 合同数(同区间,status IN (1,2)·C2-D5)
      */
     @InterceptorIgnore(dataPermission = "true")
     default Long countByRange(LocalDateTime start, LocalDateTime end, Collection<Long> ownerIds) {
         if (ownerIds != null && ownerIds.isEmpty()) return 0L;
         QueryWrapper<CrmContract> w = new QueryWrapper<>();
+        w.in("status", 1, 2);   // C2-D5
         w.ge("start_date", start);
         w.le("start_date", end);
         if (ownerIds != null) w.in("owner_user_id", ownerIds);
@@ -61,12 +71,14 @@ public interface CrmContractMapper extends BaseMapper<CrmContract> {
      * 6 月度趋势:按月 SUM(total_amount),返回 [{month:'2026-01', sum:'1420000'}, ...]
      * <p>粒度固定 month,与决策 B 保持一致(报表趋势用月粒度,日报用天粒度)。</p>
      * <p>SQL 字段 {@code start_date} (合同开始日期) — 表无 sign_date。</p>
+     * <p>阶段八 commit 2:加 status IN (1,2)·C2-D5。</p>
      */
     @InterceptorIgnore(dataPermission = "true")
     default List<Map<String, Object>> sumByMonth(LocalDateTime start, LocalDateTime end, Collection<Long> ownerIds) {
         if (ownerIds != null && ownerIds.isEmpty()) return List.of();
         QueryWrapper<CrmContract> w = new QueryWrapper<>();
         w.select("DATE_FORMAT(start_date,'%Y-%m') AS month", "COALESCE(SUM(total_amount),0) AS sum");
+        w.in("status", 1, 2);   // C2-D5
         w.ge("start_date", start);
         w.le("start_date", end);
         if (ownerIds != null) w.in("owner_user_id", ownerIds);
@@ -76,7 +88,7 @@ public interface CrmContractMapper extends BaseMapper<CrmContract> {
     }
 
     /**
-     * 按 owner_user_id 分组聚合(销售个人榜用)
+     * 按 owner_user_id 分组聚合(销售个人榜用,status IN (1,2)·C2-D5)
      * <p>返回 [{owner_user_id, owner_name, contract_count, total_amount}, ...] 按金额降序</p>
      * <p>注:owner_name 由 Service 层 sys_user JOIN 补充(Mapper 不跨表)。</p>
      */
@@ -85,6 +97,7 @@ public interface CrmContractMapper extends BaseMapper<CrmContract> {
         if (ownerIds != null && ownerIds.isEmpty()) return List.of();
         QueryWrapper<CrmContract> w = new QueryWrapper<>();
         w.select("owner_user_id", "COUNT(*) AS cnt", "COALESCE(SUM(total_amount),0) AS sum");
+        w.in("status", 1, 2);   // C2-D5
         w.ge("start_date", start);
         w.le("start_date", end);
         if (ownerIds != null) w.in("owner_user_id", ownerIds);
@@ -102,5 +115,73 @@ public interface CrmContractMapper extends BaseMapper<CrmContract> {
     @InterceptorIgnore(dataPermission = "true")
     default List<Map<String, Object>> sumByOwner(LocalDateTime start, LocalDateTime end, Collection<Long> ownerIds) {
         return groupByOwner(start, end, ownerIds, 50);
+    }
+
+    // ================== 阶段八 commit 2:按部门聚合(C2-D4) ==================
+
+    /**
+     * 按部门聚合合同业绩(阶段八 commit 2·C2-D4)
+     * <p>crm_contract JOIN sys_user,按 {@code u.dept_id} 分组 SUM(total_amount),
+     * 过滤 status IN (1,2)·C2-D5。</p>
+     *
+     * <p>典型 SQL:
+     * <pre>
+     * SELECT u.dept_id AS dept_id, COALESCE(SUM(c.total_amount),0) AS sum
+     *   FROM crm_contract c JOIN sys_user u ON u.id = c.owner_user_id
+     *  WHERE c.status IN (1, 2)
+     *    AND c.start_date BETWEEN #{start} AND #{end}
+     *    [AND c.owner_user_id IN (...)]   // ownerIds 不为 null 时
+     *    AND u.dept_id IN (...{deptIds}...)
+     *  GROUP BY u.dept_id
+     * </pre>
+     * </p>
+     *
+     * @return deptId → 合同业绩金额,无数据返回空 Map
+     */
+    @Select("""
+            <script>
+            SELECT u.dept_id              AS dept_id,
+                   COALESCE(SUM(c.total_amount), 0) AS sum
+              FROM crm_contract c
+              JOIN sys_user    u ON u.id = c.owner_user_id
+             WHERE c.status     IN (1, 2)
+               AND c.is_deleted  = 0
+               AND u.status      = 1
+               AND u.is_deleted  = 0
+               AND c.start_date BETWEEN #{start} AND #{end}
+               <if test="ownerIds != null">
+                 AND c.owner_user_id IN
+                 <foreach collection="ownerIds" item="id" open="(" separator="," close=")">
+                   #{id}
+                 </foreach>
+               </if>
+               AND u.dept_id IN
+               <foreach collection="deptIds" item="id" open="(" separator="," close=")">
+                 #{id}
+               </foreach>
+             GROUP BY u.dept_id
+            </script>
+            """)
+    @InterceptorIgnore(dataPermission = "true")
+    List<Map<String, Object>> sumByDeptIdsRaw(@Param("start") LocalDateTime start,
+                                              @Param("end") LocalDateTime end,
+                                              @Param("ownerIds") Collection<Long> ownerIds,
+                                              @Param("deptIds") Collection<Long> deptIds);
+
+    /**
+     * 按部门聚合合同业绩,返回 {@code Map<Long, BigDecimal> deptId → 金额}
+     */
+    default Map<Long, BigDecimal> sumByDeptIds(LocalDateTime start, LocalDateTime end,
+                                              Collection<Long> ownerIds, Collection<Long> deptIds) {
+        if (deptIds == null || deptIds.isEmpty()) return Collections.emptyMap();
+        if (ownerIds != null && ownerIds.isEmpty()) return Collections.emptyMap();
+        List<Map<String, Object>> rows = sumByDeptIdsRaw(start, end, ownerIds, deptIds);
+        Map<Long, BigDecimal> out = new HashMap<>();
+        for (Map<String, Object> r : rows) {
+            Long deptId = ReportUtils.toLong(r.get("dept_id"));
+            BigDecimal sum = ReportUtils.toBigDecimal(r.get("sum"));
+            out.put(deptId, sum);
+        }
+        return out;
     }
 }

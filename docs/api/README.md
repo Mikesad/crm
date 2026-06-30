@@ -20,7 +20,7 @@
 | 09 合同审批 | [approval.md](./approval.md) | 3 | stable | 2026-06-27 |
 | 10 回款计划 | [receivable-plan.md](./receivable-plan.md) | 5 | stable | 2026-06-27 |
 | 11 回款管理 | [receivable.md](./receivable.md) | 3 | stable | 2026-06-27 |
-| 12 报表中心 | [report.md](./report.md) | 13 | stable | 2026-06-28 |
+| 12 报表中心 | [report.md](./report.md) | 11 | stable | 2026-06-30 |
 | 13 系统 - 用户 | [sys-user.md](./sys-user.md) | 8 | stable | 2026-06-29 |
 | 14 系统 - 角色 | [sys-role.md](./sys-role.md) | 6 | stable | 2026-06-29 |
 | 15 系统 - 菜单 | [sys-menu.md](./sys-menu.md) | 5 | stable | 2026-06-29 |
@@ -255,6 +255,28 @@ owner_user_id = 当前用户
 ```
 
 即：除"自己拥有的"外，被共享给自己的客户、公海客户也一并放行。`dataScope=1/3/4` 维持阶段三原逻辑不变。详见 `customer-share.md` 业务规则备注。
+
+## 阶段八 commit 2 重点：报表中心 部门业绩 + Filter 真树
+
+* **范围**：仅 Java 代码改动 + 1 个前端 Vue 改造 + 2 份文档 + 1 个 SQL 占位迁移。**0 schema 变更**。
+* **8 项改造**（详见 `report.md` changelog）：
+  - **C2-D1** 部门业绩 `deptName` 接 `sys_dept.dept_name` 真名
+  - **C2-D2** 部门业绩接前端 `range`（去写死近 10 年）
+  - **C2-D3** 部门业绩接 `ownerIds`（sales 不看别人部门）
+  - **C2-D4** 拆 2 口径：`amount`/`percent`（合同业绩）+ `receivedAmount`/`receivedPercent`（实际回款），前端 chip tab 切换
+  - **C2-D5** `crm_contract.status IN (1,2)` 过滤（排除审批中 / 已作废）
+  - **C2-D6** `resolveOwnerIds(deptId)` 认子部门（走 `sys_dept.ancestors` 前缀匹配），影响全部 13 个接口
+  - **C2-4/5** `/filter/depts` 接 `sys_dept` 真表，`/filter/users` 接 `sys_user` 真表（自动含子部门）
+* **关键决策**：
+  - **D-A**：拆 2 口径（合同业绩 + 实际回款）— 业务逻辑上"签合同 ≠ 钱到账"
+  - **D-B**：chip tab 来回切换（沿用阶段五 4 Tab 风格）
+  - **D-C**：合同 `status IN (1,2)` — 只算执行中 + 已结束
+* **sql**：`sql/migrations/phase8-report.sql` 占位脚本，跑两遍幂等
+* **关键 Mapper 改动**：
+  - `CrmContractMapper.sumByDeptIds(...)`：crm_contract JOIN sys_user 按 dept_id 分组 SUM(total_amount)（合同业绩）
+  - `CrmReceivableMapper.sumActualByDeptIds(...)`：crm_receivable JOIN crm_contract JOIN sys_user 按 dept_id 分组 SUM(actual_amount)（实际回款）
+  - `SysDeptMapper.selectDescendantIds(...)`：ancestors LIKE 前缀匹配，自动含子部门
+* **不做**（留给后续）：Excel 导出 / 同比实算 / monthlyStacked 拆 series / cache/clear 限 admin / 自定义时间范围 / 报表 dataScope 分层
 
 ## 更新流程
 

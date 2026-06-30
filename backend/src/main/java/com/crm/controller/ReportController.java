@@ -8,7 +8,6 @@ import com.crm.service.ReportCustomerService;
 import com.crm.service.ReportFinanceService;
 import com.crm.service.ReportFunnelService;
 import com.crm.service.ReportQueryHelper;
-import com.crm.vo.ReportAgingBucketVO;
 import com.crm.vo.ReportConversionVO;
 import com.crm.vo.ReportCustomerVO;
 import com.crm.vo.ReportFilterOptionVO;
@@ -149,7 +148,7 @@ public class ReportController {
 
     // ================== Tab ④ 回款 / 财务 ==================
 
-    @Operation(summary = "Tab ④ 主接口", description = "回款/财务:4 KPI + 3 series 趋势 + 账龄 4 桶 + 回款方式 + 应收 TopN")
+    @Operation(summary = "Tab ④ 主接口", description = "回款/财务:4 KPI + 实际回款 vs 理应回款 按月对比(2 series)")
     @SaCheckPermission("crm:report:view")
     @GetMapping("/finance")
     public Result<ReportFinanceVO> finance(
@@ -162,51 +161,23 @@ public class ReportController {
         return Result.success(financeService.buildFinanceReport(range, startDate, endDate, deptId, userId, topN));
     }
 
-    @Operation(summary = "Tab ④ 账龄分布(单独刷新用)", description = "0-30 / 31-60 / 61-90 / 90+ 天 4 桶")
-    @SaCheckPermission("crm:report:view")
-    @GetMapping("/finance/aging")
-    public Result<List<ReportAgingBucketVO>> financeAging() {
-        ReportFinanceVO v = financeService.buildFinanceReport("year", null, null, null, null, 5);
-        return Result.success(v.getAgingBuckets());
-    }
-
-    @Operation(summary = "Tab ④ 应收 TopN", description = "按 crm_receivable_plan 按 contract_id 分组聚合,补 crm_customer.name")
-    @SaCheckPermission("crm:report:view")
-    @GetMapping("/finance/performer")
-    public Result<List<ReportPerformerVO>> financePerformer(
-            @RequestParam(defaultValue = "5") Integer topN) {
-        ReportFinanceVO v = financeService.buildFinanceReport("year", null, null, null, null, topN);
-        return Result.success(v.getTopDebtors());
-    }
+    // /finance/aging 与 /finance/performer 已废弃:Tab ④ 收敛为 4 KPI + 1 图(2026-06-30 commit 3)
 
     // ================== 通用:筛选下拉 ==================
 
-    @Operation(summary = "部门下拉", description = "返回全部部门(sys_dept),前端顶部部门下拉用")
+    @Operation(summary = "部门下拉", description = "返回全部部门(sys_dept),前端顶部部门下拉用;阶段八 commit 2 接真表·C2-4")
     @SaCheckPermission("crm:report:view")
     @GetMapping("/filter/depts")
     public Result<List<ReportFilterOptionVO>> filterDepts() {
-        // V1 简化为直接返回空,前端用"全部部门"兜底;V2 接 sys_dept 表
-        return Result.success(List.of(
-                option(1L, "销售一部"),
-                option(2L, "销售二部"),
-                option(3L, "销售三部"),
-                option(4L, "销售四部")
-        ));
+        return Result.success(queryHelper.loadFilterDepts());
     }
 
-    @Operation(summary = "人员下拉", description = "按 deptId 过滤;空=全部销售(sys_user)")
+    @Operation(summary = "人员下拉", description = "按 deptId 过滤(自动含子部门·C2-D6);空=全部销售(sys_user);阶段八 commit 2 接真表·C2-5")
     @SaCheckPermission("crm:report:view")
     @GetMapping("/filter/users")
     public Result<List<ReportFilterOptionVO>> filterUsers(
             @RequestParam(required = false) Long deptId) {
-        // V1 简化为空,前端用"全部销售"兜底;V2 接 sys_user 表
-        return Result.success(List.of());
-    }
-
-    private static ReportFilterOptionVO option(Long id, String name) {
-        ReportFilterOptionVO o = new ReportFilterOptionVO();
-        o.setId(id); o.setName(name);
-        return o;
+        return Result.success(queryHelper.loadFilterUsers(deptId));
     }
 
     // ================== 通用:清缓存(管理员) ==================
