@@ -61,18 +61,15 @@ const roleLabel = computed(() => {
   return map[keys[0]] || keys[0]
 })
 
-// 面包屑：根据路由 meta.title + 父路径生成
+// 面包屑：用 route.matched 自动展开嵌套路由(phase8 commit1 修复"详情页显示 901"和"客户管理跳转空白")
+// 之前用 route.path.split('/') 手动匹配,对 path: ':id' 动态路由失效,会显示纯数字"901"
 const breadcrumbs = computed(() => {
+  // route.matched 已经正确匹配所有父级路由(包含 path='customer' 这种父级和 path=':id' 这种动态子)
+  // 即使是 /customer/901,matched 也会返回 [{path:'/customer', meta:{title:'客户管理'}}, {path:'/customer/:id', meta:{title:'客户详情'}}]
   const list = []
-  const segments = route.path.split('/').filter(Boolean)
-  let p = ''
-  segments.forEach((seg, i) => {
-    p += '/' + seg
-    const matched = router.getRoutes().find(r => r.path === p)
-    if (matched && matched.meta?.title) {
-      list.push({ title: matched.meta.title, to: p === route.path ? null : p })
-    } else {
-      list.push({ title: seg })
+  route.matched.forEach((r, i) => {
+    if (r.meta && r.meta.title && !r.meta.hiddenInBreadcrumb) {
+      list.push({ title: r.meta.title, to: i < route.matched.length - 1 ? r.path : null })
     }
   })
   return list.length > 0 ? list : [{ title: '工作台' }]

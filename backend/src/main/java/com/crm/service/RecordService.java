@@ -92,6 +92,15 @@ public class RecordService {
         r.setCreateBy(UserContext.currentUsername());
         r.setCreateTime(LocalDateTime.now());
         recordMapper.insert(r);
+        // phase8 commit1 fix:customer 类型跟进同步更新客户表 last_follow_time,
+        // 否则客户列表"最后跟进"列总是显示"从未跟进";只更新 related_type=customer 的,
+        // lead/business/contract 各自有自己的时间字段,不影响
+        if ("customer".equals(req.getRelatedType())) {
+            CrmCustomer upd = new CrmCustomer();
+            upd.setId(req.getRelatedId());
+            upd.setLastFollowTime(LocalDateTime.now());
+            customerMapper.updateById(upd);
+        }
         log.info("新增跟进记录: id={}, related={}:{}, by={}",
                 r.getId(), r.getRelatedType(), r.getRelatedId(), r.getCreateBy());
         return r.getId();

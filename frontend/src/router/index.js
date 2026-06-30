@@ -33,6 +33,7 @@ const routes = [
   {
     path: '/lead',
     component: () => import('@/layout/index.vue'),
+    redirect: '/lead/list',    // phase8 commit1:父路由加 redirect,避免点击"线索管理"面包屑/侧栏跳空白页
     meta: { title: '线索管理', icon: 'Aim' },
     children: [
       {
@@ -53,6 +54,7 @@ const routes = [
   {
     path: '/record',
     component: () => import('@/layout/index.vue'),
+    redirect: '/record/center',  // phase8 commit1
     meta: { title: '跟进中心', icon: 'BellFilled' },
     children: [
       {
@@ -66,6 +68,7 @@ const routes = [
   {
     path: '/report',
     component: () => import('@/layout/index.vue'),
+    redirect: '/report',         // phase8 commit1(子路由 path='' 会自动匹配)
     meta: { title: '报表中心', icon: 'DataLine' },
     children: [
       {
@@ -79,6 +82,7 @@ const routes = [
   {
     path: '/customer',
     component: () => import('@/layout/index.vue'),
+    redirect: '/customer/list',   // phase8 commit1 修复:点"客户管理"面包屑直接跳到 /customer 父路由空白,加 redirect 落到 list
     meta: { title: '客户管理', icon: 'User' },
     children: [
       {
@@ -105,6 +109,8 @@ const routes = [
   {
     path: '/contact',
     component: () => import('@/layout/index.vue'),
+    redirect: '/contact/list',   // phase8 commit1
+    meta: { title: '联系人', icon: 'User' },
     children: [
       {
         path: 'list',
@@ -117,6 +123,7 @@ const routes = [
   {
     path: '/business',
     component: () => import('@/layout/index.vue'),
+    redirect: '/business/list',  // phase8 commit1
     meta: { title: '商机管理', icon: 'TrendCharts' },
     children: [
       {
@@ -143,6 +150,7 @@ const routes = [
   {
     path: '/product',
     component: () => import('@/layout/index.vue'),
+    redirect: '/product/list',   // phase8 commit1
     meta: { title: '产品管理', icon: 'Goods' },
     children: [
       {
@@ -157,6 +165,7 @@ const routes = [
   {
     path: '/contract',
     component: () => import('@/layout/index.vue'),
+    redirect: '/contract/list',  // phase8 commit1
     meta: { title: '合同与回款', icon: 'Document' },
     children: [
       {
@@ -170,12 +179,6 @@ const routes = [
         name: 'ContractSubmit',
         component: () => import('@/views/contract/submit.vue'),
         meta: { title: '新建合同', permissions: ['crm:contract:edit'] }
-      },
-      {
-        path: 'approval',
-        name: 'ApprovalList',
-        component: () => import('@/views/approval/list.vue'),
-        meta: { title: '审批中心', permissions: ['crm:contract:approve'] }
       },
       {
         path: 'receivable',
@@ -194,6 +197,7 @@ const routes = [
   {
     path: '/system',
     component: () => import('@/layout/index.vue'),
+    redirect: '/system/role',    // phase8 commit1:默认进角色管理(已含用户管理 + 权限 tab)
     meta: { title: '系统设置', icon: 'Setting', roles: ['admin', 'sales_director'] },
     children: [
       {

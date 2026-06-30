@@ -5,9 +5,6 @@
         <div class="page-title">客户管理</div>
         <div class="page-sub">共 {{ grandTotal }} 个客户 · 私海 {{ myTotal }} · 公海 {{ publicTotal }} · 共享给我 {{ sharedTotal }}</div>
       </div>
-      <div>
-        <el-button :icon="Plus" class="btn-zen-primary" @click="handleCreate">新建客户</el-button>
-      </div>
     </div>
 
     <!-- Tabs: 私海 / 公海 / 被共享给我的 -->
@@ -47,6 +44,13 @@
           </el-select>
           <div class="spacer" />
           <el-button :icon="Search" @click="handleSearch">查询</el-button>
+          <el-button :icon="Plus" class="btn-zen-primary" @click="handleCreate">新建客户</el-button>
+          <el-button
+            v-if="currentTab === 'mine' && hasPerm('crm:customer:public_pool')"
+            class="btn-zen-warn"
+            title="立即把所有 30 秒内未跟进的客户丢进公海池(仅 demo 用)"
+            @click="handleDemoRecycle"
+          >⚡ 30秒回收(演示)</el-button>
         </div>
 
         <el-card class="table-card" v-loading="loading">
@@ -248,13 +252,15 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { useUserStore } from '@/store/user'
-import { pageCustomer, addCustomer, updateCustomer, claimCustomer, deleteCustomer } from '@/api/customer'
+import { useAuth } from '@/composables/useAuth'
+import { pageCustomer, addCustomer, updateCustomer, claimCustomer, deleteCustomer, recyclePublicPool } from '@/api/customer'
 import CustomerShareDialog from './components/ShareDialog.vue'
 
 defineOptions({ name: 'CustomerList' })
 
 const router = useRouter()
 const userStore = useUserStore()
+const { hasPerm } = useAuth()
 
 // ---------- 状态 ----------
 // 'mine' 私海 / 'public' 公海池 / 'shared' 被共享给我的
@@ -306,15 +312,19 @@ const followTimeClass = (t) => {
 // ---------- 行内 owner/共享 判定 ----------
 const myUserId = computed(() => userStore.userId)
 
+// phase8 commit1 修复:不再用 ownerUserId !== me 兜底,严格按后端 VO.sharedToMe 判定
+// (之前 bug:把同部门/兄弟部门能看到的客户都错标"共享给我",DB 共享表里根本没记录)
 const ownerBadgeText = (row) => {
   if (row.isPublic === 1) return '公海池'
   if (row.ownerUserId === myUserId.value) return `${row.ownerName || '我'} (我)`
-  return `${row.ownerName || '其他'} 共享给我`
+  if (row.sharedToMe === true) return `${row.ownerName || '其他'} 共享给我`
+  return `由 ${row.ownerName || '其他'} 持有`  // 数据权限范围内但非自己 own 非共享
 }
 const ownerBadgeClass = (row) => {
   if (row.isPublic === 1) return 'owner-badge public'
   if (row.ownerUserId === myUserId.value) return 'owner-badge'
-  return 'owner-badge shared'
+  if (row.sharedToMe === true) return 'owner-badge shared'
+  return 'owner-badge other'  // 同部门/兄弟部门可见但非自己
 }
 const isOwnerOnRow = (row) => row.ownerUserId === myUserId.value
 /**
@@ -483,6 +493,34 @@ function resetEditForm() {
   editing.customerName = ''
   editing.industry = ''
   editing.level = 'C'
+}
+
+/**
+ * phase8 commit1:演示用「30秒回收」按钮
+ * <p>调 /api/customer/public-pool/recycle(thresholdSeconds=30,dryRun=false),
+ * 把所有 last_follow_time 超过30秒未跟进的客户丢进公海,演示完后能立刻在"公海池" Tab 看到效果。</p>
+ */
+async function handleDemoRecycle() {
+  try {
+    await ElMessageBox.confirm(
+      '将立即把所有"30 秒内未跟进"的私海客户丢进公海池(仅测试用)。是否继续?',
+      '演示 · 30秒回收',
+      { type: 'warning', confirmButtonText: '执行回收', cancelButtonText: '取消' }
+    )
+  } catch { return }
+  try {
+    const res = await recyclePublicPool({ thresholdSeconds: 30, limit: 100, dryRun: false })
+    const d = res.data || {}
+    ElMessage.success(`已回收 ${d.recycledCount || 0} 个客户(扫描 ${d.scanned || 0} 个)→ 公海池查看`)
+    // 重拉当前 tab 列表 + 顶部 3 个 tab 计数
+    // phase8 commit1 fix:之前用 loadCount('mine') 是错的(函数实际叫 loadTotals)
+    await Promise.all([
+      loadList(),
+      loadTotals()
+    ])
+  } catch (e) {
+    /* 错误已全局提示 */
+  }
 }
 
 async function handleSave() {

@@ -163,6 +163,12 @@ public class CustomerShareService {
      */
     public void requireWriteAccess(Long customerId) {
         Long currentUserId = UserContext.requireUserId();
+        // phase8 commit1 fix:角色豁免 — data_scope=1 的用户(管理员)对所有客户有写权限
+        // 此前 admin 看到客户但无法"新增跟进/编辑/删除",因为既不是 owner 也不在 share 表
+        // 这里与 CrmDataPermissionHandler 的"读全部"对称,让写权限也跟随 data_scope 而非单凭 ACL
+        if (UserContext.currentDataScope() == 1) {
+            return;
+        }
         CrmCustomer customer = customerMapper.selectById(customerId);
         if (customer == null) {
             throw new BusinessException(ResultCode.DATA_NOT_FOUND, "客户不存在");
