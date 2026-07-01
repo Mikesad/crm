@@ -54,6 +54,50 @@ public interface CrmContractMapper extends BaseMapper<CrmContract> {
     }
 
     /**
+     * phase8 commit1 修复:合同总额全量累计口径 — 排除 status=3(已作废),保留 0/1/2
+     * <p>适用场景:Tab ④ 回款/财务的"合同总额" KPI,需要累计含"审批中"和"执行中/已结束"全部状态。</p>
+     * <p>phase8 commit1 修订:**完全去掉 start_date 过滤**。原版用 start_date 范围,会漏掉
+     * start_date 在今天之后的合同(测试合同 start_date='2026-07-01' 被 LocalDateTime.now()='2026-06-30 12:46:xx'
+     * 误排)。改为"无时间范围 = 全量累计"。</p>
+     * <p>与 {@link #sumTotalAmount} 区别:旧版本 status IN (1,2) 排除了"审批中(0)",
+     * 新口径与 Tab ① 销售漏斗解耦,只服务财务 Tab 的 KPI 卡片(累计全量)。</p>
+     */
+    @InterceptorIgnore(dataPermission = "true")
+    default BigDecimal sumTotalAmountAll(Collection<Long> ownerIds) {
+        if (ownerIds != null && ownerIds.isEmpty()) return BigDecimal.ZERO;
+        QueryWrapper<CrmContract> w = new QueryWrapper<>();
+        w.select("COALESCE(SUM(total_amount),0) AS total");
+        w.ne("status", 3);   // 仅排除已作废,保留 0/1/2
+        if (ownerIds != null) w.in("owner_user_id", ownerIds);
+        List<Map<String, Object>> rows = selectMaps(w);
+        return ReportUtils.toBigDecimal(rows.isEmpty() ? null : rows.get(0).get("total"));
+    }
+
+    /**
+     * phase8 commit1 新增:按 status 分组统计合同数 + 金额(4 状态全集合)
+     * <p>返回 [{status:0, count:3, amount:'150000'}, ...],status 枚举:0 审批中 / 1 执行中 / 2 已结束 / 3 已作废</p>
+     * <p>用于 Tab ④ "合同状态分布"图。包含 status=3 已作废(让财务看到作废数据)。</p>
+     */
+    @InterceptorIgnore(dataPermission = "true")
+    default List<Map<String, Object>> groupByStatus(LocalDateTime start, LocalDateTime end, Collection<Long> ownerIds) {
+        QueryWrapper<CrmContract> w = new QueryWrapper<>();
+        w.select("status",
+                "COUNT(*) AS cnt",
+                "COALESCE(SUM(total_amount),0) AS sum");
+        if (ownerIds != null && !ownerIds.isEmpty()) {
+            w.in("owner_user_id", ownerIds);
+        } else if (ownerIds != null) {
+            // ownerIds 非 null 且为空 → 无数据
+            return List.of();
+        }
+        if (start != null) w.ge("start_date", start);
+        if (end != null) w.le("start_date", end);
+        w.groupBy("status");
+        w.orderByAsc("status");
+        return selectMaps(w);
+    }
+
+    /**
      * 合同数(同区间,status IN (1,2)·C2-D5)
      */
     @InterceptorIgnore(dataPermission = "true")

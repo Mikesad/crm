@@ -31,7 +31,7 @@ public class LoginResponse {
 
     /**
      * 有效数据范围（取该用户所有角色的最宽）
-     * <p>1 全部 / 3 本部门 / 4 本部门及以下 / 5 仅本人</p>
+     * <p>1 全部 / 3 本部门组 / 5 仅本人 (phase8 commit1 拆档:删 4)</p>
      */
     private Integer dataScope;
 

@@ -6,7 +6,7 @@ import request from '@/utils/request'
  * 路径前缀：/crm/contract
  * 权限：crm:contract:list / crm:contract:edit
  *
- * 核心业务：create() 后端按明细实时核算金额；最低折扣 < 8.5 折时 contract.status=0 + 写 crm_approval 自动进入审批。
+ * 核心业务：create() 后端按明细实时核算金额；最低折扣 < 8.5 折时 contract.status=0 (审批中) 留痕，由销售总监在合同详情页手动复核。
  */
 
 /** 合同分页 */

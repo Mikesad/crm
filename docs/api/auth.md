@@ -40,7 +40,7 @@
 | `nickname` | string | 昵称（来自 `sys_user.nickname`） |
 | `deptId` | number | 部门 ID，可空 |
 | `roleKeys` | string[] | 角色 key 列表，如 `["admin"]` |
-| `dataScope` | number | 有效数据范围：1 全部 / 3 本部门 / 4 本部门及以下 / 5 仅本人 |
+| `dataScope` | number | 有效数据范围：1 全部 / 3 本部门组 / 5 仅本人（phase8 commit1 拆档，4 已废弃） |
 | `permissions` | string[] | 功能权限码列表，如 `["crm:customer:list", "crm:customer:edit"]` |
 
 ### 业务码

@@ -36,8 +36,8 @@ import java.util.stream.Collectors;
  *   <li>按 {@code productId} 批量查 {@code crm_product.price}（MyBatis-Plus 自动过滤 is_deleted=1）</li>
  *   <li>按 {@code sales_price = standardPrice × discount / 10} 反推实际单价（{@code setScale(2, HALF_UP)}）</li>
  *   <li>累加 sum(salesPrice × count) 与前端 {@code totalAmount} 比对,误差 > 0.01 视为篡改</li>
- *   <li>取最低折扣, &lt; 8.5 折时 contract.status=0 (审批中) 并自动创建 crm_approval</li>
- *   <li>{@code @Transactional} 双写 contract + contract_product,审批流也一起落库</li>
+ *   <li>取最低折扣, &lt; 8.5 折时 contract.status=0 (审批中,需销售总监在合同详情页手动审核)</li>
+ *   <li>{@code @Transactional} 双写 contract + contract_product</li>
  * </ol>
  * </p>
  */
@@ -55,7 +55,6 @@ public class ContractService {
     private final CrmContractMapper contractMapper;
     private final CrmContractProductMapper contractProductMapper;
     private final CrmProductMapper productMapper;
-    private final CrmApprovalMapper approvalMapper;
     private final CrmCustomerMapper customerMapper;
     private final SysUserMapper sysUserMapper;
 
@@ -178,13 +177,10 @@ public class ContractService {
             throw new BusinessException(ResultCode.AMOUNT_MISMATCH,
                     "合同金额与明细不符: 后端重算 " + total + ",前端传 " + req.getTotalAmount());
         }
-        // 4) 状态判定
+        // 4) 状态判定(无审批流,低折扣仅标 status=0 留痕,由销售总监在合同详情页手动复核)
         Integer status;
-        String triggerReason = null;
         if (minDiscount.compareTo(DISCOUNT_THRESHOLD) < 0) {
-            status = 0; // 审批中
-            triggerReason = String.format("折扣 %.2f 折,低于 %.2f 折审批线",
-                    minDiscount, DISCOUNT_THRESHOLD);
+            status = 0; // 审批中(留痕,需总监人工审核后改 1)
         } else {
             status = 1; // 执行中
         }
@@ -207,17 +203,8 @@ public class ContractService {
             item.setContractId(contract.getId());
             contractProductMapper.insert(item);
         }
-        // 7) 折扣低于 8.5 折时自动写 crm_approval 待审
-        if (status == 0) {
-            CrmApproval approval = new CrmApproval();
-            approval.setContractId(contract.getId());
-            approval.setApplicantId(UserContext.requireUserId());
-            approval.setStatus(0); // 待审
-            approval.setTriggerReason(triggerReason);
-            approval.setCreateBy(UserContext.currentUsername());
-            approval.setUpdateBy(UserContext.currentUsername());
-            approvalMapper.insert(approval);
-        }
+        // (原:折扣低于 8.5 折时自动写 crm_approval 待审。phase8 commit 1 拆掉 crm_approval 表,
+        //  保留 contract.status=0 留痕,审批流转人工在合同详情页操作)
         log.info("创建合同: id={}, num={}, total={}, status={}", contract.getId(), contract.getContractNum(), total, status);
         return contract.getId();
     }

@@ -54,7 +54,7 @@ CREATE TABLE `sys_role` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '角色ID',
   `role_name` varchar(30) NOT NULL COMMENT '角色名称',
   `role_key` varchar(100) NOT NULL COMMENT '角色权限字符串(如 admin, sales)',
-  `data_scope` tinyint DEFAULT 5 COMMENT '数据范围（1全部 2自定义 3本部门 4本部门及以下 5仅本人）',
+  `data_scope` tinyint DEFAULT 5 COMMENT '数据范围（1全部 2自定义 3本部门组 4[废弃-历史值] 5仅本人）',
   `status` tinyint DEFAULT 1 COMMENT '角色状态（0停用 1正常）',
   `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -313,25 +313,7 @@ CREATE TABLE `crm_receivable` (
   KEY `idx_contract_id` (`contract_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='回款记录表';
 
--- 19. 合同审批表 (阶段三新增)
-CREATE TABLE `crm_approval` (
-  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '审批ID',
-  `contract_id` bigint NOT NULL COMMENT '合同ID',
-  `applicant_id` bigint NOT NULL COMMENT '申请人(销售)ID',
-  `approver_id` bigint DEFAULT NULL COMMENT '审批人(总监)ID',
-  `status` tinyint DEFAULT 0 COMMENT '状态(0待审 1通过 2驳回 3撤回)',
-  `trigger_reason` varchar(255) DEFAULT NULL COMMENT '触发原因(如:折扣8.4折,低于8.5折审批线)',
-  `comment` varchar(500) DEFAULT NULL COMMENT '审批意见/驳回原因',
-  `finish_time` datetime DEFAULT NULL COMMENT '审批完成时间',
-  `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
-  `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '申请时间',
-  `update_by` varchar(64) DEFAULT '' COMMENT '更新者',
-  `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  `is_deleted` tinyint DEFAULT 0 COMMENT '是否删除',
-  PRIMARY KEY (`id`),
-  KEY `idx_contract_id` (`contract_id`),
-  KEY `idx_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='合同审批表';
+-- (phase8 commit 1 拆掉 crm_approval 表:合同折扣 < 8.5 折时只把 status=0 留痕,审批流转人工在合同详情页操作)
 
 -- ====================== 种子数据 ======================
 
@@ -343,10 +325,11 @@ INSERT INTO `sys_dept` (`id`, `parent_id`, `ancestors`, `dept_name`, `order_num`
   (4, 1, '0,1',   '财务部',     4);
 
 -- 角色（5 个，data_scope 字段决定数据权限）
--- 1=全部 2=自定义 3=本部门 4=本部门及以下 5=仅本人
+-- 1=全部 2=自定义 3=本部门组 5=仅本人 (phase8 commit1 拆档:删 4=本部门及以下)
+-- scope=3 含义:owner_user_id IN (我的dept OR 同parent的兄弟dept)
 INSERT INTO `sys_role` (`id`, `role_name`, `role_key`, `data_scope`) VALUES
   (1, '系统管理员', 'admin',          1),
-  (2, '销售总监',   'sales_director', 4),
+  (2, '销售总监',   'sales_director', 3),
   (3, '销售主管',   'sales_lead',     3),
   (4, '普通销售',   'sales',          5),
   (5, '财务人员',   'finance',        1);
@@ -355,8 +338,9 @@ INSERT INTO `sys_role` (`id`, `role_name`, `role_key`, `data_scope`) VALUES
 -- menu_type='F' 表示按钮级权限；status=1 + perms 非空 才会被 SysMenuMapper 查出来
 -- 阶段二对齐：crm:opportunity:list → crm:business:list（与实际表 crm_business 一致），
 --             新增 business:edit / contact:list / contact:edit / record:list / record:add
--- 阶段三新增：crm:contract:approve / crm:receivable:edit / crm:receivable_plan:edit /
+-- 阶段三新增：crm:receivable:edit / crm:receivable_plan:edit /
 --             crm:product:list / crm:product:edit
+-- phase8 commit1 拆掉:crm:contract:approve(已无 crm_approval 表支撑)
 -- 阶段四新增：crm:customer:share          客户共享(主销售发起/撤销)
 --             crm:customer:public_pool    公海池(认领 + 手动回收;回收接口额外校验角色)
 INSERT INTO `sys_menu` (`id`, `menu_name`, `parent_id`, `order_num`, `path`, `component`, `menu_type`, `perms`, `status`) VALUES
@@ -373,7 +357,7 @@ INSERT INTO `sys_menu` (`id`, `menu_name`, `parent_id`, `order_num`, `path`, `co
   (11, '合同列表',     0, 11, '', NULL, 'F', 'crm:contract:list',      1),
   (12, '合同编辑',     0, 12, '', NULL, 'F', 'crm:contract:edit',      1),
   (13, '回款列表',     0, 13, '', NULL, 'F', 'crm:receivable:list',    1),
-  (14, '合同审批',     0, 14, '', NULL, 'F', 'crm:contract:approve',   1),
+  -- phase8 commit1: 删 (14, 合同审批, crm:contract:approve) — crm_approval 表已拆掉
   (15, '回款编辑',     0, 15, '', NULL, 'F', 'crm:receivable:edit',    1),
   (16, '回款计划编辑', 0, 16, '', NULL, 'F', 'crm:receivable_plan:edit', 1),
   (17, '产品列表',     0, 17, '', NULL, 'F', 'crm:product:list',       1),
@@ -444,10 +428,10 @@ INSERT INTO `sys_user_role` (`user_id`, `role_id`) VALUES
 --    (公海池的「手动回收」接口在 Service 层额外校验 admin/director 角色)
 --  - finance 不给(财务不参与客户/公海)
 INSERT INTO `sys_role_menu` (`role_id`, `menu_id`) VALUES
-  -- admin (全开 1-23)
-  (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9), (1, 10), (1, 11), (1, 12), (1, 13), (1, 14), (1, 15), (1, 16), (1, 17), (1, 18), (1, 19), (1, 20), (1, 21), (1, 22), (1, 23),
-  -- sales_director (业务 + 合同 + 审批 + 计划 + 产品 + 共享 + 公海 + 跟进中心 + 标死线索 + 报表中心)
-  (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7), (2, 8), (2, 9), (2, 10), (2, 11), (2, 12), (2, 14), (2, 16), (2, 17), (2, 18), (2, 19), (2, 20), (2, 21), (2, 22), (2, 23),
+  -- admin (全开 1-23,phase8 commit1 去掉 menu_id=14 合同审批)
+  (1, 1), (1, 2), (1, 3), (1, 4), (1, 5), (1, 6), (1, 7), (1, 8), (1, 9), (1, 10), (1, 11), (1, 12), (1, 13), (1, 15), (1, 16), (1, 17), (1, 18), (1, 19), (1, 20), (1, 21), (1, 22), (1, 23),
+  -- sales_director (业务 + 合同 + 计划 + 产品 + 共享 + 公海 + 跟进中心 + 标死线索 + 报表中心;phase8 commit1 去掉 menu_id=14)
+  (2, 1), (2, 2), (2, 3), (2, 4), (2, 5), (2, 6), (2, 7), (2, 8), (2, 9), (2, 10), (2, 11), (2, 12), (2, 16), (2, 17), (2, 18), (2, 19), (2, 20), (2, 21), (2, 22), (2, 23),
   -- sales_lead (业务 + 合同list + 回款list + 计划edit + 产品list + 共享 + 公海 + 跟进中心 + 标死线索;无报表中心也可以,V1 简化为都给)
   (3, 1), (3, 3), (3, 5), (3, 7), (3, 9), (3, 11), (3, 13), (3, 16), (3, 17), (3, 19), (3, 20), (3, 21), (3, 22), (3, 23),
   -- sales (业务 + 合同全 + 计划edit + 产品全 + 共享 + 公海 + 跟进中心 + 标死线索 + 报表中心)
@@ -555,3 +539,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 --    FROM sys_role r LEFT JOIN sys_role_menu rm ON r.id = rm.role_id
 --   GROUP BY r.id, r.role_key;
 -- =============================================================
+
+-- 阶段八 commit 2:报表中心 部门业绩 + Filter 真树(纯 Java 改动,无 schema 变更)
+-- C2-D1~D6 + C2-4/5 共 8 项改造,详见 sql/migrations/phase8-report.sql
+SELECT 'phase8-report.sql applied: 部门业绩 6 改造 + Filter 真树' AS info;

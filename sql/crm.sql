@@ -39,7 +39,7 @@ CREATE TABLE `sys_role` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '角色ID',
   `role_name` varchar(30) NOT NULL COMMENT '角色名称',
   `role_key` varchar(100) NOT NULL COMMENT '角色权限字符串(如 admin, sales)',
-  `data_scope` tinyint DEFAULT 5 COMMENT '数据范围（1全部 2自定义 3本部门 4本部门及以下 5仅本人）',
+  `data_scope` tinyint DEFAULT 5 COMMENT '数据范围（1全部 2自定义 3本部门组 4[废弃] 5仅本人）',
   `status` tinyint DEFAULT 1 COMMENT '角色状态（0停用 1正常）',
   `create_by` varchar(64) DEFAULT '' COMMENT '创建者',
   `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',

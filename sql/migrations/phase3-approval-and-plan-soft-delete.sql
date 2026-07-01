@@ -1,22 +1,23 @@
 -- =====================================================================
---  阶段三 Schema 增量迁移
+--  阶段三 Schema 增量迁移(phase8 commit1 已剔除 crm_approval 段)
 --
 --  适用：已按 crm_full.sql + phase2-menu-update.sql 初始化过数据库,
 --        需要补齐阶段三表/字段/权限的环境。
---  时间：2026-06-27
+--  时间：2026-06-27(phase8 commit1 修订:2026-06-30 移除 crm_approval)
 --
 --  变更：
 --    1. crm_receivable_plan 补齐 is_deleted / create_by / create_time /
 --       update_by / update_time 5 个字段（与 CLAUDE.md "客户/联系人/商机/
 --       合同表均含 is_deleted" 对齐 + MyBatis-Plus @TableLogic 需要）
---    2. 新建 crm_approval 合同审批表（完整审批流方案）
---    3. 新增 5 个菜单权限码:
---         crm:contract:approve      合同审批
+--    2. crm_product 补齐 create_by / update_by / update_time 3 个字段
+--       (MyBatis-Plus 实体需要)
+--    3. 新增 4 个菜单权限码:
 --         crm:receivable:edit       回款编辑（财务录入）
 --         crm:receivable_plan:edit  回款计划编辑（销售录入）
 --         crm:product:list          产品列表
 --         crm:product:edit          产品编辑
 --    4. 重新绑定 sys_role_menu，覆盖阶段二的"销售无合同"漏配
+--    (phase8 commit1 移除:crm:contract:approve / crm_approval 表)
 --
 --  幂等：每条 ALTER/INSERT 用存储过程 + WHERE NOT EXISTS 保护，
 --        可重复执行。
@@ -60,31 +61,10 @@ CALL phase3_add_col_if_missing('crm_product', 'create_by',   'VARCHAR(64) DEFAUL
 CALL phase3_add_col_if_missing('crm_product', 'update_by',   'VARCHAR(64) DEFAULT NULL');
 CALL phase3_add_col_if_missing('crm_product', 'update_time', 'DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
 
--- ---------- 2) crm_approval 新表 ----------
-CREATE TABLE IF NOT EXISTS `crm_approval` (
-  `id`             BIGINT       NOT NULL AUTO_INCREMENT                                COMMENT '审批ID',
-  `contract_id`    BIGINT       NOT NULL                                               COMMENT '合同ID',
-  `applicant_id`   BIGINT       NOT NULL                                               COMMENT '申请人(销售)ID',
-  `approver_id`    BIGINT       DEFAULT NULL                                           COMMENT '审批人(总监)ID',
-  `status`         TINYINT      DEFAULT 0                                              COMMENT '状态(0待审 1通过 2驳回 3撤回)',
-  `trigger_reason` VARCHAR(255) DEFAULT NULL                                           COMMENT '触发原因(如:折扣8.4折,低于8.5折审批线)',
-  `comment`        VARCHAR(500) DEFAULT NULL                                           COMMENT '审批意见/驳回原因',
-  `finish_time`    DATETIME     DEFAULT NULL                                           COMMENT '审批完成时间',
-  `create_by`      VARCHAR(64)  DEFAULT ''                                             COMMENT '创建者',
-  `create_time`    DATETIME     DEFAULT CURRENT_TIMESTAMP                              COMMENT '申请时间',
-  `update_by`      VARCHAR(64)  DEFAULT ''                                             COMMENT '更新者',
-  `update_time`    DATETIME     DEFAULT CURRENT_TIMESTAMP
-                                 ON UPDATE CURRENT_TIMESTAMP                           COMMENT '更新时间',
-  `is_deleted`     TINYINT      DEFAULT 0                                              COMMENT '是否删除',
-  PRIMARY KEY (`id`),
-  KEY `idx_contract_id` (`contract_id`),
-  KEY `idx_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='合同审批表';
+-- (phase8 commit1 移除 crm_approval 表创建段)
 
--- ---------- 3) 5 个新菜单（按 perms 幂等，id 由 AUTO_INCREMENT 自动分配） ----------
-INSERT INTO sys_menu (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `menu_type`, `perms`, `status`)
-SELECT '合同审批',     0, 14, '', NULL, 'F', 'crm:contract:approve',    1
-  FROM (SELECT 1) t WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE perms = 'crm:contract:approve');
+-- ---------- 3) 4 个新菜单（按 perms 幂等，id 由 AUTO_INCREMENT 自动分配） ----------
+-- phase8 commit1 移除:crm:contract:approve (合同审批)
 INSERT INTO sys_menu (`menu_name`, `parent_id`, `order_num`, `path`, `component`, `menu_type`, `perms`, `status`)
 SELECT '回款编辑',     0, 15, '', NULL, 'F', 'crm:receivable:edit',     1
   FROM (SELECT 1) t WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE perms = 'crm:receivable:edit');
@@ -150,8 +130,9 @@ DROP PROCEDURE phase3_add_col_if_missing;
 
 -- =====================================================================
 --  验证（执行后跑一下确认）：
+-- (phase8 commit1 移除 crm_approval 验证行)
 --  SHOW COLUMNS FROM crm_receivable_plan;       -- 应包含 is_deleted / create_*
---  SHOW TABLES LIKE 'crm_approval';
+--  SHOW TABLES LIKE 'crm_approval';        -- phase8 commit1 移除:crm_approval 已不存在
 --  SELECT perms, COUNT(*) AS role_count FROM sys_role_menu rm
 --    JOIN sys_menu m ON rm.menu_id = m.id
 --   GROUP BY perms ORDER BY perms;

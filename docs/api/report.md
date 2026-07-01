@@ -406,30 +406,53 @@ curl -X GET 'http://localhost:8080/api/crm/report/conversion?range=month&topN=10
 ```json
 {
   "kpis": [
-    { "key": "contractTotal", "label": "合同总额",   "value": "8200000",  "unit": "¥", "delta": null, "deltaDir": null, "footnote": null },
-    { "key": "received",      "label": "已回款",     "value": "1860000",  "unit": "¥", "delta": null, "deltaDir": null, "footnote": null },
-    { "key": "unreceived",    "label": "未回款",     "value": "4560000",  "unit": "¥", "delta": null, "deltaDir": null, "footnote": null },
-    { "key": "overdueRate",   "label": "逾期率",     "value": "4.3",      "unit": "%", "delta": null, "deltaDir": null, "footnote": null }
+    { "key": "contractTotal", "label": "合同总额",   "value": "1704000",  "unit": "¥" },
+    { "key": "received",      "label": "已回款",     "value": "989000",   "unit": "¥" },
+    { "key": "unreceived",    "label": "未回款",     "value": "824000",   "unit": "¥" },
+    { "key": "overdueRate",   "label": "逾期率",     "value": "50.0%" }
   ],
-  "receivableCompare": [
-    { "date": "2026-01", "value": "1200000", "seriesKey": "actual" },
-    { "date": "2026-01", "value": "1800000", "seriesKey": "planned" },
-    { "date": "2026-02", "value": "1480000", "seriesKey": "actual" },
-    { "date": "2026-02", "value": "2000000", "seriesKey": "planned" }
+  "receivableCompare": {
+    "actualAmount": "989000.00",
+    "plannedAmount": "514000.00",
+    "gapAmount": "-475000.00",
+    "completionRate": "192.4%",
+    "actualPercent": "1.00",
+    "gapPercent": "0.00"
+  },
+  "contractStatusDistribution": [
+    { "key": "审批中", "count": 2, "amount": "312000.00", "percent": "11.1%" },
+    { "key": "执行中", "count": 11, "amount": "1099000.00", "percent": "61.1%" },
+    { "key": "已结束", "count": 5, "amount": "293000.00", "percent": "27.8%" },
+    { "key": "已作废", "count": 0, "amount": "0.00", "percent": "0.0%" }
   ]
 }
 ```
 
 **字段说明**
 
-- `kpis[].contractTotal` 是累计合同总额(全量,不受 range 影响)
+- `kpis[].contractTotal` 累计合同总额，**phase8 commit1 起口径为 status != 3（排除已作废，保留审批中/执行中/已结束）**，不受 range 影响
 - `kpis[].received` 受 range 影响
 - `kpis[].unreceived` 来自 crm_receivable_plan.status != 2 的 expected_amount 累加
-- `kpis[].overdueRate` 分子=expected_date < today 的 plan 数,分母=全部未回款 plan 数
-- `receivableCompare` 按月聚合,2 series:
-  - `seriesKey='actual'` 实际回款(按 `crm_receivable.return_date` 月份 SUM actual_amount)
-  - `seriesKey='planned'` 理应回款(按 `crm_receivable_plan.expected_date` 月份 SUM expected_amount,过滤 is_deleted=0)
-  - 月份序列为两侧并集(无数据侧补 0),按月升序
+- `kpis[].overdueRate` 分子=expected_date < today 的 plan 数，分母=全部未回款 plan 数
+- `receivableCompare` 单对象（**phase8 commit1 起改为单对象，不再是按月 list**），含:
+  - `actualAmount` 实际回款总额（按 `crm_receivable.return_date IN [start, end]` SUM）
+  - `plannedAmount` 理应回款总额（按 `crm_receivable_plan.expected_date IN [start, end]` SUM，is_deleted=0）
+  - `gapAmount` 应回未回 = planned - actual（**负数表示超收**）
+  - `completionRate` 回款率 = actual / planned × 100%（planned=0 时返回 "0%"）
+  - `actualPercent` / `gapPercent` 饼图占比（0-1 之间，超收时归一化 actual=1, gap=0）
+- `contractStatusDistribution` **phase8 commit1 新增**：合同状态分布（4 状态），按 `crm_contract.status` GROUP BY count + sum(total_amount)：
+  - `key` 状态中文名（审批中 / 执行中 / 已结束 / 已作废）
+  - `count` 合同数
+  - `amount` 金额合计（toPlainString 格式）
+  - `percent` 占比
+
+**前端渲染（3 列布局）**
+
+| 图 | 标题 | 数据源 | 图表类型 |
+|---|---|---|---|
+| 图 1 | 回款率 | `receivableCompare.completionRate`（中心大数字）+ donut 占比 | donut + center label |
+| 图 2 | 实际回款 vs 应回未回 | `receivableCompare.actualAmount` + `gapAmount` | donut 带 legend |
+| 图 3 | 合同状态分布 | `contractStatusDistribution` 4 项 | 横向柱图（ChartBarH） |
 
 **业务码**：同 1.1
 

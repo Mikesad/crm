@@ -55,6 +55,10 @@ const userStore = useUserStore()
  *       产品 / 产品分类:全员 5 角色(D7 v0.4)
  *   - group 不再设 requiresRole,空子项组整组隐藏(hasVisibleChildren 实现)
  *
+ * phase8 commit1 修订:
+ *   - 产品从『系统设置』组移到『交易』组(合同/回款/产品 = 同一交易链)
+ *   - 系统设置组收缩为 角色 + 部门 2 项
+ *
  * icon 使用 Element Plus Icons（已在 main.js 全局注册）
  * perm 缺失则默认全部角色可见；存在则校验用户 permissions
  * badge 由业务模块通过 store 注入
@@ -79,7 +83,11 @@ const menuGroups = [
     label: '交易',
     children: [
       { path: '/contract/list', title: '合同', icon: 'Document' },
-      { path: '/contract/receivable', title: '回款', icon: 'Money' }
+      { path: '/contract/receivable', title: '回款', icon: 'Money' },
+      // phase8 commit1:产品从『系统设置』组移到『交易』组(合同/回款/产品 = 同一交易链)
+      // v0.5:产品分类已整合为产品库 Tab,不再单独是菜单项
+      // v0.7:产品图标从 Goods 改成 Box(包装盒,SaaS 产品更直观)
+      { path: '/product/list', title: '产品', icon: 'Box', perm: 'crm:product:list' }
     ]
   },
   {
@@ -94,11 +102,7 @@ const menuGroups = [
       // 角色 - admin + 销售总监(D3 v0.2)
       { path: '/system/role', title: '角色', icon: 'Avatar', perm: 'sys:user:list', requiresRole: ['admin', 'sales_director'] },
       // 阶段七 commit:部门管理 - admin + 销售总监(左侧部门树 + 右侧详情卡)
-      { path: '/system/dept', title: '部门', icon: 'OfficeBuilding', perm: 'sys:dept:list', requiresRole: ['admin', 'sales_director'] },
-      // 产品 - 全员(D7 v0.4 全员可见)
-      // v0.5:产品分类已整合为产品库 Tab,不再单独是菜单项
-      // v0.7:产品图标从 Goods 改成 Box(包装盒,SaaS 产品更直观)
-      { path: '/product/list', title: '产品', icon: 'Box', perm: 'crm:product:list' }
+      { path: '/system/dept', title: '部门', icon: 'OfficeBuilding', perm: 'sys:dept:list', requiresRole: ['admin', 'sales_director'] }
     ]
   }
 ]

@@ -5,9 +5,6 @@
         <div class="page-title">回款管理</div>
         <div class="page-sub">录入实际回款 · 系统自动联动回款计划与合同状态</div>
       </div>
-      <div v-if="hasPerm('crm:receivable:edit')">
-        <el-button :icon="Plus" class="btn-zen-primary" @click="openAdd">录入回款</el-button>
-      </div>
     </div>
 
     <!-- 阶段八 commit 11·2026-06-30:移除统计卡(本月回款笔数 / 本月合计 / 全部回款笔数 / 全部回款合计),
@@ -46,6 +43,7 @@
       </div>
       <div class="spacer" />
       <el-button @click="handleReset">重置</el-button>
+      <el-button v-if="hasPerm('crm:receivable:edit')" :icon="Plus" class="btn-zen-primary" @click="openAdd">录入回款</el-button>
     </div>
 
     <el-card class="table-card" v-loading="loading">
@@ -104,7 +102,7 @@
           <el-input-number v-model="form.amount" :min="0.01" :precision="2" :step="1000" style="width: 100%;" />
         </el-form-item>
         <el-form-item label="回款日期">
-          <el-date-picker v-model="form.returnDate" type="date" value-format="YYYY-MM-DD" style="width: 200px" />
+          <el-date-picker v-model="form.returnDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
         </el-form-item>
         <el-form-item label="支付方式">
           <el-select v-model="form.method" style="width: 100%;">

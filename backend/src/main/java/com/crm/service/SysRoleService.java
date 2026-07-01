@@ -309,10 +309,10 @@ public class SysRoleService {
         return switch (scope) {
             case 1 -> "全部";
             case 2 -> "自定义";
-            case 3 -> "本部门";
-            case 4 -> "本部门及以下";
+            case 3 -> "本部门组";
             case 5 -> "仅本人";
-            default -> "未知";
+            // phase8 commit1 拆档:data_scope=4 已废弃,DB 历史值兜底显示"未知"
+            default -> "未知(已废弃)";
         };
     }
 }

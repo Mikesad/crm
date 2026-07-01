@@ -5,9 +5,6 @@
         <div class="page-title">商机管理</div>
         <div class="page-sub">共 {{ total }} 个商机 · 商机总金额 ¥ {{ formatAmount(totalAmount) }}</div>
       </div>
-      <div>
-        <el-button :icon="Plus" class="btn-zen-primary" @click="handleCreate">新建商机</el-button>
-      </div>
     </div>
 
     <div class="layout">
@@ -23,6 +20,7 @@
           <div class="spacer" />
           <el-button :icon="Search" @click="handleSearch">查询</el-button>
           <el-button :icon="Download" @click="handleExport">导出</el-button>
+          <el-button :icon="Plus" class="btn-zen-primary" @click="handleCreate">新建商机</el-button>
         </div>
 
         <el-card class="table-card" v-loading="loading">
@@ -115,7 +113,7 @@
           <el-input v-model="editing.expectedAmount" placeholder="如：2400000.00" />
         </el-form-item>
         <el-form-item label="预计结单日期">
-          <el-date-picker v-model="editing.expectedDealDate" type="date" value-format="YYYY-MM-DD" placeholder="请选择日期" style="width: 200px" />
+          <el-date-picker v-model="editing.expectedDealDate" type="date" value-format="YYYY-MM-DD" placeholder="请选择日期" style="width: 100%" />
         </el-form-item>
       </el-form>
       <template #footer>

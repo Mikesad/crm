@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
  * 合同接口
  *
  * <p>状态机: 0 审批中 → 1 执行中 → 2 已结束; 0 → 3 已作废(驳回)
- * 由本接口创建 → {@code ApprovalService.approve/reject} 流转 → {@code ReceivableEventListener} 收尾。</p>
+ * 状态流转由 {@code ReceivableEventListener}（全部回款完成 → 已结束）触发,审批中→执行中由销售总监在详情页手动改。</p>
  */
 @Tag(name = "08. 合同管理", description = "合同 CRUD + 金额重算 + 折扣审批触发")
 @RestController
@@ -44,7 +44,7 @@ public class ContractController {
     }
 
     @Operation(summary = "创建合同",
-        description = "后端按明细实时核算金额,折扣 < 8.5 折时自动进入审批中 + 写 crm_approval")
+        description = "后端按明细实时核算金额,折扣 < 8.5 折时合同 status=0 (审批中) 由销售总监手动复核")
     @SaCheckPermission("crm:contract:edit")
     @PostMapping
     public Result<Long> create(@Valid @RequestBody ContractCreateRequest req) {

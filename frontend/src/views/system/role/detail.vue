@@ -226,11 +226,12 @@ const flatMatrix = computed(() => {
   return rows
 })
 
+// 数据范围 4 档(phase8 commit1 拆档: 删 value=4),标签与后端 SysRoleService.dataScopeText() 一致
 const scopeOptions = [
-  { label: '全部数据', value: 1, disabled: false },
-  { label: '本部门数据', value: 3, disabled: false },
-  { label: '仅本人数据', value: 5, disabled: false },
-  { label: '指定部门数据(V1 暂未启用)', value: 2, disabled: true }
+  { label: '全部', value: 1, disabled: false },
+  { label: '自定义(暂未启用)', value: 2, disabled: true },
+  { label: '本部门组', value: 3, disabled: false },
+  { label: '仅本人', value: 5, disabled: false }
 ]
 
 const tab = ref('permission')  // v0.4 收尾:只剩 1 个 Tab,固定值

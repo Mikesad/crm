@@ -380,10 +380,12 @@ function onSharedOk() {
 // ---------- 工具函数 ----------
 const followText = (t) => {
   if (!t) return '从未跟进'
-  const days = dayjs().diff(dayjs(t), 'day')
-  if (days < 1) return '今天'
-  if (days < 7) return days + ' 天前'
-  return dayjs(t).format('MM-DD')
+  const d = dayjs(t)
+  const days = dayjs().diff(d, 'day')
+  // phase8 commit1:详细到时分秒 — 相对语义保留,拼接绝对时间
+  if (days < 1) return `今天 ${d.format('HH:mm')}`                // 今天 14:32
+  if (days < 7) return `${days} 天前 ${d.format('MM-DD HH:mm')}`    // 3 天前 06-27 09:15
+  return d.format('YYYY-MM-DD HH:mm')                              // 2026-05-10 15:00
 }
 const followClass = (t) => {
   if (!t) return ''

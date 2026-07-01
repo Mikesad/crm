@@ -17,7 +17,6 @@
 | 07 产品管理 | [product.md](./product.md) | 5 | stable | 2026-06-29 |
 | 07b 产品分类 | [product-category.md](./product-category.md) | 5 | stable | 2026-06-29 |
 | 08 合同管理 | [contract.md](./contract.md) | 5 | stable | 2026-06-27 |
-| 09 合同审批 | [approval.md](./approval.md) | 3 | stable | 2026-06-27 |
 | 10 回款计划 | [receivable-plan.md](./receivable-plan.md) | 5 | stable | 2026-06-27 |
 | 11 回款管理 | [receivable.md](./receivable.md) | 3 | stable | 2026-06-27 |
 | 12 报表中心 | [report.md](./report.md) | 11 | stable | 2026-06-30 |
@@ -110,11 +109,10 @@ Authorization: <Sa-Token token>
 |:---|:---|:---|
 | `crm:product:list` | admin / director / lead / sales / finance | 产品列表,公共资源 |
 | `crm:product:edit` | admin / director / sales | 产品编辑 |
-| `crm:contract:approve` | admin / director | 合同审批 (销售总监专用) |
 | `crm:receivable:edit` | admin / finance | 回款编辑 (财务录入) |
 | `crm:receivable_plan:edit` | admin / director / lead / sales | 回款计划编辑 (销售录入) |
 
-**已初始化数据库的迁移**：见 `sql/migrations/phase3-approval-and-plan-soft-delete.sql`（含 crm_approval 新表 + crm_receivable_plan 补 5 字段 + 5 菜单幂等插入 + 角色权限重绑）。
+**已初始化数据库的迁移**：见 `sql/migrations/phase3-approval-and-plan-soft-delete.sql`（crm_receivable_plan 补 5 字段 + crm_product 补 3 字段 + 4 菜单幂等插入 + 角色权限重绑;phase8 commit1 已剔除 crm_approval）。
 
 ## 阶段四新增权限码
 

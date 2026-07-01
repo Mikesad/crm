@@ -8,7 +8,7 @@
 - **所需权限**：`crm:contract:list`（查询）/ `crm:contract:edit`（创建/更新/删除）
 - **数据权限**：受 `dataScope` 拦截（`CrmDataPermissionHandler.MANAGED_TABLES` 已含 `crm_contract`）
 - **状态机**：`0 审批中` → `1 执行中` → `2 已结束`；`0` → `3 已作废`（驳回）
-- **核心业务**：`create()` 按明细 `sales_price = standard_price × discount / 10` 反推，校验与前端 `totalAmount` 误差 ≤ 0.01；最低折扣 < 8.5 折时 status=0 + 写 `crm_approval` 自动进入审批
+- **核心业务**：`create()` 按明细 `sales_price = standard_price × discount / 10` 反推，校验与前端 `totalAmount` 误差 ≤ 0.01；最低折扣 < 8.5 折时 `status=0` (审批中) 留痕，由销售总监在合同详情页手动复核
 
 ---
 
@@ -156,7 +156,7 @@ curl -X GET 'http://localhost:8080/api/crm/contract/page?status=1&pageNum=1&page
 - 路径：`/api/crm/contract`
 - 权限：`crm:contract:edit`
 - **金额防篡改**：`totalAmount` 必须等于后端按明细重算结果，误差 ≤ 0.01
-- **折扣自动审批**：明细中最低折扣 < 8.5 折时 `status=0` 并自动创建 `crm_approval` 待总监审批
+- **折扣留痕**：明细中最低折扣 < 8.5 折时 `status=0` (审批中)，需销售总监在合同详情页手动改 1（无独立 `crm_approval` 表）
 
 **请求参数（body）**
 
@@ -215,8 +215,7 @@ curl -X POST 'http://localhost:8080/api/crm/contract' \
 
 **特殊行为：折扣 < 8.5 折时**
 
-- `crm_contract.status = 0`（审批中）
-- 自动创建 `crm_approval`（status=0 待审，trigger_reason = "折扣 X.XX 折,低于 8.50 折审批线"）
+- `crm_contract.status = 0`（审批中，留痕后由销售总监在合同详情页手动复核）
 - 响应 `data` 仍为合同 ID，业务无感知
 
 ---
@@ -228,7 +227,7 @@ curl -X POST 'http://localhost:8080/api/crm/contract' \
 - 路径：`/api/crm/contract`
 - 权限：`crm:contract:edit`
 - **V1 限制**：仅允许修改 `contractName` / `startDate` / `endDate`；明细不允许修改（防止金额绕过重算）
-- 状态流转由 `ApprovalService`（通过/驳回）和 `ReceivableEventListener`（全部回款完成）触发
+- 状态流转由 `ReceivableEventListener`（全部回款完成 → 已结束）触发；审批中→执行中由销售总监在合同详情页手动改
 
 **请求参数（body）**
 
@@ -262,7 +261,7 @@ curl -X POST 'http://localhost:8080/api/crm/contract' \
 - 方法：DELETE
 - 路径：`/api/crm/contract/{id}`
 - 权限：`crm:contract:edit`
-- **逻辑删除**：`is_deleted` 置 1，关联 `crm_contract_product` / `crm_approval` 不级联（append-only）
+- **逻辑删除**：`is_deleted` 置 1，关联 `crm_contract_product` 不级联（append-only）
 
 **请求参数（path）**
 

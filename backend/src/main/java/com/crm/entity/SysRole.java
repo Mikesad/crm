@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 /**
  * 系统角色
  *
- * <p>{@code dataScope} 取值：1 全部 / 2 自定义 / 3 本部门 / 4 本部门及以下 / 5 仅本人。</p>
+ * <p>{@code dataScope} 取值：1 全部 / 2 自定义 / 3 本部门组 / 4 已废弃 / 5 仅本人（phase8 commit1 拆档）。</p>
  */
 @Data
 @TableName("sys_role")
@@ -34,8 +34,8 @@ public class SysRole implements Serializable {
      * <ul>
      *   <li>1 - 全部</li>
      *   <li>2 - 自定义（暂未实现，留扩展）</li>
-     *   <li>3 - 本部门</li>
-     *   <li>4 - 本部门及以下</li>
+     *   <li>3 - 本部门组（我的部门 + 同 parent_id 的所有兄弟部门）</li>
+     *   <li>4 - 已废弃（phase8 commit1 拆档，DB 历史值会被代码兜底为仅本人）</li>
      *   <li>5 - 仅本人</li>
      * </ul>
      */

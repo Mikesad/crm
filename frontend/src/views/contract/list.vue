@@ -5,9 +5,6 @@
         <div class="page-title">合同管理</div>
         <div class="page-sub">共 {{ total }} 份合同 · 执行中 {{ activeCount }} · 审批中 {{ pendingCount }} · 已结束 {{ doneCount }}</div>
       </div>
-      <div v-if="hasPerm('crm:contract:edit')">
-        <el-button :icon="Plus" class="btn-zen-primary" @click="goSubmit">新建合同</el-button>
-      </div>
     </div>
 
     <div class="toolbar">
@@ -23,6 +20,7 @@
       <div class="spacer" />
       <el-button :icon="Search" @click="handleSearch">查询</el-button>
       <el-button @click="handleReset">重置</el-button>
+      <el-button v-if="hasPerm('crm:contract:edit')" :icon="Plus" class="btn-zen-primary" @click="goSubmit">新建合同</el-button>
     </div>
 
     <el-card class="table-card" v-loading="loading">

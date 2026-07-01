@@ -31,7 +31,6 @@ public enum ResultCode {
     PLAN_NOT_BELONG_CONTRACT(3003, "回款计划不属于该合同"),
     CONTRACT_NOT_IN_EXECUTION(3004, "合同非执行中,不能录入"),
     PLAN_ALREADY_PAID(3005, "已回款的计划不能操作"),
-    APPROVAL_NOT_PENDING(3006, "该审批单已处理,不能重复操作"),
     CONTRACT_CANNOT_UPDATE(3007, "已结束/已作废的合同不能修改"),
 
     // ---- 阶段四客户共享/公海池专用业务码 (1004-1008) ----

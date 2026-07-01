@@ -82,8 +82,8 @@ backend/src/main/java/com/crm/
 | 角色 | role_key | data_scope |
 | :--- | :--- | :--- |
 | 系统管理员 | `admin` | 1 全部 |
-| 销售总监 | `sales_director` | 4 本部门及以下 |
-| 销售主管 | `sales_lead` | 3 本部门 |
+| 销售总监 | `sales_director` | 3 本部门组 |
+| 销售主管 | `sales_lead` | 3 本部门组 |
 | 普通销售 | `sales` | 5 仅本人 |
 | 财务人员 | `finance` | 1 全部（仅合同/财务） |
 

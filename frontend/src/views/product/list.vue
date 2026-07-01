@@ -15,10 +15,8 @@
         </div>
       </div>
       <div v-if="activeTab === 'product' && hasPerm('crm:product:edit')">
-        <el-button :icon="Plus" class="btn-zen-primary" @click="handleCreate">新建产品</el-button>
       </div>
       <div v-else-if="hasPerm('crm:product:category:edit')">
-        <el-button :icon="Plus" class="btn-zen-primary" @click="handleCreateCategory">新建分类</el-button>
       </div>
     </div>
 
@@ -48,6 +46,7 @@
         <div class="spacer" />
         <el-button :icon="Search" @click="handleSearch">查询</el-button>
         <el-button @click="handleReset">重置</el-button>
+        <el-button v-if="hasPerm('crm:product:edit')" :icon="Plus" class="btn-zen-primary" @click="handleCreate">新建产品</el-button>
       </div>
 
       <el-card class="table-card" v-loading="loading">
@@ -183,6 +182,7 @@
         <div class="spacer" />
         <el-button :icon="Search" @click="handleCatSearch">查询</el-button>
         <el-button @click="handleCatReset">重置</el-button>
+        <el-button v-if="hasPerm('crm:product:category:edit')" :icon="Plus" class="btn-zen-primary" @click="handleCreateCategory">新建分类</el-button>
       </div>
 
       <el-card class="table-card" v-loading="catLoading">

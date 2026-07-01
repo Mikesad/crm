@@ -11,7 +11,7 @@ import java.time.LocalDate;
  * 更新合同请求
  *
  * <p>V1 仅允许修改合同名称/起止日期，明细不允许修改（防止金额被绕过重算）。
- * 状态流转由 {@code ApprovalService}（审批通过/驳回）和 {@code ReceivableEventListener}（全部回款完成）触发。</p>
+ * 状态流转由 {@code ReceivableEventListener}（全部回款完成）触发;审批中→执行中由销售总监在合同详情页手动改。</p>
  */
 @Data
 @Schema(description = "更新合同请求")

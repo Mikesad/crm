@@ -17,7 +17,7 @@ import java.util.List;
  *
  * <p>前端传 {@code totalAmount}，后端按明细实时重算（{@code sales_price = standard_price * discount / 10}），
  * 误差 > 0.01 视为篡改直接拒绝。
- * 最低折扣 &lt; 8.5 折时合同 status=0 (审批中) 并自动创建 crm_approval 待总监审批。</p>
+ * 最低折扣 &lt; 8.5 折时合同 status=0 (审批中,留痕后由销售总监手动复核,无独立 crm_approval 表)。</p>
  */
 @Data
 @Schema(description = "创建合同请求")

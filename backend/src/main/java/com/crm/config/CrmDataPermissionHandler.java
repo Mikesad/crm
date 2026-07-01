@@ -18,12 +18,17 @@ import java.util.Set;
  * <p>按当前用户的 {@code dataScope} 自动给受控表的查询 / 更新 / 删除 SQL 拼接 WHERE 条件：</p>
  * <ul>
  *   <li>1 全部 - 不加条件</li>
- *   <li>3 本部门 - {@code owner_user_id IN (SELECT id FROM sys_user WHERE dept_id = ?)}</li>
- *   <li>4 本部门及以下 - 同上，dept 集合包含子部门（按 sys_dept.ancestors）</li>
+ *   <li>3 本部门组 - {@code owner_user_id IN (SELECT id FROM sys_user WHERE dept_id IN
+ *       (SELECT id FROM sys_dept WHERE id = ? OR parent_id = (SELECT parent_id FROM sys_dept WHERE id = ?)))}
+ *       <br>即"我的部门 + 同 parent_id 的所有兄弟部门"</li>
  *   <li>5 仅本人 - {@code owner_user_id = ?}（阶段四起 crm_customer 扩展为
  *       {@code owner_user_id = ? OR id IN (crm_customer_share) OR is_public = 1}）</li>
  *   <li>2 自定义 - 暂按 5 处理，后续在 sys_role_custom_dept 表实现</li>
  * </ul>
+ *
+ * <p>phase8 commit1 修订：删除原 scope=4『本部门及以下』档。理由：与 scope=3『本部门组』在叶子部门
+ * 上等价（叶子无子部门），反而让 sales_director 必须依赖一档现已无意义的值。sales_director 改用 scope=3，
+ * 在 dept=总公司 时 parent_id=0 的兄弟部门覆盖全部顶级部门，等价于"看全部销售"语义。</p>
  *
  * <p>读取 {@link UserContext} 中的 session 字段，<b>0 次 DB 命中</b>。</p>
  *
@@ -44,7 +49,7 @@ public class CrmDataPermissionHandler implements DataPermissionHandler {
      * (contact 强依赖 customerId,record 强依赖 related_id+related_type,
      * 父表已被本拦截器过滤,子表跟着走)。</p>
      *
-     * <p>仍不含(无 owner_user_id): crm_approval / crm_receivable / crm_receivable_plan,
+     * <p>仍不含(无 owner_user_id): crm_receivable / crm_receivable_plan,
      * 权限靠 @SaCheckPermission 兜底;receivable 通过 contract 间接走数据权限。</p>
      */
     private static final Set<String> MANAGED_TABLES = new HashSet<>(Arrays.asList(
@@ -54,7 +59,8 @@ public class CrmDataPermissionHandler implements DataPermissionHandler {
             "crm_contract"
             // V1 不含: crm_contact(无 owner_user_id,信任父 customer),
             //          crm_record(无 owner_user_id,信任 related_id 对应的父表),
-            //          crm_approval / crm_receivable / crm_receivable_plan
+            //          crm_receivable / crm_receivable_plan
+            // phase8 commit1: crm_approval 表已拆掉
     ));
 
     /**
@@ -135,17 +141,16 @@ public class CrmDataPermissionHandler implements DataPermissionHandler {
                     log.warn("data_scope=2 (自定义) 暂未实现，按仅本人处理。请后续在 sys_role_custom_dept 表落地。");
                     return parse("owner_user_id = " + userId);
                 case 3:
-                    if (deptId == null) return parse("owner_user_id = " + userId);
-                    return parse("owner_user_id IN (SELECT id FROM sys_user WHERE dept_id = " + deptId + ")");
-                case 4:
+                    // 本部门组:我的部门 + 同 parent_id 的所有兄弟部门
                     if (deptId == null) return parse("owner_user_id = " + userId);
                     return parse("owner_user_id IN (SELECT id FROM sys_user WHERE dept_id IN " +
                             "(SELECT id FROM sys_dept WHERE id = " + deptId +
-                            " OR FIND_IN_SET(" + deptId + ", ancestors)))");
+                            " OR parent_id = (SELECT parent_id FROM (SELECT * FROM sys_dept) d WHERE d.id = " + deptId + ")))");
                 case 5:
                     return buildScopeForReadonly(userId, table);
                 default:
-                    log.warn("未知 data_scope={}，按仅本人处理", scope);
+                    // 含历史 data_scope=4(本部门及以下,phase8 拆档) — 一律兜底为仅本人
+                    log.warn("未知或已废弃 data_scope={}，按仅本人处理", scope);
                     return parse("owner_user_id = " + userId);
             }
         } catch (Exception e) {

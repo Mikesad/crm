@@ -8,6 +8,8 @@ import com.crm.common.exception.BusinessException;
 import com.crm.common.result.ResultCode;
 import com.crm.dto.CustomerCreateRequest;
 import com.crm.dto.CustomerQueryRequest;
+import com.crm.entity.CrmCustomerShare;
+import com.crm.mapper.CrmCustomerShareMapper;
 import com.crm.dto.CustomerUpdateRequest;
 import com.crm.entity.CrmCustomer;
 import com.crm.entity.CrmRecord;
@@ -45,6 +47,7 @@ public class CustomerService {
     private final CrmCustomerMapper customerMapper;
     private final CrmRecordMapper recordMapper;
     private final CustomerShareService shareService;
+    private final CrmCustomerShareMapper shareMapper;
     private final SysUserMapper userMapper;
 
     public IPage<CustomerVO> page(CustomerQueryRequest query) {
@@ -86,8 +89,32 @@ public class CustomerService {
         IPage<CrmCustomer> result = customerMapper.selectPage(page, wrapper);
 
         Map<Long, String> ownerNameMap = buildOwnerNameMap(result.getRecords());
+        // phase8 commit1 修复:批量查"被共享给当前登录用户"的客户 id 集合,返回前端用于 ownerBadgeText 判定
+        Set<Long> sharedIds = batchQuerySharedIds(result.getRecords());
         Map<Long, String> finalMap = ownerNameMap;
-        return result.convert(c -> toVO(c, finalMap));
+        return result.convert(c -> {
+            CustomerVO vo = toVO(c, finalMap);
+            vo.setSharedToMe(sharedIds.contains(c.getId()));
+            return vo;
+        });
+    }
+
+    /**
+     * 阶段八 commit1 修复:批量查当前登录用户被共享的客户 id 集合
+     * <p>前端 ownerBadgeText 兜底分支之前错把所有"非自己 own"标"共享给我",
+     * 改为按此 Set 判定,避免误显示。一次 IN 查询,N+1 → 1。</p>
+     */
+    private Set<Long> batchQuerySharedIds(java.util.List<CrmCustomer> customers) {
+        if (customers.isEmpty()) return Collections.emptySet();
+        Long uid = UserContext.requireUserId();
+        List<Long> ids = customers.stream().map(CrmCustomer::getId).collect(Collectors.toList());
+        // 拼 inSql: SELECT customer_id FROM crm_customer_share WHERE user_id = ? AND customer_id IN (...)
+        String inList = ids.stream().map(String::valueOf).collect(Collectors.joining(","));
+        com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<CrmCustomerShare> qw =
+                new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<>();
+        qw.select("customer_id").eq("user_id", uid).inSql("customer_id", inList);
+        List<CrmCustomerShare> rows = shareMapper.selectList(qw);
+        return rows.stream().map(CrmCustomerShare::getCustomerId).collect(Collectors.toSet());
     }
 
     /**

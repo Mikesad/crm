@@ -79,11 +79,10 @@
           <el-col :span="12">
             <el-form-item label="数据范围" prop="dataScope">
               <el-select v-model="editing.dataScope" style="width: 100%">
-                <el-option label="1 - 全部" :value="1" />
-                <el-option label="2 - 自定义(暂未启用)" :value="2" disabled />
-                <el-option label="3 - 本部门" :value="3" />
-                <el-option label="4 - 本部门及以下" :value="4" />
-                <el-option label="5 - 仅本人" :value="5" />
+                <el-option label="全部" :value="1" />
+                <el-option label="自定义(暂未启用)" :value="2" disabled />
+                <el-option label="本部门组" :value="3" />
+                <el-option label="仅本人" :value="5" />
               </el-select>
               <div class="help">决定本角色用户能看哪些数据</div>
             </el-form-item>
@@ -149,7 +148,7 @@ function handleReset() { query.keyword = ''; query.pageNum = 1; loadList() }
 function goDetail(row) { router.push(`/system/role/${row.id}`) }
 
 const editVisible = ref(false); const saving = ref(false); const editFormRef = ref(null)
-const editing = reactive({ id: null, roleName: '', roleKey: '', dataScope: 4, status: 1 })
+const editing = reactive({ id: null, roleName: '', roleKey: '', dataScope: 3, status: 1 })
 const editRules = {
   roleName: [{ required: true, message: '请输入角色名', trigger: 'blur' }],
   roleKey: [
@@ -159,7 +158,7 @@ const editRules = {
   dataScope: [{ required: true, message: '请选择数据范围', trigger: 'change' }]
 }
 function resetEditForm() {
-  editing.id = null; editing.roleName = ''; editing.roleKey = ''; editing.dataScope = 4; editing.status = 1
+  editing.id = null; editing.roleName = ''; editing.roleKey = ''; editing.dataScope = 3; editing.status = 1
   editFormRef.value?.clearValidate()
 }
 function handleCreate() { resetEditForm(); editVisible.value = true }
