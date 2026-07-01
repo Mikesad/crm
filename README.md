@@ -1,6 +1,6 @@
 # 🌲 ZenCRM — 智能企业 CRM（B2B）
 
-**线索 → 客户 → 商机 → 合同 → 回款** 全生命周期的轻量级企业级 CRM 系统，配合claude code耗时4天完成。
+**线索 → 客户 → 商机 → 合同 → 回款** 全生命周期的轻量级企业级 CRM 系统，本人配合claude code + minimax-M3 工耗时4天完成。
 
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2.5-6DB33F?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
 [![JDK](https://img.shields.io/badge/JDK-17-ED8B00?logo=openjdk&logoColor=white)](https://openjdk.org/)
@@ -180,13 +180,6 @@ npm run dev
 
 访问 **http://localhost:5173** 即可。开发服务器已配置 `/api` 代理到 `:8080`。
 
-5️⃣ 生产打包
-# 后端产物：backend/target/crm-backend.jar
-mvn clean package -DskipTests
-
-# 前端产物：frontend/dist/（Nginx 静态托管即可）
-npm run build
-
 ## 👤 默认账号
 
 | 账号                      | 角色       | 密码     | 数据范围        |
@@ -240,6 +233,11 @@ git push origin feat/phase9-wechat-integration
 
 ---
 
+
+## 📞联系方式
+如果你对我的作品感兴趣，想交流，合作请加 wx:17711529010
+
+
 <div align="center">
 
 
@@ -247,5 +245,6 @@ git push origin feat/phase9-wechat-integration
 有问题或建议请提 [Issue](../../issues) 或 [PR](../../pulls)。
 
 <sub>Built with ❤️ by ZenCRM Team · 2026</sub>
+
 
 </div>
