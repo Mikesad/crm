@@ -9,7 +9,6 @@
 [![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com/)
 [![License](https://img.shields.io/badge/license-MIT-166534)](#许可证)
 
-[功能特性](#-功能特性) · [快速部署](#-快速部署) · [演示账号](#-默认账号) · [目录结构](#-目录结构) · [API 文档](#-接口文档) · [路线图](#-路线图)
 
 </div>
 
@@ -18,6 +17,10 @@
 **ZenCRM** 是一套面向 B2B 业务场景的智能企业 CRM 系统，从最前端的**线索录入**到最终的**回款核销**形成完整业务闭环。系统采用前后端分离架构：后端基于 Spring Boot 3 + Sa-Token + MyBatis-Plus，前端基于 Vue 3 + Element Plus + ECharts，开箱即用、单体部署友好，适合作为企业销售管理数字化基座，或作为 Java 全栈学习项目参考。
 
 > 整套系统已经过 8 个开发阶段、累计 18 个 Controller + 31 个前端视图 + 13 份 SQL 迁移脚本的端到端验证。
+
+项目截图
+<img width="1920" height="906" alt="image" src="https://github.com/user-attachments/assets/04576996-78cb-48fd-9c35-151da0524b8b" />
+
 
 ## 🎯 核心亮点
 
