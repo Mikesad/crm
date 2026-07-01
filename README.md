@@ -1,6 +1,6 @@
 # 🌲 ZenCRM — 智能企业 CRM（B2B）
 
-**线索 → 客户 → 商机 → 合同 → 回款** 全生命周期的轻量级企业级 CRM 系统。
+**线索 → 客户 → 商机 → 合同 → 回款** 全生命周期的轻量级企业级 CRM 系统，配合claude code耗时4天完成。
 
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.2.5-6DB33F?logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
 [![JDK](https://img.shields.io/badge/JDK-17-ED8B00?logo=openjdk&logoColor=white)](https://openjdk.org/)
@@ -20,6 +20,10 @@
 
 项目截图
 <img width="1920" height="906" alt="image" src="https://github.com/user-attachments/assets/04576996-78cb-48fd-9c35-151da0524b8b" />
+<img width="1640" height="837" alt="image" src="https://github.com/user-attachments/assets/79e76143-3503-4d05-8c3b-26d3cc021a78" />
+<img width="1919" height="917" alt="image" src="https://github.com/user-attachments/assets/6a93ed92-6a37-4420-af2c-78782d8f283a" />
+
+
 
 
 ## 🎯 核心亮点
